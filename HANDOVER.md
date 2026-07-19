@@ -2,6 +2,8 @@
 
 > v70–v77: 2D zoom tới z20 (~0,15 m/px) với vá tile cha + hẻm Overpass; **3D nhận toàn bộ chi tiết thật** — drape texture 2304² (thay vertex-color) + lớp detail động nạp live-tile z13→19 theo khoảng cách camera (kiểu Google Earth), ghé sát tới 1,2 đơn vị; tile lỗi mạng tự retry + tự lành sau 30 s.
 
+> **Reference chuẩn về dữ liệu & chỉnh sửa: xem `DATA_AND_METHODS.md`** (kiểm kê thật/tổng hợp, pipeline dựng demo, bảng "muốn chỉnh gì sửa ở đâu", quy tắc chống thoái lui).
+
 ## Chạy ngay
 - **Double-click `index.html`** (Chrome/Edge/Safari). Cần internet lần đầu để tải Three.js + bản đồ thật (~5–15 s, hiện "tải DEM…"); offline vẫn chạy đủ tính năng với bản đồ procedural.
 - Deep-link: `index.html#tour` (tự trình diễn 60 s) · `#2d` · `#focus` (toàn bản đồ) · `#yagi` · `#monsoon` · `#en`.
