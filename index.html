@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="vi" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#06121d" />
+  <title>FloodTwin — Vu Gia–Thu Bồn Digital Twin</title>
+  <meta name="description" content="FloodTwin Q1 demo — uncertainty-aware, regulation-grounded flood & reservoir digital twin with real-time flood–traffic simulation (Vu Gia–Thu Bồn)." />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌊</text></svg>" />
+  <link rel="stylesheet" href="./styles.css?v=2" />
+</head>
+<body>
+  <div id="app" class="app">
+
+    <!-- ============ TOP BAR ============ -->
+    <header class="topbar">
+      <div class="brand">
+        <div class="brandMark" aria-hidden="true"><span>FT</span></div>
+        <div class="brandText">
+          <h1>FloodTwin <span class="brandBasin">Vu Gia – Thu Bồn</span></h1>
+          <p data-i18n="tagline">Bản sao số lũ &amp; liên hồ chứa · nhận thức bất định · nền tảng pháp quy</p>
+        </div>
+      </div>
+
+      <div class="kpiStrip" id="kpiStrip" role="status">
+        <div class="kpi" id="kpiAlert">
+          <span class="kpiLabel" data-i18n="kpi.alert">Cảnh báo lưu vực</span>
+          <strong class="kpiValue" id="kpiAlertValue">—</strong>
+        </div>
+        <div class="kpi">
+          <span class="kpiLabel" data-i18n="kpi.rain">Mưa lưu vực</span>
+          <strong class="kpiValue" id="kpiRainValue">— mm/h</strong>
+        </div>
+        <div class="kpi">
+          <span class="kpiLabel" data-i18n="kpi.gauge">Ái Nghĩa</span>
+          <strong class="kpiValue" id="kpiGaugeValue">— m</strong>
+        </div>
+        <div class="kpi">
+          <span class="kpiLabel" data-i18n="kpi.roads">Mạng đường thông</span>
+          <strong class="kpiValue" id="kpiRoadsValue">—%</strong>
+        </div>
+        <div class="kpi" id="kpiZones">
+          <span class="kpiLabel" data-i18n="kpi.zones">KV nguy cơ/khẩn cấp</span>
+          <strong class="kpiValue" id="kpiZonesValue">0 / 0</strong>
+        </div>
+        <div class="kpi">
+          <span class="kpiLabel" data-i18n="kpi.leadtime">Lead time hiệu dụng</span>
+          <strong class="kpiValue" id="kpiLeadValue">+48 h</strong>
+        </div>
+      </div>
+
+      <div class="topActions">
+        <label class="scenarioSelect">
+          <span data-i18n="scenario.label">Kịch bản</span>
+          <select id="scenarioSelect" aria-label="Scenario">
+            <option value="oct2020" data-i18n="scenario.oct2020">Lũ tháng 10/2020 (lịch sử)</option>
+            <option value="yagi" data-i18n="scenario.yagi">Siêu bão kiểu Yagi (cực đoan)</option>
+            <option value="monsoon" data-i18n="scenario.monsoon">Gió mùa trung bình</option>
+          </select>
+        </label>
+        <div class="policyToggle" id="policyToggle" role="group" aria-label="Operating policy">
+          <button type="button" data-policy="rule" class="isActive" data-i18n="policy.rule">Rule curve tĩnh</button>
+          <button type="button" data-policy="mpc" data-i18n="policy.mpc">FloodTwin MPC</button>
+        </div>
+        <button class="langToggle tourBtn" id="btnTour" type="button">🎬 <span data-i18n="tour.btn">Trình diễn</span></button>
+        <button class="langToggle" id="langToggle" type="button" aria-label="Language">VI / <b>EN</b></button>
+      </div>
+    </header>
+
+    <!-- ============ LEFT RAIL ============ -->
+    <aside class="rail railLeft" id="railLeft">
+      <section class="panel">
+        <div class="panelTitle">
+          <span data-i18n="panel.forcing">Cưỡng bức khí tượng</span>
+          <strong id="forcingSource">GenCast · IMERG</strong>
+        </div>
+        <label class="control">
+          <span data-i18n="ctl.rainScale">Hệ số mưa (× ensemble)</span>
+          <input id="rainScale" type="range" min="50" max="160" value="100" />
+          <em id="rainScaleVal">1.00×</em>
+        </label>
+        <label class="control">
+          <span data-i18n="ctl.ensSpread">Độ mở ensemble</span>
+          <input id="ensSpread" type="range" min="40" max="180" value="100" />
+          <em id="ensSpreadVal">1.00×</em>
+        </label>
+        <div class="miniNote" data-i18n="ctl.note">Chuỗi GraphCast/GenCast + IMERG hiệu chỉnh — dữ liệu tổng hợp minh hoạ.</div>
+      </section>
+
+      <section class="panel zonesPanel">
+        <div class="panelTitle">
+          <span data-i18n="panel.zones">Khu vực giám sát</span>
+          <strong id="zonesSummary">—</strong>
+        </div>
+        <div class="zoneList" id="zoneList"></div>
+      </section>
+
+      <section class="panel">
+        <div class="panelTitle">
+          <span data-i18n="panel.layers">Lớp hiển thị</span>
+          <strong id="viewModeTag">3D</strong>
+        </div>
+        <div class="layerGrid" id="layerToggles">
+          <label class="toggle"><input type="checkbox" checked data-layer="water" /><span data-i18n="layer.water">Mặt nước / ngập</span></label>
+          <label class="toggle"><input type="checkbox" checked data-layer="flow" /><span data-i18n="layer.flow">Hạt dòng chảy</span></label>
+          <label class="toggle"><input type="checkbox" checked data-layer="traffic" /><span data-i18n="layer.traffic">Giao thông</span></label>
+          <label class="toggle"><input type="checkbox" checked data-layer="roads" /><span data-i18n="layer.roads">Trạng thái đường</span></label>
+          <label class="toggle"><input type="checkbox" checked data-layer="gauges" /><span data-i18n="layer.gauges">Trạm thủy văn</span></label>
+          <label class="toggle"><input type="checkbox" checked data-layer="reservoirs" /><span data-i18n="layer.reservoirs">Hồ chứa / đập</span></label>
+          <label class="toggle"><input type="checkbox" checked data-layer="rain" /><span data-i18n="layer.rain">Mưa</span></label>
+          <label class="toggle"><input type="checkbox" checked data-layer="labels" /><span data-i18n="layer.labels">Nhãn địa danh</span></label>
+          <label class="toggle"><input type="checkbox" checked data-layer="zones" /><span data-i18n="layer.zones">Vòng khu vực</span></label>
+          <label class="toggle"><input type="checkbox" checked data-layer="bldg" /><span data-i18n="layer.bldg">Tòa nhà</span></label>
+          <label class="toggle"><input type="checkbox" checked data-layer="impact" /><span data-i18n="layer.impact">Tác động dân cư</span></label>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panelTitle"><span data-i18n="panel.legend">Chú giải</span><strong id="legendDepthMax">0–4 m</strong></div>
+        <div class="legendBlock">
+          <span class="legendCaption" data-i18n="legend.depth">Độ sâu ngập (m)</span>
+          <div class="depthRamp" aria-hidden="true"></div>
+          <div class="depthTicks"><span>0.15</span><span>0.5</span><span>1</span><span>2</span><span>2+ m</span></div>
+        </div>
+        <div class="legendBlock">
+          <span class="legendCaption" data-i18n="legend.road">Khả năng lưu thông</span>
+          <div class="legendRows">
+            <div><i class="dot" style="--c:var(--road-open)"></i><span data-i18n="road.open">Thông suốt</span></div>
+            <div><i class="dot" style="--c:var(--road-caution)"></i><span data-i18n="road.caution">Chú ý (&lt;15 cm)</span></div>
+            <div><i class="dot" style="--c:var(--road-risk)"></i><span data-i18n="road.risk">Hạn chế (15–30 cm)</span></div>
+            <div><i class="dot" style="--c:var(--road-closed)"></i><span data-i18n="road.closed">Đóng (≥30 cm)</span></div>
+          </div>
+        </div>
+        <div class="legendBlock">
+          <span class="legendCaption" data-i18n="legend.impact">Tác động dân cư</span>
+          <div class="legendRows">
+            <div><i class="dot" style="--c:#ff4060"></i><span data-i18n="legend.heat">Nhiệt đồ dân × ngập</span></div>
+            <div><i class="dot" style="--c:#f5a04a"></i><span data-i18n="legend.h15">Nhà ngập ≥15 cm</span></div>
+            <div><i class="dot" style="--c:#e84a3f"></i><span data-i18n="legend.h50">Nhà ngập ≥50 cm</span></div>
+          </div>
+        </div>
+        <div class="legendBlock">
+          <span class="legendCaption" data-i18n="legend.alert">Mức báo động trạm</span>
+          <div class="legendRows">
+            <div><i class="dot" style="--c:var(--al-0)"></i><span data-i18n="alert.normal">Bình thường</span></div>
+            <div><i class="dot" style="--c:var(--al-1)"></i><span>BĐ1</span></div>
+            <div><i class="dot" style="--c:var(--al-2)"></i><span>BĐ2</span></div>
+            <div><i class="dot" style="--c:var(--al-3)"></i><span>BĐ3 +</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel metricsPanel">
+        <div class="panelTitle"><span data-i18n="panel.metrics">Chỉ số mô hình · mục tiêu Q1</span><button id="btnMethod" class="methodBtn" type="button" title="Phương pháp">ℹ️</button></div>
+        <div class="metricRows" id="metricRows">
+          <div class="metricRow"><span>CSI <em data-i18n="metrics.vs">(vs Sentinel-1)</em></span><div class="metricBar"><i style="--p:84%"></i></div><strong>0.84 <em>/ ≥0.80</em></strong></div>
+          <div class="metricRow"><span>NSE</span><div class="metricBar"><i style="--p:86%"></i></div><strong>0.86 <em>/ ≥0.80</em></strong></div>
+          <div class="metricRow"><span>KGE</span><div class="metricBar"><i style="--p:79%"></i></div><strong>0.79 <em>/ ≥0.75</em></strong></div>
+          <div class="metricRow"><span data-i18n="metrics.ground">Groundedness LLM</span><div class="metricBar"><i style="--p:97%"></i></div><strong>0.97 <em>/ ≥0.95</em></strong></div>
+        </div>
+        <div class="surrogateChip">
+          <span data-i18n="metrics.surrogate">Surrogate FNO/DeepONet</span>
+          <strong id="surrogateSpeed">42 ms / bước · 68× HEC-RAS-2D</strong>
+        </div>
+      </section>
+    </aside>
+
+    <!-- ============ CENTER STAGE ============ -->
+    <main class="stage">
+      <div class="viewBar">
+        <div class="viewTabs" id="viewTabs" role="tablist">
+          <button type="button" data-view="3d" class="isActive" role="tab" aria-selected="true"><span data-i18n="view.3d">Song sinh số 3D</span></button>
+          <button type="button" data-view="2d" role="tab" aria-selected="false"><span data-i18n="view.2d">Bản đồ vận hành 2D</span></button>
+        </div>
+        <div class="camPresets" id="camPresets">
+          <button type="button" data-cam="overview" class="isActive" data-i18n="cam.overview">Toàn cảnh</button>
+          <button type="button" data-cam="delta" data-i18n="cam.delta">Hạ lưu</button>
+          <button type="button" data-cam="dams" data-i18n="cam.dams">Bậc thang hồ</button>
+          <button type="button" data-cam="hoian" data-i18n="cam.hoian">Hội An</button>
+        </div>
+        <div class="stageMeta">
+          <span id="fpsMeter">60 fps</span>
+          <span id="gridMeta">SWE 144² · Δt 2.5 s</span>
+        </div>
+      </div>
+
+      <div class="stageCanvasWrap" id="stageWrap">
+        <canvas id="canvas3d" class="stageCanvas isActive" aria-label="3D flood digital twin"></canvas>
+        <canvas id="canvas2d" class="stageCanvas" aria-label="2D operational flood map"></canvas>
+        <div id="labels3d" class="labels3d" aria-hidden="true"></div>
+
+        <button class="pip" id="pipSwap" type="button" aria-label="Swap 2D/3D view">
+          <canvas id="canvasPip" width="280" height="180"></canvas>
+          <span class="pipTag" id="pipTag">2D</span>
+        </button>
+
+        <div class="mapHint" id="mapHint">
+          <strong data-i18n="hint.orbit">Kéo xoay · lăn thu phóng · phải rê dịch</strong>
+        </div>
+
+        <div class="waterBadge" id="waterBadge">
+          <span data-i18n="badge.flooded">Diện ngập</span>
+          <strong id="floodedArea">— km²</strong>
+          <span data-i18n="badge.people">Dân cư phơi nhiễm</span>
+          <strong id="peopleExposed">—</strong>
+          <span data-i18n="impact.homes">Nhà ngập</span>
+          <strong id="homesFlooded">—</strong>
+        </div>
+        <button class="focusBtn" id="btnFocus" type="button" title="Focus map">⛶</button>
+
+        <div id="tooltip" class="tooltip" hidden></div>
+        <div id="webglFallback" class="webglFallback" hidden>
+          <p data-i18n="fallback.webgl">Không tải được WebGL/Three.js — chuyển sang bản đồ 2D (đầy đủ mô phỏng).</p>
+        </div>
+      </div>
+
+      <!-- ============ TIMELINE ============ -->
+      <div class="timeline" id="timelinePanel">
+        <div class="transport">
+          <button id="btnPlay" type="button" class="playBtn" aria-label="Play/Pause"><span id="playIcon">▶</span></button>
+          <div class="speedGroup" id="speedGroup" role="group">
+            <button type="button" data-speed="360">6 m/s</button>
+            <button type="button" data-speed="1800" class="isActive">30 m/s</button>
+            <button type="button" data-speed="5400">90 m/s</button>
+          </div>
+          <div class="clockReadout">
+            <strong id="simClock">—</strong>
+            <span id="simRel">T+0h</span>
+            <em id="simPhase" class="phaseTag">—</em>
+          </div>
+        </div>
+        <div class="scrubberWrap" id="scrubberWrap">
+          <canvas id="scrubberCanvas" class="scrubberCanvas"></canvas>
+          <input id="scrubber" class="scrubber" type="range" min="-24" max="48" step="0.05" value="-6" aria-label="Simulation time (hours)" />
+          <div class="scrubMarks">
+            <span>T−24h</span><span data-i18n="tl.observed">quan trắc</span><span class="nowMark" data-i18n="tl.now">HIỆN TẠI</span><span data-i18n="tl.forecast">dự báo ensemble</span><span>T+48h</span>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- ============ RIGHT RAIL ============ -->
+    <aside class="rail railRight" id="railRight">
+      <section class="panel gaugePanel">
+        <div class="panelTitle">
+          <span data-i18n="panel.gauge">Trạm thủy văn · dự báo xác suất</span>
+          <select id="gaugeSelect" aria-label="Gauge station"></select>
+        </div>
+        <div class="gaugeReadout">
+          <div><span data-i18n="gauge.stage">Mực nước</span><strong id="gaugeStageNow">— m</strong></div>
+          <div><span data-i18n="gauge.trend">Xu thế 3h</span><strong id="gaugeTrend">—</strong></div>
+          <div><span data-i18n="gauge.alert">Báo động</span><strong id="gaugeAlert">—</strong></div>
+          <div><span>CRPS</span><strong id="gaugeCrps">—</strong></div>
+        </div>
+        <canvas id="hydrographCanvas" class="chartCanvas" aria-label="Stage hydrograph with ensemble fan"></canvas>
+        <div class="chartLegend">
+          <span><i class="swatch obs"></i><span data-i18n="chart.obs">Quan trắc</span></span>
+          <span><i class="swatch med"></i><span data-i18n="chart.median">Trung vị</span></span>
+          <span><i class="swatch band50"></i>25–75%</span>
+          <span><i class="swatch band90"></i>5–95%</span>
+        </div>
+      </section>
+
+      <section class="panel reservoirPanel">
+        <div class="panelTitle">
+          <span data-i18n="panel.reservoir">Bậc thang liên hồ · QĐ 1865/QĐ-TTg</span>
+          <strong id="policyTag">Rule curve</strong>
+        </div>
+        <div class="resList" id="resList"></div>
+        <div class="mpcCard" id="mpcCard" hidden>
+          <div class="mpcHead">
+            <span data-i18n="mpc.title">Đề xuất xả trước (MPC · nằm trong hành lang pháp lý)</span>
+            <strong id="mpcConfidence">62%</strong>
+          </div>
+          <p id="mpcText">—</p>
+          <div class="mpcCompare" id="mpcCompare"></div>
+          <div class="mpcActions">
+            <button id="mpcApprove" type="button" class="btnPrimary" data-i18n="mpc.approve">Phê duyệt</button>
+            <button id="mpcDetails" type="button" data-i18n="mpc.details">Gói quyết định</button>
+            <button id="mpcReject" type="button" data-i18n="mpc.reject">Từ chối</button>
+          </div>
+          <small class="mpcNote" data-i18n="mpc.note">Không cửa van nào vận hành theo lời LLM — người trực phê duyệt mọi lệnh xả.</small>
+        </div>
+      </section>
+
+      <section class="panel trafficPanel">
+        <div class="panelTitle"><span data-i18n="panel.traffic">Giao thông thời gian thực</span><strong id="vehCount">— xe</strong></div>
+        <div class="trafficGrid">
+          <div><span data-i18n="tr.open">Mạng thông</span><strong id="trOpen">—%</strong></div>
+          <div><span data-i18n="tr.closed">Đoạn đóng</span><strong id="trClosed">—</strong></div>
+          <div><span data-i18n="tr.reroute">Xe đổi lộ trình</span><strong id="trReroute">—</strong></div>
+          <div><span data-i18n="tr.eta">ETA ĐN→Hội An</span><strong id="trEta">— ph</strong></div>
+        </div>
+        <div class="closureList" id="closureList"></div>
+      </section>
+
+      <section class="panel llmPanel">
+        <div class="panelTitle">
+          <span data-i18n="panel.llm">Lớp LLM có kiểm soát · RAG</span>
+          <strong data-i18n="llm.grounded">100% trích nguồn</strong>
+        </div>
+        <div class="llmBrief" id="llmBrief">
+          <p data-i18n="llm.placeholder">Nhấn tạo bản tin để tổng hợp tình huống — mọi con số lấy từ solver/optimizer, mọi mệnh đề kèm trích dẫn.</p>
+        </div>
+        <div class="llmActions">
+          <button id="btnBrief" type="button" class="btnPrimary" data-i18n="llm.generate">Tạo bản tin tình huống</button>
+          <button id="btnCitizen" type="button" data-i18n="llm.citizen">Hỏi đáp cư dân Hội An</button>
+          <button id="btnReport" type="button">🖨 <span data-i18n="report.btn">Xuất báo cáo</span></button>
+        </div>
+      </section>
+
+      <section class="panel logPanel">
+        <div class="panelTitle"><span data-i18n="panel.log">Nhật ký sự kiện</span><strong id="logCount">0</strong></div>
+        <ol class="eventLog" id="eventLog"></ol>
+      </section>
+    </aside>
+
+    <!-- ============ FOOTER ============ -->
+    <footer class="statusbar">
+      <span data-i18n="foot.mode">Dữ liệu tổng hợp minh hoạ phương pháp — không dùng cho vận hành thật</span>
+      <span class="statusSep">·</span>
+      <span>GLO-30 · HydroSHEDS · IMERG · GenCast · GloFAS</span>
+      <span class="statusSep">·</span>
+      <span>Ảnh &amp; đường: Esri World Imagery/Transportation · DEM: AWS Terrain Tiles · © OSM contributors</span>
+      <span class="statusSep">·</span>
+      <span id="footPolicy">Decision 1865/QĐ-TTg · 740/QĐ-TTg</span>
+      <span class="statusRight" id="buildTag">FloodTwin Q1 Demo</span>
+    </footer>
+
+    <!-- ============ MODALS ============ -->
+    <div class="modalScrim" id="modalScrim" hidden>
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+        <div class="modalHead"><h3 id="modalTitle">—</h3><button id="modalClose" type="button" aria-label="Close">×</button></div>
+        <div class="modalBody" id="modalBody"></div>
+      </div>
+    </div>
+    <div class="toasts" id="toasts" aria-live="polite"></div>
+  </div>
+  <div id="printReport" class="printReport" aria-hidden="true"></div>
+
+  <!-- Three.js qua CDN (ESM + import map) → expose window.THREE cho các script thường; hoạt động cả file:// lẫn http -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.165.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.165.0/examples/jsm/"
+      }
+    }
+  </script>
+  <script type="module">
+    const boot = (ok) => { window.__THREE_READY = ok; window.dispatchEvent(new CustomEvent("three-ready", { detail: { ok } })); };
+    async function tryLoad() {
+      const THREE = await import("three");
+      const { OrbitControls } = await import("three/addons/controls/OrbitControls.js");
+      window.THREE = THREE; window.OrbitControls = OrbitControls;
+    }
+    async function tryLoadJsdelivr() {
+      const THREE = await import("https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js");
+      const { OrbitControls } = await import("https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/controls/OrbitControls.js/+esm").catch(() =>
+        import("https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/controls/OrbitControls.js"));
+      window.THREE = THREE; window.OrbitControls = OrbitControls;
+    }
+    try { await tryLoad(); boot(true); }
+    catch (e1) {
+      await new Promise((r) => setTimeout(r, 1500));
+      try { await tryLoad(); boot(true); }
+      catch (e2) {
+        try { await tryLoadJsdelivr(); boot(true); }
+        catch (err) { console.warn("Three.js CDN unavailable — falling back to 2D:", err); boot(false); }
+      }
+    }
+  </script>
+
+  <script src="./js/core.js?v=84"></script>
+  <script src="./js/geo.js?v=84"></script>
+  <script src="./js/data.js?v=84"></script>
+  <script src="./js/hydro.js?v=84"></script>
+  <script src="./js/world.js?v=84"></script>
+  <script src="./js/traffic.js?v=84"></script>
+  <script src="./js/zones.js?v=84"></script>
+  <script src="./js/charts.js?v=84"></script>
+  <script src="./js/map2d.js?v=84"></script>
+  <script src="./js/scene3d.js?v=84"></script>
+  <script src="./js/ui.js?v=84"></script>
+  <script src="./js/main.js?v=84"></script>
+</body>
+</html>
