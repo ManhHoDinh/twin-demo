@@ -644,6 +644,15 @@ canvas { display: block; }
 }
 
 /* ============ RESPONSIVE ============ */
+/* Gợi ý chỉ hiện trên màn hình nhỏ, giải thích vì sao thiếu hai thanh bên */
+.mobileHint {
+  display: none; grid-area: top; order: 9; flex: 1 1 100%;
+  font-size: 11.5px; line-height: 1.45; color: var(--ink-2);
+  background: rgba(55, 182, 255, 0.08); border: 1px solid var(--line);
+  border-radius: var(--radius-s); padding: 8px 11px; margin-top: 2px;
+}
+.mobileHint b { color: var(--ink-0); font-weight: 650; }
+
 @media (max-width: 1420px) {
   :root { --rail-w: 262px; --rail-w-r: 300px; }
   body { font-size: 12.5px; }
@@ -657,10 +666,60 @@ canvas { display: block; }
   .railLeft { display: none; }
 }
 @media (max-width: 900px) {
-  .app { grid-template-columns: 1fr; grid-template-areas: "top" "stage" "foot"; }
-  .railRight { display: none; }
-  .kpiStrip { display: none; }
+  /* Màn hình nhỏ: cho cuộn dọc, xếp một cột, và GIỮ dải chỉ số vì đó là
+     thông tin giá trị nhất khi không đủ chỗ cho hai thanh bên. */
+  html, body { height: auto; overflow-x: hidden; overflow-y: auto; }
+  .app {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "top" "stage" "foot";
+    height: auto; min-height: 100vh; gap: 8px; padding: 8px;
+  }
+  .railLeft, .railRight { display: none; }
+
+  .topbar { flex-wrap: wrap; gap: 10px; padding: 10px 12px; }
+  .brand { flex: 1 1 100%; }
+  .brand h1 { font-size: 15px; }
+  .brandText p { display: none; }
+
+  .kpiStrip {
+    display: flex; order: 3; flex: 1 1 100%; flex-wrap: nowrap;
+    gap: 8px; overflow-x: auto; -webkit-overflow-scrolling: touch;
+    padding-bottom: 4px; scrollbar-width: none;
+  }
+  .kpiStrip::-webkit-scrollbar { display: none; }
+  .kpiStrip .kpi { flex: 0 0 auto; min-width: 104px; padding: 6px 10px; }
+
+  .topActions { flex: 1 1 100%; flex-wrap: wrap; gap: 8px; }
+  .scenarioSelect { flex: 1 1 100%; }
+  .scenarioSelect select { width: 100%; }
+  .policyToggle { flex: 1 1 100%; }
+  /* vùng chạm tối thiểu 40 px: ngón tay không bấm trúng nút cao 27 px */
+  .policyToggle button { flex: 1 1 0; min-height: 40px; padding: 10px 12px; }
+  .scenarioSelect select { min-height: 40px; }
+  .viewTabs button { min-height: 40px; padding: 10px 14px; }
+  .langToggle, .tourBtn { min-height: 40px; }
+
+  .viewBar { overflow-x: auto; scrollbar-width: none; }
+  .viewBar::-webkit-scrollbar { display: none; }
+  .viewTabs { flex: 0 0 auto; }
+  .stage { min-height: 56vh; }
+  .viewMeta, .fpsMeta { display: none; }
+  .stageCanvasWrap { min-height: 300px; }
+  .pip { display: none; }
+
+  .timeline { flex-wrap: wrap; gap: 8px; }
+  .statusbar { flex-wrap: wrap; gap: 6px 10px; font-size: 10px; line-height: 1.35; }
+  .statusRight { margin-left: 0; }
+
+  .mobileHint { display: block; }
+
+  .toasts {
+    top: auto; bottom: 10px; left: 10px; right: 10px;
+    align-items: stretch; max-height: 40vh; overflow: hidden;
+  }
+  .toasts > * { font-size: 12px; }
 }
+
 
 /* SkyLabs links in status bar (added with SURF 2026 site package) */
 .statusbar .footLink { color: var(--ink-1); text-decoration: none; border-bottom: 1px dotted var(--line-strong); }
