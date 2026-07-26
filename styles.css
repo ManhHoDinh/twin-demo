@@ -661,3 +661,7 @@ canvas { display: block; }
   .railRight { display: none; }
   .kpiStrip { display: none; }
 }
+
+/* SkyLabs links in status bar (added with SURF 2026 site package) */
+.statusbar .footLink { color: var(--ink-1); text-decoration: none; border-bottom: 1px dotted var(--line-strong); }
+.statusbar .footLink:hover { color: var(--accent); border-bottom-color: var(--accent); }
