@@ -5,8 +5,8 @@
 | Document ID | ENG-12 |
 | Owner | Scientific visualisation lead |
 | Status | REQUIRES DOMAIN REVIEW |
-| Current demo | Deterministic flood, rain, wave and particle presentation using partly `SYNTHETIC` state and visual motion proxies |
-| Production target | Fixed, accessible measurable mappings with provenance, uncertainty and explicit non-physical effects |
+| Current demo | Flood mappings using partly `SYNTHETIC` state; rain particles use unseeded `Math.random` and frame-time rain/wave/particle animation is non-reproducible decoration |
+| Production target | Fixed, accessible measurable mappings with provenance/uncertainty plus seeded, replayable and explicitly non-physical decoration |
 | Domain review | Hydraulics, emergency communication, UX/accessibility, GIS and scientific visualisation |
 | Authoritative dependencies | [3D rendering](10-3d-rendering-pipeline.md), [uncertainty](../04-decision-support/02-uncertainty-and-confidence.md), [UX principles](../05-product/04-ux-principles.md), [hydraulic model](05-hydraulic-model.md) |
 
@@ -16,11 +16,11 @@ Define stable visual meanings for depth, direction, wet/dry state, extent, arriv
 
 ## Scientific and implementation status
 
-Demo visualization is `IMPLEMENTED`; its scientific interpretation is limited by synthetic inputs and proxy effects. Production mappings, user validation and accessibility evidence are `PLANNED`; operational communication semantics are `REQUIRES DOMAIN REVIEW`.
+Demo visualization is `IMPLEMENTED`; scientific mappings can be deterministic for the same accepted state, but current unseeded rain particles and frame-time rain/wave/particle animation are non-reproducible decoration. Production mappings, seeded replay, user validation and accessibility evidence are `PLANNED`; operational communication semantics are `REQUIRES DOMAIN REVIEW`.
 
 ## Inputs
 
-Typed normalized quantities and quality/provenance/uncertainty, approved mapping/legend versions, target locale/accessibility settings, and display-only deterministic seeds/time for decoration.
+Typed normalized quantities and quality/provenance/uncertainty, approved mapping/legend versions and target locale/accessibility settings. Production decoration additionally receives an explicit seed and replay clock; the current demo does not provide reproducible decoration inputs.
 
 ## Outputs
 
@@ -72,7 +72,7 @@ Measure numeric readout accuracy, legend comprehension, category discrimination,
 
 ## Verification tests and invariants
 
-Test fixed mapping fixtures, legend/readout agreement, deterministic replay, no-data/not-computed states, color/keyboard/screen-reader behavior, timeline synchronization and export lineage. Random flood expansion or random flow direction must fail tests.
+Test fixed scientific-mapping fixtures, legend/readout agreement, production seeded-decoration replay, no-data/not-computed states, color/keyboard/screen-reader behavior, timeline synchronization and export lineage. Current unseeded/frame-time decoration is not reproducibility evidence. Random flood expansion or random flow direction must fail tests.
 
 ## Visualization derived from measurable state
 
@@ -81,11 +81,11 @@ Test fixed mapping fixtures, legend/readout agreement, deterministic replay, no-
 - Motion animation speed is the documented bounded mapping from validated velocity magnitude; without validated velocity it is “Not computed”, not inferred from particles or waves.
 - Wave animation is decorative surface motion and cannot report wave height, velocity or discharge.
 - Particles are never the source for numeric readouts, legends, exports or downstream computation.
-- Decorative rain that communicates scenario forcing uses a deterministic seed and a documented intensity mapping tied to the normalized scenario rainfall forcing; it is labelled “Forcing visualization”, not measurement. Rain without forcing linkage is labelled illustrative. Random flood expansion and random flow are prohibited.
+- Production decorative rain that communicates scenario forcing uses a deterministic seed, replay clock and documented intensity mapping tied to the normalized scenario rainfall forcing; it is labelled “Forcing visualization”, not measurement. The current unseeded `Math.random` rain cannot communicate quantitative forcing and is labelled illustrative. Random flood expansion and random flow are prohibited.
 
 ## Assumptions and limitations
 
-Color, perspective, occlusion and motion bias perception. Momentum proxies may indicate relative tendency but not physical velocity. Wave/particle animation can overstate certainty or direction. Accessibility alternatives are required for color/motion-dependent content.
+Color, perspective, occlusion and motion bias perception. Momentum proxies may indicate relative tendency but not physical velocity. Current frame-time wave/particle animation is non-reproducible, can overstate certainty or direction, and never supports readouts. Accessibility alternatives are required for color/motion-dependent content.
 
 ## Failure detection, degraded behavior and recovery
 
@@ -97,7 +97,7 @@ Probabilistic animation, ensemble comparison, impact narratives and immersive di
 
 ## Implementation evidence and traceability
 
-Evidence links mapping/legend version, source/run/time, deterministic seed for decoration, accessibility/test results and review disposition. [DATA_AND_METHODS](../../DATA_AND_METHODS.md) bounds present demo effects and proxy claims.
+Evidence links mapping/legend version, source/run/time, and—for production replayable decoration—the explicit seed/clock, accessibility/test results and review disposition. Current unseeded/frame-time decoration supplies no deterministic-replay evidence. [DATA_AND_METHODS](../../DATA_AND_METHODS.md) bounds present demo effects and proxy claims.
 
 ## Next
 

@@ -5,8 +5,8 @@
 | Document ID | ENG-10 |
 | Owner | 3D rendering lead |
 | Status | REFERENCE MODEL |
-| Current demo | Deterministic browser terrain, flood shader, waves and particles driven partly by `SYNTHETIC` state |
-| Production target | Typed, one-way physical-state-to-GPU projection with exact missing-value behavior and auditable visual mappings |
+| Current demo | Browser terrain and flood mappings driven partly by `SYNTHETIC` state; rain particles use unseeded `Math.random` and frame-time waves/particles are non-reproducible decoration |
+| Production target | Typed, one-way physical-state-to-GPU projection with exact missing-value behavior, auditable mappings and seeded/replayable decoration |
 | Domain review | Hydraulic modelling, GIS, uncertainty communication, accessibility and graphics engineering |
 | Authoritative dependencies | [Scientific architecture](01-scientific-architecture.md), [hydraulic model](05-hydraulic-model.md), [GIS](09-gis-architecture.md), [visual rules](12-visualisation-and-animation-rules.md) |
 
@@ -16,7 +16,7 @@ Transform normalized physical state into GPU resources and interactive render pr
 
 ## Scientific and implementation status
 
-The browser renderer is `IMPLEMENTED` for demonstration. Typed production mappings, complete provenance/readout enforcement and visual validation are `PLANNED`. Any mapping presented as decision-support evidence is `REQUIRES DOMAIN REVIEW`.
+The browser renderer is `IMPLEMENTED` for demonstration. Scientific field mappings can be deterministic for the same accepted state, but current rain particles use unseeded `Math.random` and frame-time waves/particles are non-reproducible decoration. Typed production mappings, seeded/replayable decoration, complete provenance/readout enforcement and visual validation are `PLANNED`. Any mapping presented as decision-support evidence is `REQUIRES DOMAIN REVIEW`.
 
 ## Inputs
 
@@ -74,7 +74,7 @@ Use pixel/reference fixtures, readout equality, no-data correctness, spatial ali
 
 ## Verification tests and invariants
 
-Test typed binding rejection, unit/CRS/time mismatch, exact known vertex/texture samples, no-data masks, not-computed velocity, wet/dry/arrival invariants, deterministic frames for fixed inputs, context loss/reload and prohibition of GPU/shader readback into science.
+Test typed binding rejection, unit/CRS/time mismatch, exact known vertex/texture samples, no-data masks, not-computed velocity, wet/dry/arrival invariants, deterministic scientific mappings for fixed state, production seeded-decoration replay, context loss/reload and prohibition of GPU/shader readback into science. Current unseeded/frame-time decoration is excluded from reproducibility evidence.
 
 ## Visualization derived from measurable state
 
@@ -82,7 +82,7 @@ Depth, extent, wet/dry, arrival and uncertainty require corresponding normalized
 
 ## Assumptions and limitations
 
-Screen resolution, occlusion, perspective, interpolation and color perception limit interpretation. Waves and particles can suggest motion but are not measurements. A high-detail render mesh does not improve source terrain or hydraulic accuracy.
+Screen resolution, occlusion, perspective, interpolation and color perception limit interpretation. Current waves and particles are non-reproducible decoration and can suggest motion but are not measurements; decoration never supports readouts, legends or exports. A high-detail render mesh does not improve source terrain or hydraulic accuracy.
 
 ## Failure detection, degraded behavior and recovery
 

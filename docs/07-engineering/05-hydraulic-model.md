@@ -34,7 +34,7 @@ GIS/Terrain, Hydrology, Reservoir, Weather and River Network feed Hydraulic; Hyd
 
 | Method | Use | Limitation |
 |---|---|---|
-| Lag/route or virtual pipe | Workflow demonstration or screened travel-time approximation | Does not resolve hydraulic momentum/extent |
+| Lag/route or virtual pipe | Workflow demonstration or screened travel-time approximation; a separate 2D height field may derive a wet extent | Does not solve validated hydraulic momentum or physical velocity; any derived extent needs independent calibration/validation |
 | Muskingum-Cunge | Reach routing where channel geometry/slope support parameterization | Limited backwater, structures and floodplain detail |
 | 1D diffusive wave | Gradually varied channel flow with modest inertia | Unsupported for regimes needing full momentum |
 | 1D full Saint-Venant | Channels, backwater and structures | Cross-section and numerical burden |
@@ -89,7 +89,7 @@ Depth, stage, extent and validated velocity may drive rendering through typed fi
 
 ## Assumptions and limitations
 
-Depth-averaged equations omit vertical structure; 1D assumptions omit transverse variation; terrain without bathymetry cannot resolve channel conveyance. Current virtual-pipe/gauge-nudged behavior is demonstrative. Roughness, structures and surge boundaries may dominate uncertainty.
+Depth-averaged equations omit vertical structure; 1D assumptions omit transverse variation; terrain without bathymetry cannot resolve channel conveyance. The current virtual-pipe/gauge-nudged browser height field can derive a wet extent, but that extent is `SYNTHETIC`, uncalibrated and not decision-grade; its momentum proxy and apparent `u/v` currents are not validated physical momentum or velocity. Roughness, structures and surge boundaries may dominate uncertainty.
 
 ## Failure detection, degraded behavior and recovery
 

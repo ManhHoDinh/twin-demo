@@ -86,7 +86,17 @@ Source access, licensing, metadata and clocks may be incomplete. Automated QC de
 
 ## Failure detection, degraded behavior and recovery
 
-Use L0-L4 degradation: L0 healthy; L1 delayed but usable; L2 partial/stale; L3 critical-source unavailable with restricted products; L4 integrity/lineage failure and publication stop. Quarantine corrupt/conflicting records, preserve raw bytes, replay idempotently after correction and issue a new dataset version.
+The pipeline preserves the canonical operating levels from the [Observation model](../01-domain-model/03-observation-model.md):
+
+| Level | Condition | Product behaviour |
+|---|---|---|
+| **L0 — Full** | All critical feeds fresh | Full functionality, full confidence range available |
+| **L1 — Reduced** | Some non-critical feeds stale | Normal operation; affected quantities flagged; confidence capped at `MEDIUM` for those |
+| **L2 — Degraded** | A governing gauge or a reservoir level is unavailable | Optimiser **disabled** for the affected reservoir; fall back to rule-curve guidance; banner states exactly what is missing and what is therefore not being computed |
+| **L3 — Local/offline** | No external connectivity | Runs on last-known state + local cache; **all forecasts marked stale with their issue time**; manual data entry enabled; product explicitly says "this is a snapshot from HH:MM" |
+| **L4 — Blind** | No usable observations | Product refuses to produce a proposal. Shows the last valid state, the EAP, contact tree, and static inundation maps. **This is a feature.** |
+
+Integrity or lineage failure is a cause evaluated against those canonical conditions, not a new level definition: quarantine corrupt/conflicting records and affected products, map the resulting observation/connectivity availability to L0-L4, preserve raw bytes, replay idempotently after correction and issue a new dataset version. If no usable observations remain, L4 refuses advice.
 
 ## Future extensions and scientific prerequisites
 
