@@ -37,22 +37,24 @@ Hydraulic owns the physical solver state. Flood Propagation consumes hydraulic r
 ## Engine dependency DAG
 
 ```text
-Terrain --------+-----------------------> Hydraulic -----> Flood Propagation
-Weather ------> Hydrology ----+                ^                   |
-River Network --+-------------+--------------->|                   v
-               Hydrology -> Reservoir ---------+             Digital Twin
-                    ^             |                                  |
-                    +-------------+ (controlled feedback by time step) |
-                                                                      v
-Scenario ------------------------------------------------------> Decision Support
-                                                                      |
-Digital Twin ---------------------------------------------------------+
-       |                                                              |
-       +-----------------------> Visualization <-----------------------+
-       +-----------------------> AI Explanation <----------------------+
+Terrain -------> Hydraulic -------> Flood Propagation ---+
+      |              ^                     |             |
+Weather -> Hydrology +-> Reservoir --------+             |
+  |          ^              |                            v
+  |          +--------------+ (controlled coupling)  Digital Twin
+  |                                                     |   |
+River Network -> Hydrology / Reservoir / Hydraulic -----+   +-> Scenario
+  |                                                         |     |
+  +---------------------------------------------------------+     | request/configure
+Weather ----------------------------------------------------------+ scientific runs
+                                                                  |
+Digital Twin + Scenario ---------------------------------> Decision Support
+      |             |                                      |          |
+      +-------------+------------------------------> Visualization    |
+      +-------------+------------------------------> AI Explanation <-+
 ```
 
-Scenario configures runs but does not mutate completed results. Reservoir-Hydrology coupling is explicit and time-indexed; convergence policy is declared per run. AI Explanation and Visualization have no outgoing scientific-state edges.
+Terrain, Weather, Hydrology, Hydraulic, Reservoir, River Network and Flood Propagation all publish accepted state to Digital Twin. Digital Twin and Weather supply Scenario baselines and forcing. Scenario may request/configure new immutable scientific runs through orchestration, but cannot mutate accepted inputs, completed results or published Digital Twin snapshots. Reservoir-Hydrology coupling is explicit and time-indexed; convergence policy is declared per run. AI Explanation and Visualization have no outgoing scientific-state edges.
 
 ## Clocks, event time and run identity
 

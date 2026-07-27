@@ -17,7 +17,7 @@ This catalog defines boundaries and exchange obligations. It anchors equations a
 
 ## Dependency matrix
 
-`R` means the row engine may read the column engine's published contract. `Q` means Scenario may request a new immutable run. Blank cells are prohibited dependencies.
+`R` means the row engine may read the column engine's published contract. `Q` means Scenario may configure/request execution of that scientific engine through orchestration to create a new immutable run; it cannot mutate accepted inputs or results. Blank cells are prohibited dependencies.
 
 | Consumer | Terrain | Hydrology | Hydraulic | Weather | Reservoir | River Network | Flood Propagation | Digital Twin | Scenario | Decision Support |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
@@ -26,12 +26,12 @@ This catalog defines boundaries and exchange obligations. It anchors equations a
 | Reservoir | | R | | | | R | | | | |
 | Flood Propagation | R | | R | | | R | | | | |
 | Digital Twin | R | R | R | R | R | R | R | | | |
-| Scenario | | | | | | | | R | | |
+| Scenario | | Q | Q | R | Q | | Q | R | | |
 | Decision Support | | | | | | | | R | R | |
 | AI Explanation | | | | | | | | R | R | R |
 | Visualization | R | | | | | | R | R | R | R |
 
-Weather and River Network are upstream sources. AI Explanation and Visualization have no outgoing scientific-state dependencies. Controlled Hydrology/Reservoir feedback is exchanged only through the orchestrator described in [Simulation architecture](02-simulation-architecture.md#orchestration-and-coupling-exchanges).
+Terrain, Weather, Hydrology, Hydraulic, Reservoir, River Network and Flood Propagation publish accepted state to Digital Twin. Digital Twin and Weather are readable Scenario inputs; Scenario's `Q` edges only create separately identified runs through orchestration. AI Explanation and Visualization have no outgoing scientific-state dependencies. Controlled Hydrology/Reservoir feedback is exchanged only through the orchestrator described in [Simulation architecture](02-simulation-architecture.md#orchestration-and-coupling-exchanges).
 
 ## Terrain Engine
 
@@ -257,7 +257,7 @@ Weather and River Network are upstream sources. AI Explanation and Visualization
 | Scientific and implementation status | Deterministic scenario comparison is `IMPLEMENTED` for synthetic demo inputs; production ensembles are `PLANNED`. |
 | Inputs | Base run/input versions, forcing members, initial/boundary perturbations, actions and parameter/model variants. |
 | Outputs | Scenario manifest, run family, member weights, differences, counterfactual identity and comparison metadata. |
-| Dependencies and allowed dependency direction | Configures scientific engines through orchestration; reads Digital Twin baselines; supplies Decision Support. |
+| Dependencies and allowed dependency direction | Reads Digital Twin baselines and Weather forcing; configures/requests Hydrology, Reservoir, Hydraulic and Flood Propagation runs through orchestration; supplies Decision Support; cannot mutate accepted scientific results. |
 | Accepted alternatives and recommended method | Deterministic alternatives, ensembles, sensitivity designs or stochastic sampling; choose by uncertainty question. |
 | Governing equations and implementation form | Scenario sampling is not physical law; methods remain anchored in [simulation/scenario authority](../04-decision-support/03-simulation-and-scenarios.md). |
 | Variables, units, parameters and bounds | Scenario/member/run IDs, weights/probabilities, perturbations, horizon and comparison baseline. |

@@ -88,9 +88,9 @@ See the [dependency matrix](03-engine-contract-catalog.md#dependency-matrix) and
 
 | Doc | Subject | Status |
 |---|---|---|
-| [01](01-scientific-architecture.md) | Scientific architecture | `PLANNED` |
-| [02](02-simulation-architecture.md) | Simulation architecture | `PLANNED` |
-| [03](03-engine-contract-catalog.md) | Twelve-engine contract catalog | `PLANNED` |
+| [01](01-scientific-architecture.md) | Scientific architecture | `REFERENCE MODEL` |
+| [02](02-simulation-architecture.md) | Simulation architecture | `REFERENCE MODEL` |
+| [03](03-engine-contract-catalog.md) | Twelve-engine contract catalog | `REFERENCE MODEL` |
 | `04-hydrology-model.md` | Hydrology model | Not yet created |
 | `05-hydraulic-model.md` | Hydraulic model | Not yet created |
 | `06-reservoir-model.md` | Reservoir model | Not yet created |

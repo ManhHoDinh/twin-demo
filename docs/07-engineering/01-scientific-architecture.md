@@ -64,13 +64,13 @@ Every scalar, series or field exposed across engine boundaries carries these min
 | `unit` | SI or declared domain unit; dimensionally checked |
 | `valid_time` | Time represented by the value |
 | `issue_time` | Time the source or forecast was issued |
-| `source` | Stable source identifier and lineage |
-| `model` | Model identifier, or `none` for direct observations |
-| `version` | Source/model/configuration version |
+| `source_id` | Stable source identifier and lineage |
+| `model_id` | Model identifier, or `none` for direct observations |
+| `model_version` | Exact model/configuration version |
 | `provenance` | `MEASURED`, `FORECAST`, `MODELLED`, `ASSUMED`, or `SYNTHETIC` |
-| `confidence` | Grade and reasons, not only a badge |
-| `uncertainty` | Distribution, ensemble, interval, probability, error model, or explicit unavailable state |
-| `quality` | Flags, freshness, acceptance/rejection and corrections |
+| `confidence_grade` | Grade with separately traceable reasons, not only a badge |
+| `uncertainty_representation` | Distribution, ensemble, interval, probability, error model, or explicit unavailable state |
+| `quality_flags` | Freshness, acceptance/rejection, corrections and source-specific QC flags |
 | `assumptions` | Identified assumptions affecting interpretation |
 | `limitations` | Unsupported regimes, missing dependencies and known failure conditions |
 
