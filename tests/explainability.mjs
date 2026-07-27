@@ -43,7 +43,8 @@ async function explainabilityContract(browser, base) {
   await check('every quantity carries the exact normalized scientific envelope', async (d) => {
     const r = await page.evaluate(() => {
       const z = window.FT.data.ZONES[0];
-      const quantities = window.FT.explain.atPoint(z.x, z.y).quantities;
+      const contract = window.FT.explain.atPoint(z.x, z.y);
+      const quantities = contract.quantities;
       const expected = [
         'age', 'assumptions', 'confidence_grade', 'interpolation', 'issue_time', 'key',
         'limitations', 'model_id', 'model_version', 'no_data_semantics', 'provenance',
@@ -66,6 +67,12 @@ async function explainabilityContract(browser, base) {
           || q.schema_version !== 'eng-quantity-envelope/1'
           || !Array.isArray(q.assumptions)
           || !Array.isArray(q.limitations)).map((q) => q.key),
+        invalidTiming: quantities.filter((q) =>
+          JSON.stringify(q.valid_time) !== JSON.stringify(contract.valid_time)
+          || JSON.stringify(q.issue_time) !== JSON.stringify(contract.issue_time)
+          || q.valid_time.semantics !== 'simulation_valid_time'
+          || q.issue_time.semantics !== 'scenario_reference_time'
+          || JSON.stringify(q.valid_time) === JSON.stringify(q.issue_time)).map((q) => q.key),
         invalidSpatial: quantities.filter((q) => {
           const s = q.spatial_support || {};
           return !s.support_type || !s.crs || !s.vertical_datum
@@ -76,7 +83,8 @@ async function explainabilityContract(browser, base) {
     });
     d(r);
     return r.count >= 7 && r.bad.length === 0 && r.invalidValue.length === 0
-      && r.invalidCanonical.length === 0 && r.invalidSpatial.length === 0;
+      && r.invalidCanonical.length === 0 && r.invalidTiming.length === 0
+      && r.invalidSpatial.length === 0;
   });
 
   await check('point depth, flood excess and terrain equal the physical-state samplers', async (d) => {

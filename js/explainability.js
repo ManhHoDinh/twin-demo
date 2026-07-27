@@ -78,7 +78,7 @@
     const provenance = o.provenance || "SYNTHETIC";
     if (!PROVENANCE.has(provenance)) throw new TypeError(`Invalid provenance for ${key}: ${provenance}`);
     const validTime = o.valid_time || scenarioTime(FT.state.timeH, "simulation_valid_time");
-    const issueTime = o.issue_time || validTime;
+    const issueTime = o.issue_time || scenarioTime(0, "scenario_reference_time");
     const support = o.spatial_support || featureSupport("quantity", key);
     const uncertainty = o.uncertainty || { type: "UNAVAILABLE", reason: "NO_VALIDATED_ERROR_MODEL" };
     return {
