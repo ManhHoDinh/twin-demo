@@ -26,7 +26,7 @@
     selectedGauge: "aiNghia",
     rainScale: 1.0,
     ensSpread: 1.0,
-    layers: { water: true, flow: true, traffic: true, roads: true, gauges: true, reservoirs: true, rain: true, labels: true, zones: true, bldg: true, impact: true },
+    layers: { water: true, flow: true, traffic: true, roads: true, gauges: true, reservoirs: true, rain: true, labels: true, zones: true, shelters: true, bldg: true, impact: true },
     quality: "high",
     threeReady: null,          // null = pending, true/false
   };
@@ -47,8 +47,10 @@
       "panel.legend": "Chú giải", "legend.depth": "Độ sâu ngập (m)", "legend.road": "Khả năng lưu thông", "legend.alert": "Mức báo động trạm",
       "road.open": "Thông suốt", "road.caution": "Chú ý (<15 cm)", "road.risk": "Hạn chế (15–30 cm)", "road.closed": "Đóng (≥30 cm)",
       "alert.normal": "Bình thường",
-      "panel.metrics": "Chỉ số mô hình · mục tiêu Q1", "metrics.synthetic": "demo tổng hợp", "metrics.vs": "(vs Sentinel-1)", "metrics.ground": "Groundedness LLM",
-      "metrics.surrogate": "Surrogate FNO/DeepONet",
+      "panel.metrics": "Ngưỡng đạt mục tiêu · đề cương §8", "metrics.synthetic": "demo tổng hợp",
+      "metrics.note": "Đây là ngưỡng đặt ra, chưa phải số đo. Độ chính xác chỉ chứng minh được bằng đối chứng lùi trên trận lũ thật.",
+      "metrics.extent": "(diện ngập)", "metrics.pending": "· chưa đo", "metrics.selftest": "Tự kiểm định vật lý", "metrics.measured": "· đã đo mỗi lần khởi động",
+      "metrics.surrogate": "Surrogate FNO/DeepONet", "metrics.planned": "kế hoạch — chưa huấn luyện", "forcing.src": "Kịch bản tổng hợp",
       "view.3d": "Song sinh số 3D", "view.2d": "Bản đồ vận hành 2D",
       "cam.overview": "Toàn cảnh", "cam.delta": "Hạ lưu", "cam.dams": "Bậc thang hồ", "cam.hoian": "Hội An",
       "hint.orbit": "Kéo xoay · lăn thu phóng · phải rê dịch", "hint.pan2d": "Kéo dịch chuyển · lăn thu phóng · nhấp trạm/hồ để xem",
@@ -101,6 +103,30 @@
       "report.stage": "Mực nước (m)", "report.alert": "Báo động", "report.level": "Mực hồ (m)", "report.ceil": "Trần trước lũ", "report.io": "Vào / Xả (m³/s)",
       "report.depth": "Ngập max (m)", "report.exposed": "Phơi nhiễm", "report.access": "Tiếp cận EOC", "report.brief": "Tóm tắt tình huống",
       "modal.method": "Phương pháp — cái gì thật, cái gì tổng hợp",
+      "rec.btn": "Hồ sơ quyết định", "modal.record": "Hồ sơ quyết định · sổ ghi",
+      "rec.none": "Chưa có quyết định nào được ghi. Phê duyệt hoặc từ chối một đề xuất, hồ sơ sẽ được niêm phong ngay tại thời điểm bấm.",
+      "rec.print": "In · xuất PDF", "rec.json": "Tải JSON", "rec.apxOpt": "Kèm phụ lục",
+      "rec.superseded": "Bối cảnh thay đổi — một quyết định đang mở đã được ghi là bị thay thế",
+      "rec.title": "HỒ SƠ QUYẾT ĐỊNH VẬN HÀNH LIÊN HỒ",
+      "rec.wm": "DEMO · CHƯA KÝ",
+      "rec.banner": "Hồ sơ sinh từ bản trình diễn công khai với dữ liệu tổng hợp. Không phải hồ sơ của một lần vận hành thật, không có chữ ký, không dùng để đối chiếu trách nhiệm.",
+      "rec.what": "Quyết định là gì", "rec.when": "Vào lúc nào", "rec.expect": "Dự kiến xảy ra điều gì",
+      "rec.clause": "Điều khoản cho phép", "rec.risk": "Điều gì vẫn có thể xảy ra",
+      "rec.who": "Ai quyết định", "rec.check": "Kiểm chứng lại bằng cách nào",
+      "rec.roleDemo": "vai chưa xác lập, bản demo không có tài khoản",
+      "rec.foot": "FloodTwin · SkyLabs — hồ sơ demo, chưa ký. Dấu băm kiểm lại được mà không cần liên hệ chúng tôi.",
+      "rec.apx": "PHỤ LỤC HỒ SƠ QUYẾT ĐỊNH", "rec.apxSeq": "Trình tự quyết định",
+      "rec.apxGauge": "Trạm thủy văn tại thời điểm niêm phong", "rec.apxRes": "Hồ chứa tại thời điểm niêm phong",
+      "rec.apxForcing": "Cưỡng bức và kịch bản", "rec.apxProv": "Nguồn gốc dữ liệu",
+      "rec.out.approved": "ĐÃ PHÊ DUYỆT", "rec.out.rejected": "ĐÃ TỪ CHỐI", "rec.out.superseded": "BỊ THAY THẾ",
+      "rec.sealed": "Đã niêm phong hồ sơ quyết định",
+      "rec.apxBand": "Bao ensemble tại đỉnh",
+      "rec.bandSrc": "Phân vị ensemble của bộ diễn toán trong trình duyệt, đọc tại thời điểm trung vị đạt đỉnh",
+      "rec.clk.client_clock_unsynchronised": "đồng hồ máy người dùng, không đồng bộ",
+      "rec.src.terrain_real": "Địa hình thật (AWS Terrain Tiles)",
+      "rec.src.legal_real": "Văn bản pháp lý thật (QĐ 1865/QĐ-TTg)",
+      "rec.src.forcing_synthetic": "Cưỡng bức giải tích (tổng hợp)",
+      "rec.src.solver_local": "Bộ giải nước nông chạy ngay trong trình duyệt này",
       "log.start": "Khởi tạo bản sao số VGTB — 4 hồ chứa, 2 trạm chính, lưới SWE 144².",
       "ev.bd1": "vượt báo động 1", "ev.bd2": "vượt báo động 2", "ev.bd3": "vượt BÁO ĐỘNG 3", "ev.below": "xuống dưới báo động 1",
       "ev.roadClosed": "ngập ≥30 cm — đóng đường", "ev.roadOpen": "nước rút — mở lại",
@@ -120,8 +146,10 @@
       "panel.legend": "Legend", "legend.depth": "Flood depth (m)", "legend.road": "Passability", "legend.alert": "Gauge alert level",
       "road.open": "Open", "road.caution": "Caution (<15 cm)", "road.risk": "Restricted (15–30 cm)", "road.closed": "Closed (≥30 cm)",
       "alert.normal": "Normal",
-      "panel.metrics": "Model skill · Q1 targets", "metrics.synthetic": "synthetic demo", "metrics.vs": "(vs Sentinel-1)", "metrics.ground": "LLM groundedness",
-      "metrics.surrogate": "FNO/DeepONet surrogate",
+      "panel.metrics": "Target thresholds · proposal §8", "metrics.synthetic": "synthetic demo",
+      "metrics.note": "These are the thresholds we set, not measurements. Accuracy can only be shown by hindcasting a real flood.",
+      "metrics.extent": "(flood extent)", "metrics.pending": "· not yet measured", "metrics.selftest": "Physics self-test", "metrics.measured": "· measured on every boot",
+      "metrics.surrogate": "FNO/DeepONet surrogate", "metrics.planned": "planned — not yet trained", "forcing.src": "Synthetic scenario",
       "view.3d": "3D digital twin", "view.2d": "2D operations map",
       "cam.overview": "Overview", "cam.delta": "Lowlands", "cam.dams": "Cascade", "cam.hoian": "Hoi An",
       "hint.orbit": "Drag to orbit · scroll to zoom · right-drag to pan", "hint.pan2d": "Drag to pan · scroll to zoom · click gauges/dams",
@@ -174,6 +202,30 @@
       "report.stage": "Stage (m)", "report.alert": "Alert", "report.level": "Level (m)", "report.ceil": "Pre-flood ceiling", "report.io": "In / Out (m³/s)",
       "report.depth": "Max depth (m)", "report.exposed": "Exposed", "report.access": "EOC access", "report.brief": "Situation summary",
       "modal.method": "Methods — what is real vs synthetic",
+      "rec.btn": "Decision record", "modal.record": "Decision record · ledger",
+      "rec.none": "No decision recorded yet. Approve or reject a proposal and the record is sealed at the moment you click.",
+      "rec.print": "Print · export PDF", "rec.json": "Download JSON", "rec.apxOpt": "Include appendix",
+      "rec.superseded": "Context changed — an open decision was recorded as superseded",
+      "rec.title": "INTER-RESERVOIR OPERATING DECISION RECORD",
+      "rec.wm": "DEMO · UNSIGNED",
+      "rec.banner": "Produced by a public demonstration running on synthetic data. This is not a record of any real operation, it carries no signature, and it establishes no accountability.",
+      "rec.what": "What was decided", "rec.when": "When", "rec.expect": "What was expected to happen",
+      "rec.clause": "Which clause permitted it", "rec.risk": "What could still go wrong",
+      "rec.who": "Who decided", "rec.check": "How to check this again",
+      "rec.roleDemo": "role not established, the demo has no accounts",
+      "rec.foot": "FloodTwin · SkyLabs — demo record, unsigned. The hash is recomputable without contacting us.",
+      "rec.apx": "DECISION RECORD APPENDIX", "rec.apxSeq": "Decision sequence",
+      "rec.apxGauge": "Gauges at the moment of sealing", "rec.apxRes": "Reservoirs at the moment of sealing",
+      "rec.apxForcing": "Forcing and scenario", "rec.apxProv": "Data provenance",
+      "rec.out.approved": "APPROVED", "rec.out.rejected": "REJECTED", "rec.out.superseded": "SUPERSEDED",
+      "rec.sealed": "Decision record sealed",
+      "rec.apxBand": "Ensemble envelope at the peak",
+      "rec.bandSrc": "Ensemble quantiles of the in-browser routing, read where the median peaks",
+      "rec.clk.client_clock_unsynchronised": "the visitor's own machine clock, unsynchronised",
+      "rec.src.terrain_real": "Real terrain (AWS Terrain Tiles)",
+      "rec.src.legal_real": "Real legal text (Decision 1865/QĐ-TTg)",
+      "rec.src.forcing_synthetic": "Analytic forcing (synthetic)",
+      "rec.src.solver_local": "Shallow-water solver running in this browser",
       "log.start": "VGTB digital twin initialised — 4 reservoirs, 2 key gauges, 144² SWE grid.",
       "ev.bd1": "exceeded alert level 1", "ev.bd2": "exceeded alert level 2", "ev.bd3": "exceeded ALERT LEVEL 3", "ev.below": "dropped below alert level 1",
       "ev.roadClosed": "flooded ≥30 cm — road closed", "ev.roadOpen": "water receded — reopened",
@@ -195,6 +247,14 @@
     clamp: (v, a, b) => (v < a ? a : v > b ? b : v),
     lerp: (a, b, t) => a + (b - a) * t,
     smoothstep(a, b, t) { const x = FT.util.clamp((t - a) / (b - a), 0, 1); return x * x * (3 - 2 * x); },
+    /* standard-normal CDF Φ(z), Abramowitz–Stegun 7.1.26. Used to read a probability
+       off the same Gaussian the ensemble band is drawn from, so P(below a level) and
+       the P05–P95 envelope come from one estimator (see hydro.js buildProposal, R-33). */
+    normCdf(z) {
+      // Φ(z) = ½(1 + erf(z/√2)); erf via A&S 7.1.26 (|error| < 1.5e-7)
+      const erf = (x) => { const t = 1 / (1 + 0.3275911 * Math.abs(x)); const y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x); return x >= 0 ? y : -y; };
+      return 0.5 * (1 + erf(z / Math.SQRT2));
+    },
     fmt(v, d = 1) { return Number(v).toLocaleString(FT.state.lang === "vi" ? "vi-VN" : "en-US", { maximumFractionDigits: d, minimumFractionDigits: d }); },
     fmtInt(v) { return Math.round(v).toLocaleString(FT.state.lang === "vi" ? "vi-VN" : "en-US"); },
     /* sim clock: t hours relative to scenario "now" anchor */
@@ -228,7 +288,20 @@
       if (depth >= 0.05) return getCSS("--road-caution");
       return getCSS("--road-open");
     },
+    /* hazard thresholds — docs/00-foundations/09-typical-values.md §6 */
+    CLOSE_DEPTH: 0.30,                       // vehicles stall/float → road closed
+    RISK_DEPTH: 0.15,                        // hazardous, passable with care
     roadClass(depth) { return depth >= 0.30 ? 3 : depth >= 0.15 ? 2 : depth >= 0.05 ? 1 : 0; },
+    /* Graded depth-exposure function — docs/01-domain-model/04-exposure-and-impact-model.md §3.1.
+       Exposure is population × this fraction, NOT a binary "deep enough" count: a shallow
+       flood in a market exposes people the old `depth > 0.45` test dropped. The bands are
+       the doc's, and this is the single source of truth for world.floodStats and zones. */
+    exposureFraction(depth) {
+      return depth < 0.15 ? 0
+        : depth < 0.30 ? 0.25          // disrupted
+        : depth < 0.50 ? 0.60          // affected
+        : 1.00;                        // directly affected
+    },
     alertColor(level) { return getCSS(`--al-${FT.util.clamp(level, 0, 3)}`); },
   };
 

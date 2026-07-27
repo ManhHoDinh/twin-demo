@@ -1,0 +1,18 @@
+{
+  "name": "floodtwin-q1-demo",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "FloodTwin — flood decision-support demonstrator for the Vu Gia – Thu Bồn basin. Static app (no build step) plus a Playwright end-to-end suite organised by operational workflow.",
+  "scripts": {
+    "serve": "node tests/serve.mjs 4310",
+    "e2e": "node tests/e2e.mjs",
+    "e2e:quick": "node tests/e2e.mjs --quick",
+    "test": "node tests/e2e.mjs && node tests/ux-audit.mjs",
+    "ux": "node tests/ux-audit.mjs",
+    "ux:strict": "node tests/ux-audit.mjs --strict"
+  },
+  "devDependencies": {
+    "playwright": "^1.62.0"
+  }
+}

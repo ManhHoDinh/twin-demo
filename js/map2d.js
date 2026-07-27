@@ -365,6 +365,60 @@
     }
   }
 
+  /* ---------- shelters (docs E-30 · FR-23) ----------
+     Drawn with their LIVE validity, not as static pins: a site whose refuge level is
+     under water, or that has lost resupply, must look different from one that is usable.
+     A shelter map that cannot show an invalid shelter is how people get sent into one. */
+  function drawShelters(t) {
+    if (!D.SHELTERS || !FT.forecast || !FT.world.ready) return;
+    const tH = FT.state.timeH;
+    FT.forecast.ensureCalibrated(tH);
+    const showLabel = cam.scale > minScale * 1.35;
+    for (const sh of D.SHELTERS) {
+      const X = sx(sh.x), Y = sy(sh.y);
+      if (X < -30 || X > cw + 30 || Y < -30 || Y > ch + 30) continue;
+      const st = FT.forecast.shelterState(sh, tH);
+      const col = !st.valid ? "226,84,74" : st.warn ? "232,168,56" : "89,217,140";
+      const r = 6 * dpr;
+      /* house glyph — recognisable at a glance, not another coloured dot */
+      ctx.beginPath();
+      ctx.moveTo(X, Y - r * 1.25); ctx.lineTo(X + r, Y - r * 0.15);
+      ctx.lineTo(X + r * 0.62, Y - r * 0.15); ctx.lineTo(X + r * 0.62, Y + r * 0.9);
+      ctx.lineTo(X - r * 0.62, Y + r * 0.9); ctx.lineTo(X - r * 0.62, Y - r * 0.15);
+      ctx.lineTo(X - r, Y - r * 0.15); ctx.closePath();
+      ctx.fillStyle = `rgba(${col},${st.valid ? 0.88 : 0.6})`;
+      ctx.fill();
+      ctx.lineWidth = 1.4 * dpr;
+      ctx.strokeStyle = "rgba(5,12,20,0.9)";
+      ctx.stroke();
+      if (!st.valid) {                                   // unmistakable cross — colour is never the only channel
+        ctx.beginPath();
+        ctx.moveTo(X - r * 0.8, Y - r * 0.8); ctx.lineTo(X + r * 0.8, Y + r * 0.8);
+        ctx.moveTo(X + r * 0.8, Y - r * 0.8); ctx.lineTo(X - r * 0.8, Y + r * 0.8);
+        ctx.strokeStyle = "rgba(255,235,235,0.95)";
+        ctx.lineWidth = 1.8 * dpr;
+        ctx.stroke();
+      } else if (st.warn) {                              // ring = degraded but usable
+        ctx.beginPath();
+        ctx.arc(X, Y, r * 1.7, 0, 7);
+        ctx.strokeStyle = `rgba(${col},0.75)`;
+        ctx.setLineDash([3 * dpr, 3 * dpr]);
+        ctx.lineWidth = 1.3 * dpr;
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+      if (showLabel) {
+        const cap = st.valid ? `${U.fmtInt(st.capacity)}` : FT.state.lang === "vi" ? "loại" : "excl";
+        ctx.font = `600 ${8.5 * dpr}px sans-serif`;
+        ctx.textAlign = "center";
+        ctx.lineWidth = 3 * dpr; ctx.strokeStyle = "rgba(5,12,20,0.85)";
+        ctx.strokeText(`${sh.name} · ${cap}`, X, Y + r * 2.4);
+        ctx.fillStyle = `rgba(${col},0.97)`;
+        ctx.fillText(`${sh.name} · ${cap}`, X, Y + r * 2.4);
+      }
+    }
+  }
+
   /* ---------- interactivity ---------- */
   let hover = null, dragging = false, lastPX = 0, lastPY = 0, moved = 0, userPanned = false;
   const cursorKm = [NaN, NaN];
@@ -406,7 +460,7 @@
     if (hit.kind === "gauge") {
       const gs = snap.gauges[hit.obj.id];
       const lv = gs.alert;
-      html = `<b>${hit.obj.name}</b> · ${hit.obj.river}<br>${U.fmt(gs.stage, 2)} m — ${lv ? "BĐ" + lv : FT.i18n.t("alert.normal")}<br><small>${gs.trend >= 0 ? "▲" : "▼"} ${U.fmt(Math.abs(gs.trend), 2)} m/3h</small>`;
+      html = `<b>${hit.obj.name}</b> · ${hit.obj.river}<br>${U.fmt(gs.stage, 2)} m — ${lv ? FT.i18n.t("alert.bd") + lv : FT.i18n.t("alert.normal")}<br><small>${gs.trend >= 0 ? "▲" : "▼"} ${U.fmt(Math.abs(gs.trend), 2)} m/3h</small>`;
     } else if (hit.kind === "res") {
       const rs = snap.reservoirs[hit.obj.id];
       html = `<b>${hit.obj.name}</b><br>Z ${U.fmt(rs.Z, 1)} m / ${FT.i18n.t("res.ceil")} ${hit.obj.ceil} m<br><small>${FT.i18n.t("res.inflow")} ${U.fmtInt(rs.I)} · ${FT.i18n.t("res.outflow")} ${U.fmtInt(rs.O)} m³/s</small>`;
@@ -899,6 +953,7 @@
     if (FT.state.layers.roads) drawRoads(clock);
     if (FT.state.layers.traffic) drawVehicles();
     if (FT.state.layers.zones) drawZones(clock);
+    if (FT.state.layers.shelters) drawShelters(clock);
     if (FT.state.layers.reservoirs) drawReservoirs(snap, clock);
     if (FT.state.layers.gauges) drawGauges(snap, clock);
     if (FT.state.layers.labels) drawCities();

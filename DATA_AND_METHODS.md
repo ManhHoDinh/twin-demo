@@ -75,6 +75,20 @@ Bbox miền: **107,55–108,45°E / 15,30–16,16°N** (~96 × 95,5 km), quy đ�
 | Phóng đại chiều cao | `js/scene3d.js`: `elevToY` (20× vùng thấp) + `scene.scale.y = 1 − cf·0.9` (ghé sát ~2×) |
 | Nguồn tile khác | `js/geo.js` → `TILE_URLS` (img/rd/pl) — giữ LRU 450 + retry + nhả cache 30 s |
 
+### Lớp quyết định (v87–v90) — `js/decision.js` + `js/opsui.js`
+
+Bộ tài liệu sản phẩm đầy đủ nằm ở **[`docs/`](docs/README.md)**; bản đối chiếu code ↔ yêu cầu ở [`docs/99-appendix/demo-gap-analysis.md`](docs/99-appendix/demo-gap-analysis.md).
+
+| Muốn chỉnh | Sửa ở |
+|---|---|
+| Ngưỡng ràng buộc (thông báo trước, tốc độ lên/xuống, chiều cao an toàn, mức cắt đỉnh đáng làm) | `js/decision.js` → `OPS.config` |
+| Danh sách ràng buộc C1–C10 | `js/decision.js` → `OPS.constraints` |
+| Cách chấm mức tin cậy | `js/decision.js` → khối confidence trong `OPS.package` |
+| Nguồn dữ liệu & mức vận hành L0–L4 | `js/decision.js` → `buildFeeds`, `OPS.health`, `OPS.setDegradation` |
+| Bố cục gói quyết định | `js/opsui.js` → `renderPackage` |
+| Thang leo thang L0–L5 | `js/opsui.js` → `escalation` |
+| Mực nước thiết kế/kiểm tra/đỉnh đập (ĐANG LÀ GIÁ TRỊ GIẢ ĐỊNH ⚠) | `js/data.js` → `RESERVOIRS.zDesign / zCheck / crest` |
+
 ### Quy tắc CHỐNG THOÁI LUI (đúc kết từ lỗi thật — xem chi tiết `IMPROVEMENT_LOG.md`)
 1. **Không** tham chiếu `THREE.*` ở cấp module trong `scene3d.js` (chỉ trong hàm sau `init`) — vi phạm = chết cả IIFE, app rơi về 2D.
 2. SWE chỉ động trên đồng bằng (<28 m); núi là diagnostic — bỏ giới hạn = "nhà máy nước" 400 m trên núi.
@@ -83,7 +97,11 @@ Bbox miền: **107,55–108,45°E / 15,30–16,16°N** (~96 × 95,5 km), quy đ�
 5. Thứ tự lớp theo trục Y: terrain < lớp detail (+0,015–0,035) < nước (+0,025–0,055) < đường (+0,1) — chỉnh độ nâng nào cũng phải giữ chuỗi này.
 6. Màu đường 3D là RGBA (`itemSize 4`, cả `buildRoads` lẫn `buildOsmRoads`) — rebuild 3-thành-phần sẽ vỡ index ×4.
 7. `updateWater` giữ 10 Hz (shimmer đã chạy bằng `uTime` trong shader) — đưa về mỗi-frame là tụt fps.
-8. Bump `?v=N` mỗi lần sửa js, kiểm console + `[selftest] hydro PASS 4/4` trước khi coi là xong.
+8. Bump `?v=N` mỗi lần sửa js, kiểm console + `[selftest] PASS 16/16` **và `npm run e2e` (75/75)** trước khi coi là xong.
+9. **Không hiển thị con số trần** — mọi đại lượng phải đi qua envelope (nguồn gốc · tuổi · chất lượng · khoảng bất định). `docs/05-product/03-prd.md` FR-01.
+10. **Không phát hành gói quyết định thiếu phản thực (counterfactual) và danh sách ràng buộc.** Ràng buộc cứng vi phạm ⇒ báo KHÔNG KHẢ THI kèm ràng buộc quyết định, **tuyệt đối không nới lỏng ngầm**. FR-10, FR-12.
+11. **Mọi bản in/xuất phải mang dấu chế độ + cảnh báo không dùng vận hành.** FR-03.
+12. `js/opsui.js` **bọc** `FT.ui.tick` chứ không sửa `ui.js` — giữ nguyên nguyên tắc cộng thêm này khi mở rộng.
 
 ---
 

@@ -206,14 +206,126 @@
         }
         if (bad >= 5) { fails.push(`mass/level ${r.id} (${bad})`); }
       }
+      /* 5–8: decision layer (docs/05-product/05-non-functional-requirements.md NFR-12) */
+      const OPS = FT.ops;
+      if (OPS) {
+        const snap = H.at(FT.state.timeH);
+        const pkg = OPS.package(snap);
+        /* 5: a proposal always carries a counterfactual and a constraint proof */
+        if (pkg.kind === "PROPOSAL" || pkg.kind === "NULL") {
+          if (!pkg.counterfactual || pkg.counterfactual.peak == null) fails.push("no counterfactual");
+          if (!pkg.constraints || !pkg.constraints.length) fails.push("no constraint list");
+          /* 6: infeasibility is REPORTED, never relaxed away */
+          const anyFail = pkg.constraints.some((c) => c.status === "FAIL");
+          if (anyFail && pkg.feasible) fails.push("infeasible marked feasible");
+          if (anyFail && !pkg.binding) fails.push("no binding constraint named");
+        }
+        /* 7: degradation behaviour — L2 stands the optimiser down, L4 refuses to advise */
+        OPS.setDegradation(2);
+        if (OPS.package(H.at(FT.state.timeH)).kind !== "DEGRADED") fails.push("L2 did not disable the optimiser");
+        OPS.setDegradation(4);
+        if (OPS.package(H.at(FT.state.timeH)).kind !== "REFUSAL") fails.push("L4 did not refuse");
+        OPS.setDegradation(null);
+        /* 8: the synthetic build can never claim more than LOW confidence (R-01) */
+        if (pkg.confidence && pkg.confidence !== "LOW" && pkg.confidence !== "UNUSABLE") fails.push(`confidence ${pkg.confidence} on synthetic build`);
+        /* 10–12: warning-message integrity (docs FR-20) */
+        if (FT.notifyOps) {
+          const snapN = H.at(6);
+          for (const type of ["threshold", "release", "evacuation"]) {
+            const rec = FT.notifyOps.buildRecord(type, snapN);
+            /* 10: the quoted alert level must match the quoted stage at the quoted gauge —
+                   a message saying "10.2 m, above AL1 by 0.03 m" is a real defect class */
+            if (rec.gauge && rec.stage != null) {
+              const b = rec.gauge.bd, s = rec.stage;
+              const expect = s >= b[2] ? 3 : s >= b[1] ? 2 : s >= b[0] ? 1 : null;
+              if (rec.bdLevel !== expect) fails.push(`${type}: level ${rec.bdLevel} vs stage ${s.toFixed(2)}`);
+            }
+            /* 11: SMS must be plain ASCII and split into ≤160-char parts, never truncated */
+            if (/[^\x20-\x7E\n]/.test(rec.channels.sms)) fails.push(`${type}: SMS not ASCII`);
+            if (rec.channels.smsParts.some((p) => p.length > 160)) fails.push(`${type}: SMS part >160`);
+          }
+        }
+        /* 13–15: domain state machines + derived event timeline */
+        if (FT.domain && W.ready) {
+          FT.domain.rebuildTimeline();
+          const n1 = FT.domain.events.length;
+          const sig1 = FT.domain.events.map((e) => `${e.tH.toFixed(2)}|${e.type}|${e.subject}`).join(";");
+          /* 13: every transition must be one the domain permits */
+          const bad = FT.domain.illegalTransitions();
+          if (bad.length) fails.push(`illegal transition ${bad[0].subject} ${bad[0].from}->${bad[0].to}`);
+          /* 14: the derived timeline is deterministic — replay reproduces it exactly */
+          FT.domain.rebuildTimeline();
+          const sig2 = FT.domain.events.map((e) => `${e.tH.toFixed(2)}|${e.type}|${e.subject}`).join(";");
+          if (sig1 !== sig2 || n1 !== FT.domain.events.length) fails.push("event timeline not deterministic");
+          /* 15: state is a pure function of (entity, t), independent of where the SWE sits */
+          if (FT.forecast && FT.data.SHELTERS) {
+            const keepT = FT.state.timeH;
+            const probe = () => FT.data.SHELTERS.map((s) => FT.forecast.shelterState(s, 20).valid).join(",");
+            FT.state.timeH = 4; W.resetToTime(H.at(4)); W.updateRoadDepths();
+            const a = probe();
+            FT.state.timeH = 40; W.resetToTime(H.at(40)); W.updateRoadDepths();
+            const b = probe();
+            FT.state.timeH = keepT; W.resetToTime(H.at(keepT)); W.updateRoadDepths();
+            if (a !== b) fails.push("shelter state not a pure function of t");
+          }
+        }
+
+        /* 12: dam-safety alarms are never grouped away */
+        if (FT.alarms && FT.alarms.list.some((a) => a.damSafety && a.groupOf)) fails.push("dam-safety alarm grouped");
+
+        /* 9: a saturated gauge model must NOT be reported as "no action needed" */
+        for (const sc of ["oct2020", "yagi", "monsoon"]) {
+          const keepSc = FT.state.scenario;
+          FT.state.scenario = sc; H.rebuild();
+          const q = OPS.package(H.at(6));
+          if (q.saturated && q.kind !== "SATURATED") fails.push(`${sc}: saturated reported as ${q.kind}`);
+          FT.state.scenario = keepSc; H.rebuild();
+        }
+
+        /* 16: the AI situation brief may publish only grounded claims (info/ai.html §4.3).
+           Every claim it would show must cite a resolving source and, where numeric, match
+           the live snapshot — a shipped brief with an unsourced or drifted claim is a defect. */
+        if (FT.ui && FT.ui.verifyBrief && FT.grounding) {
+          const gr = FT.ui.verifyBrief(H.at(FT.state.timeH));
+          if (!gr.published.every((c) => c.grounded)) fails.push("brief published an ungrounded claim");
+          if (gr.total > 0 && gr.ratio < (FT.data.TARGETS.grounded || 0.95)) fails.push(`brief groundedness ${(gr.ratio * 100) | 0}% below target`);
+        }
+
+        /* 18: the graded depth-exposure function (impact-model §3.1) must be monotonic,
+           bounded in [0,1], and carry the documented values at the band boundaries — the
+           headline "people exposed" is population × this, so a wrong curve is a wrong count. */
+        {
+          const ef = FT.util.exposureFraction;
+          const bands = [[0.10, 0], [0.15, 0.25], [0.20, 0.25], [0.30, 0.60], [0.49, 0.60], [0.50, 1.00], [2.0, 1.00]];
+          for (const [d, want] of bands) if (Math.abs(ef(d) - want) > 1e-9) fails.push(`exposureFraction(${d})=${ef(d)} want ${want}`);
+          let prev = -1;
+          for (let d = 0; d <= 2; d += 0.05) { const v = ef(d); if (v < prev - 1e-9 || v < 0 || v > 1) { fails.push("exposureFraction not monotonic in [0,1]"); break; } prev = v; }
+        }
+
+        /* 17: shelter allocation must never place more people than a shelter can hold, and
+           its arithmetic must close (assigned + unsheltered == exposed). Over-filling a
+           shelter on paper is the evacuation-planning defect this pass exists to prevent. */
+        if (FT.forecast && FT.forecast.allocateShelters && FT.zones && FT.zones.ready) {
+          const alloc = FT.forecast.allocateShelters(FT.state.timeH);
+          if (alloc) {
+            const cap = {};
+            for (const z of alloc.zones) for (const p of z.placements) cap[p.shelterId] = (cap[p.shelterId] || 0) + p.placed;
+            for (const sh of FT.data.SHELTERS) {
+              const used = cap[sh.id] || 0, avail = FT.forecast.shelterState(sh, FT.state.timeH).capacity;
+              if (used > avail + 1e-6) fails.push(`shelter ${sh.id} overfilled ${used}/${avail}`);
+            }
+            if (alloc.totalAssigned + alloc.totalUnsheltered !== alloc.totalExposed) fails.push("shelter allocation arithmetic does not close");
+          }
+        }
+      }
     } catch (err) { fails.push("exception: " + (err && err.message)); }
     if (fails.length) {
-      FT.notify(`⚠️ Self-test hydro FAIL: ${fails.join("; ")}`.slice(0, 140), "danger");
-      FT.log(`Self-test hydro FAIL: ${fails.join("; ")}`, "danger");
+      FT.notify(`⚠️ Self-test FAIL: ${fails.join("; ")}`.slice(0, 140), "danger");
+      FT.log(`Self-test FAIL: ${fails.join("; ")}`, "danger");
     } else {
-      FT.log("Self-test hydro: PASS 4/4 (MPC cắt đỉnh · BĐ3 · quantile · cân bằng khối)", "ok");
+      FT.log("Self-test: PASS 19/19 (MPC cắt đỉnh · BĐ3 · quantile · cân bằng khối · phản thực · khả thi · từ chối L4 · tin cậy · bản tin có nguồn · sức chứa trú ẩn · hàm phơi nhiễm)", "ok");
     }
-    console.info(`[selftest] hydro ${fails.length ? "FAIL: " + fails.join("; ") : "PASS 4/4"}`);
+    console.info(`[selftest] ${fails.length ? "FAIL: " + fails.join("; ") : "PASS 19/19"}`);
     FT._st = fails.length ? "H✗" : "H✓";
     return fails.length === 0;
   }

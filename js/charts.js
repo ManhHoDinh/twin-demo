@@ -121,7 +121,7 @@
       ctx.fillStyle = col;
       ctx.textAlign = "left";
       font(8.5);
-      ctx.fillText(`BĐ${i + 1}`, padL + iw + 4 * dpr, Y(g.bd[i]) + 3 * dpr);
+      ctx.fillText(`${FT.i18n.t("alert.bd")}${i + 1}`, padL + iw + 4 * dpr, Y(g.bd[i]) + 3 * dpr);
     }
 
     /* fan bands (forecast only) */

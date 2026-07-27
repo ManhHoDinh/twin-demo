@@ -17,7 +17,7 @@
   <meta property="og:locale" content="vi_VN" />
   <meta name="twitter:card" content="summary_large_image" />
   <link rel="canonical" href="https://app.skylabs.vn/" />
-  <link rel="stylesheet" href="./styles.css?v=7" />
+  <link rel="stylesheet" href="./styles.css?v=123" />
 </head>
 <body>
   <div id="app" class="app">
@@ -79,12 +79,44 @@
       <p class="mobileHint" data-i18n="hint.mobile"><b>Đang xem trên màn hình nhỏ.</b> Bản đồ vận hành 2D được ưu tiên; xoay ngang máy hoặc mở trên máy tính để thấy đủ bảng hồ chứa, dự báo và khu vực giám sát.</p>
     </header>
 
+    <!-- ============ OPS BAR — mode · escalation · data health · decision deadline ============
+         Persistent by design: docs/05-product/02-screen-catalog.md "global chrome". -->
+    <div class="opsBar" id="opsBar">
+      <span class="opsMode" id="opsMode">SYNTHETIC DATA · NOT FOR OPERATIONS</span>
+      <span class="opsItem" id="opsEsc"><i>Escalation</i><b id="opsEscVal">L0</b></span>
+      <span class="opsItem opsHealthBtn" id="opsHealth" role="button" tabindex="0"><i>Data</i><b id="opsHealthVal">L0 · —</b></span>
+      <span class="opsItem opsKappa" id="opsKappa"><i>κ điều tiết</i><b id="opsKappaVal">—</b></span>
+      <span class="opsItem opsPex" id="opsPex"><i>P(vượt BĐ3, 12h)</i><b id="opsPexVal">—</b></span>
+      <span class="opsItem opsDeadline" id="opsDeadline"><i>Hạn quyết định</i><b id="opsDeadlineVal">—</b></span>
+      <span class="opsSpacer"></span>
+      <label class="opsActor"><i>Trực ban</i>
+        <select id="opsActor">
+          <option value="">— chưa định danh —</option>
+          <option value="Nguyễn V.A.|Kỹ sư vận hành hồ">Nguyễn V.A. · KS vận hành hồ</option>
+          <option value="Trần T.B.|Trưởng ca vận hành">Trần T.B. · Trưởng ca</option>
+          <option value="Lê Q.C.|Giám đốc nhà máy">Lê Q.C. · Giám đốc NM</option>
+          <option value="Phạm M.D.|Ban Chỉ huy PCTT&TKCN">Phạm M.D. · Ban Chỉ huy PCTT</option>
+          <option value="Vũ H.E.|Kỹ sư an toàn đập">Vũ H.E. · KS an toàn đập</option>
+          <option value="Đỗ K.F.|Chỉ huy ứng phó">Đỗ K.F. · Chỉ huy ứng phó</option>
+        </select>
+      </label>
+      <label class="opsActor"><i>Suy giảm dữ liệu</i>
+        <select id="opsDegrade">
+          <option value="">L0 đầy đủ</option>
+          <option value="1">L1 giảm nhẹ</option>
+          <option value="2">L2 thiếu nguồn then chốt</option>
+          <option value="3">L3 mất kết nối</option>
+          <option value="4">L4 không quan trắc</option>
+        </select>
+      </label>
+    </div>
+
     <!-- ============ LEFT RAIL ============ -->
     <aside class="rail railLeft" id="railLeft">
       <section class="panel">
         <div class="panelTitle">
           <span data-i18n="panel.forcing">Cưỡng bức khí tượng</span>
-          <strong id="forcingSource">GenCast · IMERG</strong>
+          <strong id="forcingSource" data-i18n="forcing.src">Kịch bản tổng hợp</strong>
         </div>
         <label class="control">
           <span data-i18n="ctl.rainScale">Hệ số mưa (× ensemble)</span>
@@ -99,12 +131,36 @@
         <div class="miniNote" data-i18n="ctl.note">Chuỗi GraphCast/GenCast + IMERG hiệu chỉnh — dữ liệu tổng hợp minh hoạ.</div>
       </section>
 
+      <!-- ============ SUB-CATCHMENT RAINFALL & ANTECEDENT WETNESS (docs S-08 · FR-29) ============ -->
+      <section class="panel subcatchPanel">
+        <div class="panelTitle">
+          <span>Mưa theo tiểu lưu vực · độ ẩm trước lũ</span>
+          <strong id="subSplit">—</strong>
+        </div>
+        <p class="metricNote">Mưa <b>thượng nguồn</b> thành dòng vào hồ và <b>điều tiết được</b>; mưa <b>khu giữa/đồng bằng</b> thì không. Đây là cơ sở của hệ số κ.</p>
+        <div class="subList" id="subList"></div>
+        <p class="metricNote" id="rainCaveat"></p>
+      </section>
+
       <section class="panel zonesPanel">
         <div class="panelTitle">
           <span data-i18n="panel.zones">Khu vực giám sát</span>
           <strong id="zonesSummary">—</strong>
         </div>
         <div class="zoneList" id="zoneList"></div>
+      </section>
+
+      <!-- ============ EVACUATION & SHELTERS (docs FR-22/23/24) ============ -->
+      <section class="panel evacPanel">
+        <div class="panelTitle">
+          <span>Sơ tán · điểm trú · tuyến</span>
+          <strong id="evacSummary">—</strong>
+        </div>
+        <p class="metricNote">Tuyến được đánh giá theo trạng thái ngập <b>tại thời điểm sử dụng</b>, không phải hiện tại. “Đóng lúc” là giờ dự kiến mất tuyến.
+        <br><b>Giới hạn mô hình:</b> chỉ tính trên mạng <span id="evacNetN">—</span> tuyến chính đã mô hình hoá — “cô lập” nghĩa là mất kết nối trên mạng này, chưa xét đường nhỏ/ngõ.</p>
+        <div class="shelterCapacity" id="shelterCapacity" role="status"></div>
+        <div class="evacList" id="evacList"></div>
+        <div class="shelterList" id="shelterList"></div>
       </section>
 
       <section class="panel">
@@ -122,6 +178,7 @@
           <label class="toggle"><input type="checkbox" checked data-layer="rain" /><span data-i18n="layer.rain">Mưa</span></label>
           <label class="toggle"><input type="checkbox" checked data-layer="labels" /><span data-i18n="layer.labels">Nhãn địa danh</span></label>
           <label class="toggle"><input type="checkbox" checked data-layer="zones" /><span data-i18n="layer.zones">Vòng khu vực</span></label>
+          <label class="toggle"><input type="checkbox" checked data-layer="shelters" /><span>Điểm sơ tán</span></label>
           <label class="toggle"><input type="checkbox" checked data-layer="bldg" /><span data-i18n="layer.bldg">Tòa nhà</span></label>
           <label class="toggle"><input type="checkbox" checked data-layer="impact" /><span data-i18n="layer.impact">Tác động dân cư</span></label>
         </div>
@@ -163,16 +220,17 @@
       </section>
 
       <section class="panel metricsPanel">
-        <div class="panelTitle"><span data-i18n="panel.metrics">Chỉ số mô hình · mục tiêu Q1</span><button id="btnMethod" class="methodBtn" type="button" title="Phương pháp">ℹ️</button></div>
+        <div class="panelTitle"><span data-i18n="panel.metrics">Ngưỡng đạt mục tiêu · đề cương §8</span><button id="btnMethod" class="methodBtn" type="button" title="Phương pháp">ℹ️</button></div>
+        <p class="metricNote" data-i18n="metrics.note">Đây là ngưỡng đặt ra, chưa phải số đo. Độ chính xác chỉ chứng minh được bằng đối chứng lùi trên trận lũ thật.</p>
         <div class="metricRows" id="metricRows">
-          <div class="metricRow"><span>CSI <em data-i18n="metrics.vs">(vs Sentinel-1)</em></span><div class="metricBar"><i style="--p:84%"></i></div><strong>0.84 <em>/ ≥0.80</em></strong></div>
-          <div class="metricRow"><span>NSE</span><div class="metricBar"><i style="--p:86%"></i></div><strong>0.86 <em>/ ≥0.80</em></strong></div>
-          <div class="metricRow"><span>KGE</span><div class="metricBar"><i style="--p:79%"></i></div><strong>0.79 <em>/ ≥0.75</em></strong></div>
-          <div class="metricRow"><span data-i18n="metrics.ground">Groundedness LLM</span><div class="metricBar"><i style="--p:97%"></i></div><strong>0.97 <em>/ ≥0.95</em></strong></div>
+          <div class="metricRow"><span>CSI <em data-i18n="metrics.extent">(diện ngập)</em></span><strong>≥0.80 <em data-i18n="metrics.pending">· chưa đo</em></strong></div>
+          <div class="metricRow"><span>NSE</span><strong>≥0.80 <em data-i18n="metrics.pending">· chưa đo</em></strong></div>
+          <div class="metricRow"><span>KGE</span><strong>≥0.75 <em data-i18n="metrics.pending">· chưa đo</em></strong></div>
+          <div class="metricRow"><span data-i18n="metrics.selftest">Tự kiểm định vật lý</span><strong>4/4 <em data-i18n="metrics.measured">· đã đo mỗi lần khởi động</em></strong></div>
         </div>
         <div class="surrogateChip">
           <span data-i18n="metrics.surrogate">Surrogate FNO/DeepONet</span>
-          <strong id="surrogateSpeed">42 ms / bước · 68× HEC-RAS-2D</strong>
+          <strong id="surrogateSpeed" data-i18n="metrics.planned">kế hoạch — chưa huấn luyện</strong>
         </div>
       </section>
     </aside>
@@ -244,6 +302,7 @@
         <div class="scrubberWrap" id="scrubberWrap">
           <canvas id="scrubberCanvas" class="scrubberCanvas"></canvas>
           <input id="scrubber" class="scrubber" type="range" min="-24" max="48" step="0.05" value="-6" aria-label="Simulation time (hours)" />
+          <div class="eventRibbon" id="eventRibbon" aria-label="Domain event stream"></div>
           <div class="scrubMarks">
             <span>T−24h</span><span data-i18n="tl.observed">quan trắc</span><span class="nowMark" data-i18n="tl.now">HIỆN TẠI</span><span data-i18n="tl.forecast">dự báo ensemble</span><span>T+48h</span>
           </div>
@@ -282,17 +341,48 @@
         <div class="mpcCard" id="mpcCard" hidden>
           <div class="mpcHead">
             <span data-i18n="mpc.title">Đề xuất xả trước (MPC · nằm trong hành lang pháp lý)</span>
-            <strong id="mpcConfidence">62%</strong>
+            <strong id="mpcConfidence">—</strong>
           </div>
           <p id="mpcText">—</p>
           <div class="mpcCompare" id="mpcCompare"></div>
+          <!-- decision package: constraints · counterfactual · alternatives · regret (docs S-05) -->
+          <div class="dpBox" id="dpBox"></div>
+          <label class="dpReason"><span>Lý do ghi nhận (bắt buộc)</span>
+            <input id="dpReasonInput" type="text" maxlength="160" placeholder="vì sao chấp thuận / từ chối — lưu vào nhật ký kiểm toán" />
+          </label>
           <div class="mpcActions">
             <button id="mpcApprove" type="button" class="btnPrimary" data-i18n="mpc.approve">Phê duyệt</button>
+            <button id="mpcRecord" type="button" data-i18n="rec.btn">Hồ sơ quyết định</button>
             <button id="mpcDetails" type="button" data-i18n="mpc.details">Gói quyết định</button>
             <button id="mpcReject" type="button" data-i18n="mpc.reject">Từ chối</button>
           </div>
           <small class="mpcNote" data-i18n="mpc.note">Không cửa van nào vận hành theo lời LLM — người trực phê duyệt mọi lệnh xả.</small>
         </div>
+      </section>
+
+      <!-- ============ ALARMS & NOTIFICATIONS (docs S-10 · FR-20/FR-44) ============ -->
+      <section class="panel alarmPanel">
+        <div class="panelTitle">
+          <span>Cảnh báo · thông báo hạ du</span>
+          <strong id="alarmCount">0</strong>
+        </div>
+        <div class="alarmList" id="alarmList"></div>
+        <div class="notifyBar">
+          <button id="nfThreshold" type="button">Soạn bản tin mực nước</button>
+          <button id="nfRelease" type="button">Thông báo xả</button>
+          <button id="nfEvac" type="button">Lệnh sơ tán</button>
+        </div>
+        <p class="metricNote">Mọi kênh (điện thoại · SMS · loa xã · Zalo · CAP) được sinh từ <b>một bản ghi quyết định</b> nên không thể mâu thuẫn nhau. Bản demo chỉ ghi nhận, <b>không gửi thật</b>.</p>
+        <div class="notifyList" id="notifyList"></div>
+      </section>
+
+      <!-- ============ AUDIT TRAIL (docs S-18 · FR-04) ============ -->
+      <section class="panel auditPanel">
+        <div class="panelTitle">
+          <span>Nhật ký kiểm toán · chỉ ghi thêm</span>
+          <button id="auditExport" type="button" class="auditBtn">Xuất</button>
+        </div>
+        <ol class="auditLog" id="auditLog"></ol>
       </section>
 
       <section class="panel trafficPanel">
@@ -318,6 +408,8 @@
           <button id="btnBrief" type="button" class="btnPrimary" data-i18n="llm.generate">Tạo bản tin tình huống</button>
           <button id="btnCitizen" type="button" data-i18n="llm.citizen">Hỏi đáp cư dân Hội An</button>
           <button id="btnReport" type="button">🖨 <span data-i18n="report.btn">Xuất báo cáo</span></button>
+          <button id="btnRepOperation" type="button" title="Trả lời câu hỏi &quot;hồ có gây ra lũ không?&quot;">📄 Hồ sơ vận hành</button>
+          <button id="btnRepEvent" type="button" title="Dựng lại toàn bộ diễn biến từ dòng sự kiện + nhật ký kiểm toán">🗂 Báo cáo sau lũ</button>
         </div>
       </section>
 
@@ -330,8 +422,6 @@
     <!-- ============ FOOTER ============ -->
     <footer class="statusbar">
       <span data-i18n="foot.mode">Dữ liệu tổng hợp minh hoạ phương pháp — không dùng cho vận hành thật</span>
-      <span class="statusSep">·</span>
-      <span>GLO-30 · HydroSHEDS · IMERG · GenCast · GloFAS</span>
       <span class="statusSep">·</span>
       <span>Ảnh &amp; đường: Esri World Imagery/Transportation · DEM: AWS Terrain Tiles · © OSM contributors</span>
       <span class="statusSep">·</span>
@@ -385,17 +475,26 @@
     }
   </script>
 
-  <script src="./js/core.js?v=84"></script>
-  <script src="./js/geo.js?v=84"></script>
-  <script src="./js/data.js?v=84"></script>
-  <script src="./js/hydro.js?v=84"></script>
-  <script src="./js/world.js?v=84"></script>
-  <script src="./js/traffic.js?v=84"></script>
-  <script src="./js/zones.js?v=84"></script>
-  <script src="./js/charts.js?v=84"></script>
-  <script src="./js/map2d.js?v=84"></script>
-  <script src="./js/scene3d.js?v=84"></script>
-  <script src="./js/ui.js?v=84"></script>
-  <script src="./js/main.js?v=84"></script>
+  <script src="./js/core.js?v=123"></script>
+  <script src="./js/geo.js?v=123"></script>
+  <script src="./js/data.js?v=123"></script>
+  <script src="./js/hydro.js?v=123"></script>
+  <script src="./js/decision.js?v=123"></script>
+  <script src="./js/roles.js?v=123"></script>
+  <script src="./js/world.js?v=123"></script>
+  <script src="./js/forecast.js?v=123"></script>
+  <script src="./js/alerts.js?v=123"></script>
+  <script src="./js/domain.js?v=123"></script>
+  <script src="./js/reports.js?v=123"></script>
+  <script src="./js/traffic.js?v=123"></script>
+  <script src="./js/zones.js?v=123"></script>
+  <script src="./js/charts.js?v=123"></script>
+  <script src="./js/map2d.js?v=123"></script>
+  <script src="./js/scene3d.js?v=123"></script>
+  <script src="./js/record.js?v=123"></script>
+  <script src="./js/grounding.js?v=123"></script>
+  <script src="./js/ui.js?v=123"></script>
+  <script src="./js/opsui.js?v=123"></script>
+  <script src="./js/main.js?v=123"></script>
 </body>
 </html>

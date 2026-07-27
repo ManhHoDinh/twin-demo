@@ -3,6 +3,282 @@
 > File này là TRẠNG THÁI BỀN của phiên cải tiến dài. Mỗi batch: cập nhật Done + chọn mục Backlog kế tiếp.
 > Quy tắc bất di bất dịch: xem memory `floodtwin-q1-demo` (do-not-regress list). Bump `?v=N` mỗi lần sửa để pane reload.
 
+## v118–v119 — Thẩm quyền quyết định (RACI) được thực thi, không còn là tài liệu
+
+Tệp mới `js/roles.js`. Trước đây app đã từ chối quyết định **vô danh**, nhưng vẫn nhận quyết
+định từ **sai người**: ai đã định danh cũng phê duyệt được xả trước, trong khi D-03 thuộc thẩm
+quyền Ban Chỉ huy PCTT&TKCN còn kỹ sư vận hành hồ chỉ được ĐỀ XUẤT. Mã hoá bảng RACI chính là
+thứ biến "ai đang đăng nhập" thành "ai được quyết", tức là khác nhau giữa một nhật ký *có ghi
+tên* và một nhật ký *bảo vệ được*.
+
+- 12 quyết định D-01…D-16 với đúng một vai **chịu trách nhiệm (A)** mỗi quyết định, kèm vai
+  thực hiện (R) và tham vấn (C).
+- 6 vai trong bộ chọn trực ban (thêm **Kỹ sư an toàn đập** và **Chỉ huy ứng phó**).
+- `decisionForProposal()`: cùng một hành động đổi mã quyết định theo trạng thái hồ —
+  xả trước là **D-03**, trên trần đón lũ thành **D-05**, trên mực nước lũ thiết kế thành
+  **D-06** và rời khỏi tay Ban Chỉ huy hoàn toàn.
+- **Đảo thẩm quyền an toàn đập** được mã hoá: ở D-06, Ban Chỉ huy chỉ còn là bên *được thông
+  báo*; đó chính là điểm mấu chốt của ưu tiên hạng-1 nên không để thành thông lệ ngầm.
+- Thực thi ở 3 chỗ: phê duyệt gói quyết định, phát thông tin ra công chúng (**D-14**), lệnh
+  sơ tán (**D-10**). Từ chối **nêu đích danh vai có thẩm quyền** và **được ghi vào nhật ký
+  kiểm toán** — một lần phê duyệt hụt bởi sai cấp chính là thứ hội đồng điều tra sẽ hỏi.
+- Panel "Thẩm quyền quyết định" hiện **trước** các nút, để người trực biết ngay quyết định này
+  có phải của mình không, thay vì phát hiện bằng cách bị từ chối.
+
+Kiểm chứng: 6/6 vai được thử — chỉ **authority** phê duyệt được D-03, năm vai còn lại bị từ
+chối và mỗi lần đều có bản ghi.
+
+**Ba phép thử E2E đỏ sau thay đổi này là ĐÚNG:** fixture đang đăng nhập sai vai. Sửa fixture
+(thêm `signOnRole`), **không nới quyền**.
+
+**Một phép thử được siết chặt hơn thay vì nới:** "boot không có lỗi console" từng đỏ vì
+Overpass (dịch vụ bên thứ ba) từ chối kết nối. Lỗi ứng dụng phải bằng 0; lỗi nạp **lớp tăng
+cường tuỳ chọn** là chuyện khác — app vốn thiết kế để chạy không cần nó. Nay tách làm hai:
+lỗi ứng dụng = 0, và **thêm** một phép thử rằng khi lớp bên thứ ba hỏng thì app vẫn sống và
+**nói ra điều đó** ở footer.
+
+E2E **81/81** · UX **0 MUST** · selftest **16/16**. `?v=119` · `styles.css?v=21`.
+
+## v113–v117 — Audit UI/UX bằng Playwright: 6 vi phạm MUST → 0
+
+Tệp mới `tests/ux-audit.mjs` (37 phép đo) — chấm ứng dụng theo đúng chuẩn mà chính dự án
+đặt ra trong `docs/05-product/04-ux-principles.md` + điều khoản tiếp cận trong NFR.
+Chạy `npm run ux`. **Đây là ĐO, không phải soi**: tỉ lệ tương phản tính từ màu trình duyệt
+thực sự vẽ ra (hợp thành mọi lớp trong suốt và gradient xuống tới nền trang), cỡ chữ / tràn
+khung / tab order / focus đọc thẳng từ layout sống.
+
+Phân mức **MUST** (vi phạm ⇒ exit 1) và **SHOULD** (báo cáo, không chặn).
+
+**Lần chạy đầu: 6 vi phạm MUST. Bốn cái là thật, hai cái là lỗi của chính audit** — phải tách
+bạch, vì một audit không thể sai thì không đo cái gì cả.
+
+Lỗi THẬT của ứng dụng, đã sửa:
+| Phát hiện | Đo được | Sửa |
+|---|---|---|
+| Không hề có chỉ báo focus bàn phím | 0 control có outline | `:focus-visible` outline + ring toàn bộ control |
+| Chữ dưới ngưỡng đọc được | **317 node < 11 px** | nâng mọi khai báo lên ≥ 11 px; sửa lại chuẩn (A1) |
+| Chữ cảnh báo trượt AA trên thẻ nền tint | 14 node ở **3,44–4,30:1** | làm sáng bảng màu cảnh báo trong gói quyết định |
+| Số phơi nhiễm hiện chính xác giả | `1.603 người` | làm tròn về độ phân giải mô hình (trăm gần nhất) |
+| Không hỗ trợ `prefers-reduced-motion` | thiếu | đã thêm |
+
+Lỗi của AUDIT, đã sửa trong audit:
+- **Nền gradient bị báo `ratio 1.0`** — `backgroundColor` của gradient là trong suốt nên hàm
+  đi ngược lên lấy nhầm lớp. Lần sửa đầu lại quá tay: coi màu chặn đầu của gradient là ĐỤC,
+  trong khi nó thường là `rgba(47,134,255,0.14)` → báo oan 134 node vốn đọc tốt. Nay hợp
+  thành mọi lớp theo đúng alpha thật.
+- **`element.focus()` không kích hoạt `:focus-visible`** trong Chromium (pseudo-class này gắn
+  với heuristic tương tác bàn phím) → audit báo thiếu focus trong khi nó có. Nay bấm `Tab` thật.
+- **`new Set()` trên mảng không khử trùng lặp** → 5 dải độ sâu rời rạc bị đếm thành 8 và
+  đọc ra như thang màu liên tục.
+
+**Sửa CHUẨN chứ không hạ chuẩn (A1).** Quy tắc cũ ghi "tối thiểu 14 px, giá trị chính 24 px+"
+— đo ra 317 node vi phạm. Nâng tất cả lên 14 px sẽ phá chính yêu cầu "mật độ trước cái đẹp"
+nằm ngay trên đó. Con số 14/24 px đúng cho **màn hình treo tường xem ở 2 m**, không đúng cho
+**console vận hành để bàn xem ở 50–70 cm**. Chuẩn nay tách theo bề mặt, sàn tuyệt đối **11 px**
+ở mọi bề mặt. Ghi thành *amendment* kèm lý do, không sửa lén.
+
+**Một SHOULD còn lại, cố ý không dập:** gói quyết định nằm trong rail phải cuộn được
+(R-28). Cách sửa đúng là nâng S-05 thành màn hình riêng — thay đổi kiến trúc thông tin, không
+phải thay CSS. Giảm nhẹ: mọi tín hiệu quyết định *thường trực* (chế độ · escalation · sức khoẻ
+dữ liệu · κ · P(vượt) · hạn quyết định) nằm ở global chrome và được kiểm là thấy được không
+cần cuộn, mỗi lần chạy audit.
+
+Kết quả: **36/37 đạt · 0 MUST · 1 SHOULD**. E2E vẫn **75/75**, selftest **16/16**.
+`?v=117` · `styles.css?v=20`.
+
+## v111–v112 — Bộ kiểm thử đầu-cuối Playwright (75 phép thử)
+
+Thư mục mới `tests/`: `serve.mjs` · `browser.mjs` · `harness.mjs` · `e2e.mjs` + `README.md`.
+Chạy `npm run e2e` (đầy đủ) hoặc `npm run e2e:quick`. **Không cần cài đặt** — `browser.mjs`
+tự tìm Playwright ở project kế bên (SkyLabs_SURF2026 / SafeMove) khi project này chưa có
+`node_modules`.
+
+**Kế thừa từ harness cũ (SkyLabs_SURF2026/scripts) — phần đắt giá nhất:**
+- **Cờ GPU trong `browser.mjs`.** Chromium headless vẽ WebGL bằng SwiftShader (CPU) → cảnh 3D
+  chạy ~0 fps và click quá hạn 30 s trong khi ứng dụng hoàn toàn đúng. Có ANGLE/Metal thì
+  ~60 fps, click ~186 ms. Không có nó thì bộ test chập chờn mà không rõ nguyên nhân.
+- `serve.mjs` không phụ thuộc, có fallback `EADDRINUSE`.
+- Bộ `step/ok/bad/check`, bắt console + `pageerror`, báo cáo theo nhóm, exit code.
+
+**Cải tiến so với bản cũ:**
+1. **Chờ tín hiệu boot thay vì `sleep` cứng.** Bản cũ `waitForTimeout(22000)` — vừa chậm trên
+   máy khoẻ vừa thiếu trên máy yếu, đúng kiểu "flaky" tự tạo. Nay chờ dòng `[selftest]` do
+   chính ứng dụng phát ra.
+2. **Bằng chứng khi lỗi**: ảnh màn hình + dump trạng thái `FT` vào `tests/artifacts/`.
+3. **Điều khiển thời gian tất định** (`setTime`): scrub → resettle world → zones → tick, đúng
+   như ứng dụng làm, nên không phép thử nào đua với vòng render.
+4. **Kiểm bất biến chứ không chỉ kiểm thao tác**: tính tất định, trạng thái là hàm thuần của t,
+   nhất quán số liệu trong bản tin, tính khả thi ràng buộc.
+5. **`report.json`** để so sánh giữa các lần chạy.
+
+**Tổ chức theo QUY TRÌNH VẬN HÀNH, không theo màn hình** — 14 nhóm: WF-01 boot/honesty ·
+WF-03 gói quyết định · WF-07 cổng phê duyệt · DT-7 suy giảm L0–L4 · WF-05 an toàn hồ ·
+WF-09 chuỗi thông báo · DT-8 triết lý cảnh báo · WF-10 sơ tán · Domain (máy trạng thái, sự
+kiện, tất định) · WF-12 báo cáo · FR-29 tiểu lưu vực · Map · liên-tầng · ma trận kịch bản.
+
+**Bộ test bắt được 1 lỗi thật ngay lần chạy đầu:** khu vực **chỉ có một tuyến đường** bị loại
+khỏi danh sách sơ tán — code thêm chúng vào danh sách *trước* `slice(0, 7)` nên đúng những
+cộng đồng cô lập sớm nhất lại bị cắt, trái với chính chú thích của nó. Sửa: cắt trước, rồi
+đảm bảo luôn có mặt.
+Một phép thử của chính tôi cũng sai: khẳng định "nhà nhiều tầng luôn hợp lệ" — nhưng nhà 2
+tầng nền thấp CÓ THỂ ngập quá tầng trú thật. Viết lại bất biến theo `refugeLost` thay vì số
+tầng; ứng dụng đúng, phép thử sai.
+
+Kết quả: **75/75 đạt**. `?v=112`.
+
+## v105–v110 — Tiểu lưu vực, độ ẩm trước lũ, máy trạng thái + dòng sự kiện, báo cáo
+
+Tệp mới `js/domain.js` + `js/reports.js`. Hoàn tất toàn bộ §3 của gap-analysis.
+
+**Mưa theo tiểu lưu vực (FR-29).** 8 tiểu lưu vực với hệ số địa hình `oro` **chuẩn hoá về
+trung bình 1,0 theo trọng số** — phân bố lại cưỡng bức chứ không âm thầm thổi phồng, nên
+hiệu chỉnh cũ được giữ nguyên. Mưa thượng nguồn → dòng vào hồ (**điều tiết được**), mưa khu
+giữa/đồng bằng → thẳng vào trạm (**không điều tiết**). Đây mới là cơ sở thật của κ.
+
+**Độ ẩm trước lũ.** API (k=0,9/ngày) → **chỉ số bão hoà 0–1** (không phải mm trần trụi) →
+hệ số ướt, **chuẩn hoá theo trung bình sự kiện** nên tổng lượng không đổi mà chỉ đổi HÌNH
+DẠNG: đợt mưa đầu sinh dòng chảy ít (đất khô), các đợt sau nhiều hơn (đất bão hoà). Đó chính
+là bài học 10/2020.
+
+**Máy trạng thái + dòng sự kiện (domain.js).** Hồ chứa 7 trạng thái với đồ thị chuyển hợp lệ;
+trạm, đường, khu vực cũng có vòng đời. **124 sự kiện tất định** dựng sẵn cho cả T−24→T+48,
+hiển thị thành dải sự kiện dưới thanh thời gian, bấm để nhảy tới thời điểm.
+Hai nguyên tắc bắt buộc: **trạng thái là hàm thuần của (đối tượng, t)** và **dòng sự kiện được
+SUY RA chứ không tích luỹ** — nhờ vậy tua ngược cho kết quả y hệt tua xuôi.
+
+**Báo cáo (FR-33).** Tình huống · **hồ sơ vận hành công khai** · báo cáo sau lũ tự dựng lại từ
+dòng sự kiện + nhật ký kiểm toán. Tất cả đều mang dấu chế độ và phiên bản mô hình.
+
+**Ba lỗi thật phát hiện khi dựng và đã sửa:**
+1. **Đồ thị chuyển trạng thái hồ sai.** Máy quét báo `PASS_THROUGH→FLOOD_CONTROL` và
+   `EMERGENCY_RELEASE→CONTROLLED_RELEASE` là bất hợp lệ. Cả hai đều CÓ THẬT: lũ nhiều đợt
+   (10/2020 có 4 đợt) khiến hồ quay lại cắt lũ đợt sau; nước rút thì hạ cấp từ xả khẩn cấp về
+   xả điều tiết. Sửa đồ thị, không sửa vật lý.
+2. **Trạng thái điểm trú không phải hàm thuần của t** — trộn độ sâu SWE hiện tại với dị thường
+   tại t bất kỳ, khiến dòng sự kiện báo "mất điểm trú" ở T−19h, trước cả khi có lũ.
+3. **Hiển thị API thô ~2.700 mm** — con số không nhà thuỷ văn nào chấp nhận. Đổi sang **chỉ số
+   bão hoà 0–1** kèm mốc tham chiếu, và **nêu thẳng** vấn đề hiệu chỉnh mưa lên màn hình (R-26:
+   tổng mưa kịch bản 2.700–3.800 mm/72h, cao hơn dải hợp lý 1.000–1.500 mm/72h).
+
+**Self-test 13 → 16** (thêm: không có chuyển trạng thái bất hợp lệ; dòng sự kiện tất định khi
+dựng lại; trạng thái điểm trú độc lập với vị trí SWE). `[selftest] PASS 16/16`.
+
+Đã quét hồi quy **6 tổ hợp kịch bản × chính sách**: không lỗi, không chuyển trạng thái bất hợp
+lệ. `?v=110` · `styles.css?v=16`.
+
+## v91–v104 — Lớp vận hành: tuyến theo thời gian, điểm trú, cảnh báo, thông báo hạ du
+
+Tệp mới `js/forecast.js` + `js/alerts.js` (vẫn CỘNG THÊM — `opsui.js` bọc `FT.ui.tick`).
+
+**Dự báo theo thời điểm sử dụng (FR-22/24).** `world.js` **nghịch đảo** chính `eqTarget()` một
+lần lúc dựng để mỗi cạnh đường có mức dị thường trạm làm nó ngập ⇒ giờ đóng đường chỉ là tra
+cứu trên chuỗi mực nước đã tính sẵn, tất định và an toàn khi tua. Vì công thức nghịch đảo là
+**cân bằng** còn trường SWE thì có tắt dần và bị cap, mô hình đóng đường SỚM hơn mô phỏng
+(khớp 78–100%, lệch một chiều) → `forecast.calibrate()` neo lại `a0` từng cạnh theo độ sâu
+quan trắc mỗi chu kỳ, snap khi người dùng tua. **Đo lại: khớp 100%** tại thời điểm hiện tại.
+Sinh ra: `open_until`, "đi trước HH:MM", giờ cô lập từng khu vực, cờ **"1 tuyến"** cho khu chỉ
+có một đường vào (Cẩm Kim – Cửa Đại).
+
+**Điểm sơ tán (FR-23).** 12 điểm thật + số tầng/sức chứa/cao độ nền. Hợp lệ = **tầng trú còn
+trên mặt nước**, không phải "tầng trệt khô" — sơ tán theo chiều đứng là như vậy. Mất tầng trệt
+⇒ giảm sức chứa ×0,45, không loại. Vẽ trên bản đồ 2D với trạng thái sống (lớp `shelters`).
+
+**Cảnh báo (FR-44, DT-8).** Một điều kiện một cảnh báo; gộp theo nguyên nhân gốc; chặn bão
+cảnh báo; xác nhận từng cái có định danh; **an toàn đập miễn trừ gộp/tự xoá**.
+
+**Thông báo hạ du (FR-20).** MỘT bản ghi → kịch bản gọi điện · SMS · loa xã · thẻ dân cư · CAP,
+kèm ma trận người nhận và theo dõi **xác nhận** từng nhóm. Kênh gửi là **hộp cát, không gửi thật**.
+
+**Năm lỗi thật phát hiện khi dựng và đã sửa:**
+1. Hợp lệ của điểm trú phụ thuộc EOC có tới được không → nơi trú mất liên lạc với EOC vẫn là nơi
+   trú của dân quanh đó; đó là bài toán **tiếp tế**. Tách `valid` và `warn: no-resupply`
+   (3/12 → 9/12 hợp lệ lúc đỉnh).
+2. Bản tin ghi "Giao Thủy ~10,23 m, trên BĐ1 0,03 m" — 10,23 m tại trạm đó là **trên BĐ3 1,43 m**.
+   Mức báo động nay được suy lại từ đúng trạm và mực nước mà bản tin trích dẫn; có assertion.
+3. SMS còn dấu, còn `m³/s` và gạch ngang dài, dài 214 ký tự → ép ASCII và **tách thành nhiều
+   phần ≤160**, đánh số, không cắt cụt.
+4. 11 cảnh báo cô lập gần giống nhau → gộp còn một cảnh báo/nguyên nhân, liệt kê khu vực.
+5. Nhà nhiều tầng bị loại khi ngập tầng trệt → tầng trên CHÍNH LÀ nơi trú.
+
+**Self-test 10 → 13** (thêm: mức báo động khớp mực nước trích dẫn; SMS thuần ASCII và mọi phần
+≤160; cảnh báo an toàn đập không bị gộp). Console: `[selftest] PASS 13/13`.
+
+Đã chạy tay toàn chuỗi trực ban: đăng nhập → xác nhận cảnh báo → soạn → phát → xã xác nhận →
+nhật ký ghi `alarm.raise · alarm.ack · notify.dispatch · notify.ack`. `?v=104` · `styles.css?v=13`.
+
+## v87–v90 — Bộ tài liệu sản phẩm `docs/` + lớp quyết định vận hành
+
+Toàn bộ Product Knowledge Base nằm ở **[`docs/`](docs/README.md)** (26 tài liệu: nền tảng chuyên ngành,
+mô hình thế giới, personas, quy trình vận hành, cây quyết định, đặc tả engine, màn hình, PRD, NFR, KPI,
+phản biện đa vai, sổ rủi ro, lộ trình M0–M4, đối chiếu code). Tệp mới `js/decision.js` + `js/opsui.js`.
+
+**Lớp mới (cộng thêm — `opsui.js` BỌC `FT.ui.tick`, không sửa đường render cũ):**
+- **Thanh ops thường trực**: chế độ (DỮ LIỆU TỔNG HỢP), thang leo thang L0–L5, sức khỏe dữ liệu L0–L4,
+  hệ số điều tiết κ, **đồng hồ đếm ngược hạn quyết định** (= giờ xả − thông báo 2h − phê duyệt 0,5h).
+- **Gói quyết định S-05**: hành động 6 trường · kiểm tra ràng buộc C1–C10 kèm biên và trạng thái ·
+  **phản thực (không hành động)** · phương án thay thế tính CHÍNH XÁC từ tính tuyến tính của mô hình trạm ·
+  hối tiếc hai chiều · mức tin cậy kèm lý do · phiên bản mô hình.
+- **Biên an toàn hồ**: chiều cao an toàn, dZ/dt làm trơn 1h, dung tích còn trống, thời gian đầy trần,
+  thời điểm hết khả năng cắt lũ.
+- **Nhật ký kiểm toán chỉ-ghi-thêm** (localStorage + hash ảnh chụp): phê duyệt phải có **định danh người trực**
+  và **lý do ghi nhận**, nếu thiếu thì chặn.
+- **Suy giảm dữ liệu có kiểm chứng**: L2/L3 → VÔ HIỆU bộ tối ưu, nêu rõ thiếu gì và do đó KHÔNG tính gì;
+  L4 → **TỪ CHỐI đưa đề xuất**, chuyển sang EAP + danh bạ.
+
+**Hai lỗi thật của engine cũ, phát hiện khi đấu nối và đã sửa:**
+1. `buildProposal` chọn hồ căng nhất bất kể hồ đó có ảnh hưởng tới trạm khống chế hay không — đề xuất vận hành
+   Sông Tranh 2 rồi báo cắt đỉnh tại Ái Nghĩa, nơi trọng số định tuyến của hồ này bằng 0. Nay chọn **cặp
+   (hồ, trạm khống chế)** có tích ứng suất × trọng số lớn nhất và báo đúng trạm đó.
+2. Mô hình trạm chặn ở `g.max`; kịch bản Yagi khiến CẢ HAI chính sách chạm trần ⇒ chênh đỉnh = 0 ⇒ hệ thống
+   báo "không cần hành động" đúng vào kịch bản xấu nhất. Nay phát hiện bão hoà và báo **KHÔNG SO SÁNH ĐƯỢC**,
+   độ tin cậy **UNUSABLE**.
+
+**Self-test mở rộng 4 → 10 khẳng định** (thêm: có phản thực, có danh sách ràng buộc, không khả thi không bị
+đánh dấu khả thi, có nêu ràng buộc quyết định, L2 vô hiệu tối ưu, L4 từ chối, tin cậy không vượt LOW ở bản
+tổng hợp, bão hoà không bị báo là "không cần hành động"). Console: `[selftest] PASS 10/10`.
+
+`?v=90` · `styles.css?v=10`. Đã kiểm trong trình duyệt: không lỗi console, 5 mức suy giảm hoạt động đúng,
+chặn phê duyệt vô danh, ghi nhật ký có định danh + lý do.
+
+## v86 — Hồ sơ quyết định (EP-03, mốc M0 của SkyLabs_SURF2026)
+
+Mục A3 + A4 trong `product-os/backlog/BL-01-master-backlog.md`. Tệp mới `js/record.js`.
+
+- **Tuần tự hoá tất định + SHA-256 tự cài.** Khoá sắp xếp mọi tầng, số làm tròn sáu chữ số
+  thập phân rồi in bằng `String` (thuật toán Number-to-String của ECMAScript, giống nhau ở
+  mọi runtime). Không dùng `crypto.subtle` vì nó bất đồng bộ và chỉ chạy trong ngữ cảnh an
+  toàn, trong khi demo phải mở được từ tệp cục bộ — và một cách cài đặt riêng cho phép cổng
+  kiểm đối chiếu chéo với `node:crypto`.
+- **Ảnh chụp đóng băng tại thời điểm bấm**, không phải lúc dựng tài liệu. `H.at()` trả về một
+  đối tượng dùng chung nên phải sao từng trường ra, đừng giữ tham chiếu.
+- **Ba kết cục chung một sổ chỉ ghi thêm**: phê duyệt, từ chối, bị thay thế. Đổi kịch bản hoặc
+  đổi chính sách khi đang có quyết định mở sẽ sinh bản ghi bị thay thế trỏ về bản ghi trước.
+  Kéo thanh trượt mưa thì **không** sinh, nếu không sổ sẽ ngập bản ghi rác.
+- **In một trang A4** dùng lại `#printReport` và khối `@media print` sẵn có; phụ lục sang trang
+  riêng. Dấu chìm `DEMO · CHƯA KÝ` để màu vô sắc nên sống sót bản photocopy đen trắng.
+- **Cổng kiểm** `SkyLabs_SURF2026/scripts/verify-record.mjs`, 48 phép kiểm.
+
+### Bẫy gặp phải, đừng lặp lại
+
+- **Đo bản in phải ở 718 px.** Đo ở bề rộng khung nhìn 1440 px thì cả chiều cao trang lẫn phép
+  kiểm tràn lề đều cho kết quả sai. Cổng kiểm nay `setViewportSize` về 718 px trước khi đo.
+- **`scrollWidth` không thấy phần tử con tràn hai bên.** Dấu chìm căn giữa trong flex tràn cả
+  trái lẫn phải, `scrollWidth` chỉ đếm phía phải nên báo bình thường. Phải bọc chữ trong `span`
+  rồi so `getBoundingClientRect` của nó với khổ trang.
+- **Băm lại chính đối tượng vừa băm không chứng minh gì.** Thứ tự khoá còn nguyên nên bộ tuần tự
+  hoá quên `.sort()` vẫn qua. Phép kiểm thật là đảo ngược thứ tự khoá ở mọi tầng rồi băm lại.
+- **Cổng kiểm mở demo phải dùng `launchGpu`.** Chromium không đầu vẽ WebGL bằng CPU, cảnh 3D tụt
+  gần 0 khung hình/giây và `page.click` quá hạn trong khi ứng dụng hoàn toàn đúng.
+
+### Điều tìm ra khi in tài liệu ra giấy, không phải khi đọc mã
+
+Bao ensemble tại Ái Nghĩa là **5,87–11,96 m quanh trung vị 9,86 m**, trong khi cùng màn hình
+ghi xác suất giữ dưới báo động 3 (9,0 m) là **8%**. Hai con số không thể cùng mô tả một phân bố.
+Nguyên nhân: `pBelow` trong `hydro.js` là công thức đóng, không đọc thang phân vị. Lỗi này có
+sẵn từ trước, không do hồ sơ quyết định gây ra; in cả hai lên một trang chỉ làm nó lộ ra.
+**Chưa sửa** vì con số 8% được trích trong `business/PITCH_GLOBAL_5MIN.md`. Đã ghi thành R-33
+trong `BL-02` và A25 trong `BL-01`, chặn M2. Phụ lục hồ sơ nói thẳng hai con số chưa hoà giải.
+
 ## Trạng thái hiện tại
 - Phiên bản: v39. Bản đồ THẬT hoạt động (DEM AWS Terrarium + Esri World Imagery, bbox 107.55–108.45E / 15.30–16.16N, domain 96 km, console "[geo] DEM OK · imagery OK").
 - Hạ tầng classifier outage (Bash/Workflow/click bị chặn) từ đầu phiên — verify tự động còn treo.

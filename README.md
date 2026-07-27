@@ -2,6 +2,10 @@
 
 Production-ready demo web app cho paper **FloodTwin** (Q1): bản sao số lũ & liên hồ chứa nhận thức bất định, nền tảng pháp quy, mô phỏng **giao thông–lũ theo thời gian thực** trên 2D/3D.
 
+> 🧪 **Kiểm thử đầu-cuối: [`tests/`](tests/README.md)** — `npm run e2e` (75 phép thử, tổ chức theo **quy trình vận hành** chứ không theo màn hình). Không cần cài đặt: tự tìm Playwright ở project kế bên. Lỗi sẽ kèm ảnh màn hình + trạng thái `FT` trong `tests/artifacts/`.
+
+> 📚 **Bộ tài liệu sản phẩm (Product Knowledge Base): [`docs/`](docs/README.md)** — kiến thức chuyên ngành (thủy văn, thủy lực, vận hành hồ, an toàn đập, khí tượng, cảnh báo, pháp quy), mô hình thế giới, personas, 12 quy trình vận hành, cây quyết định, đặc tả engine hỗ trợ quyết định, 18 màn hình, PRD, NFR, KPI, phản biện đa vai, sổ rủi ro và lộ trình M0–M4. Bắt đầu ở [docs/README.md](docs/README.md); đối chiếu code ↔ yêu cầu ở [docs/99-appendix/demo-gap-analysis.md](docs/99-appendix/demo-gap-analysis.md).
+
 ## Tính năng
 
 - **3D digital twin (Three.js)** — địa hình VGTB kiểu ảnh vệ tinh (rừng phủ sườn, ruộng patchwork, đô thị xám), 4 hồ bậc thang (A Vương, Sông Bung 4, Đắk Mi 4, Sông Tranh 2), mặt nước shader theo dòng chảy — **nước lũ overbank màu phù sa**, xe cộ di chuyển, mưa, nhãn địa danh. *(Chế độ Toàn quốc VN nằm trong `js/vndata|hydronat|nation.js`, hiện không nạp.)*

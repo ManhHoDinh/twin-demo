@@ -468,10 +468,14 @@
     for (let k = 0; k < NC; k++) {
       if (W.sea[k]) continue;
       const ex = Math.min(W.floodCap, W.h[k] - W.hBase[k]);
-      if (ex > 0.15 && W.riverDist[k] > 0.35) { cells++; if (ex > 0.45) exp += W.pop[k]; }
+      if (ex > 0.15 && W.riverDist[k] > 0.35) { cells++; exp += W.pop[k] * U.exposureFraction(ex); }  // graded, §3.1
     }
     stats.areaKm2 = cells * (CELL / 1000) * (CELL / 1000);
-    stats.exposed = Math.round(exp * 14);                                        // weight → people (synthetic)
+    /* rounded to the model's actual resolution, not to the integer — see zones.js */
+    const rawExp = exp * 14;                                                     // weight → people (synthetic)
+    stats.exposedRaw = rawExp;
+    stats.exposed = rawExp >= 1000 ? Math.round(rawExp / 100) * 100
+      : rawExp >= 100 ? Math.round(rawExp / 10) * 10 : Math.round(rawExp);
     return stats;
   };
 
@@ -519,7 +523,64 @@
     for (const id of Object.keys(nodes)) neighbors[id] = [];
     edges.forEach((e) => { neighbors[e.a].push(e); neighbors[e.b].push(e); });
     W.roads = { nodes, edges, neighbors };
+    prepRoadForecast();
   }
+
+  /* ---------- forecast-time-aware closure thresholds (docs FR-22) ----------
+     eqTarget() is closed-form in the corridor anomaly, so for every road sample we can
+     INVERT it: the gauge anomaly at which that point reaches a given depth. Taking the
+     minimum over an edge's samples gives the anomaly that closes the edge — its lowest
+     point decides, exactly as in docs/01-domain-model/04-exposure-and-impact-model.md E-25.
+     Terrain is static, so this is computed once at build time and is then a pure lookup:
+     open_until falls out of the (already known) gauge stage series with no simulation. */
+  function anchorIdFor(ri, s) {
+    let best = null, alt = null;
+    for (const a of gaugeAnchors) {
+      if (a.ri === ri) { if (!best || Math.abs(a.s - s) < Math.abs(best.s - s)) best = a; }
+      else if (!alt) alt = a;
+    }
+    const a = best || alt;
+    return a ? a.g.id : null;
+  }
+  /* gauge anomaly (m above that gauge's base) needed to put `depth` m of water on cell k */
+  function gaugeAnomForDepth(k, depth) {
+    const ri = W.riverIdx[k];
+    if (ri < 0) return Infinity;
+    const r = riverGeo[ri].r, d = W.riverDist[k];
+    const fade = 0.55 + 0.45 * U.smoothstep(0, 0.35, W.riverS[k]);
+    let anom;
+    if (!W.dyn[k]) {                                   // mountain corridor: diagnostic swelling only
+      const corridor = r.w * 1.6;
+      if (d >= corridor) return Infinity;
+      const fall = 1 - Math.pow(d / corridor, 2);
+      if (fall <= 0.01) return Infinity;
+      anom = (depth / fall - r.depth * 0.35) / 0.5;
+    } else {                                           // floodplain: overbank from the channel water surface
+      if (d >= r.w * 6) return Infinity;
+      anom = depth + W.terrain[k] - W.chanBed[k] - r.depth * 0.35;
+    }
+    if (!isFinite(anom)) return Infinity;
+    return Math.max(0, anom) / Math.max(0.2, fade);
+  }
+  function fadeAt(k) { return Math.max(0.2, 0.55 + 0.45 * U.smoothstep(0, 0.35, W.riverS[k])); }
+
+  function prepRoadForecast() {
+    prepAnchors();
+    for (const e of W.roads.edges) {
+      let a0 = Infinity, gid = null, fade = 1;
+      for (const s of e.samples) {
+        const k = km2i(s[1]) * N + km2i(s[0]);
+        const a = gaugeAnomForDepth(k, 0);              // gauge anomaly at which water first arrives
+        if (a < a0) { a0 = a; gid = anchorIdFor(W.riverIdx[k], W.riverS[k]); fade = fadeAt(k); }
+      }
+      /* depth_excess(A) ≈ fade · (A − a0): linear in the gauge anomaly, so a closure time is
+         a lookup. a0 is re-anchored against the observed field each cycle by
+         FT.forecast.calibrate() — the forecast assimilates the simulation rather than
+         contradicting it, which is what keeps the two consistent on screen. */
+      e.fc = isFinite(a0) && gid ? { gaugeId: gid, fade, a0Analytic: a0, a0, aClose: a0 + U.CLOSE_DEPTH / fade, aRisk: a0 + U.RISK_DEPTH / fade } : null;
+    }
+  }
+  W.gaugeAnomForDepth = gaugeAnomForDepth;
 
   W.updateRoadDepths = function () {
     for (const e of W.roads.edges) {

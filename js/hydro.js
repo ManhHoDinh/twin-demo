@@ -42,6 +42,51 @@
     return r * scale;
   }
 
+  /* ---------- antecedent wetness (docs FR-29 · hydrology §3) ----------
+     The runoff coefficient is not a constant of the catchment — it is a function of how wet
+     the soil already is. This is the single factor behind most catastrophic surprises: the
+     October 2020 sequence was destructive because the ground never dried between systems,
+     not because any one storm was unprecedented.
+
+     API_t = k·API_{t−1} + P_t with k ≈ 0.9/day, then a monotone map to a runoff factor.
+     The factor is NORMALISED by its own event mean, so the total forcing over the event is
+     unchanged and the existing calibration is preserved — what it changes is the SHAPE:
+     the first pulse runs off less (dry soil), later pulses run off more (saturated). That
+     asymmetry is the physically right one and it is what the product needs to show. */
+  const API_DECAY = Math.pow(0.9, DT / 24);            // per timestep, k = 0.9 per day
+  function buildAPI(rainArr, api0) {
+    const out = new Float64Array(NT);
+    let s = api0 == null ? rainArr[0] * 6 : api0;      // warm start: a few hours of the opening rain
+    for (let i = 0; i < NT; i++) {
+      s = s * API_DECAY + rainArr[i] * DT;
+      out[i] = s;
+    }
+    return out;
+  }
+  /* Raw API is in mm and is only meaningful against a saturation reference, so the product
+     shows a SATURATION INDEX (0–1), not a bare millimetre figure an operator cannot judge.
+     API_SAT is the accumulated-and-decayed depth beyond which these steep tropical
+     catchments behave as saturated (C → 0.7–0.9, hydrology §3). Provenance: ASSUMED. */
+  const API_SAT = 400;
+  H.API_SAT = API_SAT;
+  H.satOf = (api) => U.clamp(api / API_SAT, 0, 1.25);
+  H.wetClass = function (sat) {
+    return sat < 0.35 ? { k: "dry", vi: "Khô", en: "Dry" }
+      : sat < 0.6 ? { k: "moist", vi: "Ẩm", en: "Moist" }
+      : sat < 0.9 ? { k: "wet", vi: "Ướt", en: "Wet" }
+      : { k: "sat", vi: "BÃO HÒA", en: "SATURATED" };
+  };
+  /* dry ≈ 0.62× · saturated ≈ 1.40× of the raw response, then normalised to event-mean 1 */
+  const wetOf = (api) => 0.62 + 0.78 * U.smoothstep(0, 1.0, H.satOf(api));
+  function buildWetFactor(api) {
+    const raw = new Float64Array(NT);
+    let sum = 0;
+    for (let i = 0; i < NT; i++) { raw[i] = wetOf(api[i]); sum += raw[i]; }
+    const mean = sum / NT || 1;
+    for (let i = 0; i < NT; i++) raw[i] /= mean;        // volume-neutral over the event
+    return raw;
+  }
+
   /* smoothed/lagged rain response (leaky reservoir) for runoff shaping */
   function buildRunoff(rainArr, lagH, kRise, kFall) {
     const out = new Float64Array(NT);
@@ -111,11 +156,15 @@
   function buildGauge(g, scen, policyKey) {
     const arr = new Float64Array(NT);
     const shift = Math.round(g.lagH / DT);
+    /* local (uncontrolled) contribution from THIS gauge's own intermediate catchment */
+    const sc = D.SUBCATCH.find((s) => s.gauge === g.id);
+    const localArr = sc && H.sub[sc.id] ? H.sub[sc.id].runoff : H._localRunoff;
+    const localShift = Math.round((g.lagH * 0.5) / DT);
     for (let i = 0; i < NT; i++) {
       const j = Math.max(0, i - shift);
       let q = 0;
       for (const r of D.RESERVOIRS) { const w = g.resW[r.id] || 0; if (w) q += w * H.res[r.id][policyKey].O[j]; }
-      const local = H._localRunoff[Math.max(0, i - Math.round(g.lagH * 0.5 / DT))];
+      const local = localArr[Math.max(0, i - localShift)];
       const resp = q / 1150 + (local / 55) * g.localGain;
       arr[i] = Math.min(g.max, g.base + resp * scen.surgeGain * 1.35);
     }
@@ -145,17 +194,37 @@
 
   /* ---------- MPC proposal (decision package data) ---------- */
   function buildProposal(scen) {
-    // most stressed reservoir = largest rule-policy peak inflow vs turbine
-    let top = null, stress = 0;
+    /* Pick the (reservoir, control point) PAIR with the largest influence-weighted
+       stress. Scoring stress alone picks the most loaded dam even when it has no
+       hydraulic influence on the gauge the proposal is then judged against — which
+       produced a proposal naming Sông Tranh 2 while reporting a peak cut at Ái Nghĩa,
+       where its routing weight is zero. See docs/00-foundations/10-failure-library.md §3 #5
+       and docs/05-product/03-prd.md FR-34. */
+    let top = null, gTop = null, best = 0, stress = 0;
     for (const r of D.RESERVOIRS) {
-      const R = H.res[r.id];
-      const s = R.rule.peakI / (r.turbine * 4);
-      if (s > stress) { stress = s; top = r; }
+      const s = H.res[r.id].rule.peakI / (r.turbine * 4);
+      for (const g of D.GAUGES) {
+        const w = g.resW[r.id] || 0;
+        if (!w) continue;                                   // no influence → not a candidate instrument
+        const score = s * w;
+        if (score > best) { best = score; top = r; gTop = g; stress = s; }
+      }
     }
     if (!top || stress < 1) return null;
     const R = H.res[top.id];
-    const g = D.GAUGES[0]; // Ái Nghĩa — governing downstream constraint (Art. 8)
+    const g = gTop;                                          // the control point this proposal is actually judged at
     const ruleStage = H.gauge[g.id].rulePeak, mpcStage = H.gauge[g.id].mpcPeak;
+    /* P(peak stage < AL3) read off the SAME ensemble the band is drawn from, at the
+       index where the MPC median peaks (the index peakBand() in record.js also uses).
+       σ is recovered from the UNCLIPPED lower quantile: buildQuantiles clips the upper
+       tail at g.max*1.04, so (p95−median)/1.645 understates spread near the peak; the
+       p05 side is not clipped. Reconciles the headline number with the drawn envelope
+       instead of the old closed-form clamp. See docs/plans/active/r33-ensemble-pbelow.md. */
+    const e = H.gauge[g.id].mpc;
+    let iPk = 0; for (let i = 1; i < e.med.length; i++) if (e.med[i] > e.med[iPk]) iPk = i;
+    const medPk = e.med[iPk];
+    const sigma = Math.max(0.05, (medPk - e.q05[iPk]) / 1.645);   // stage units (m), z_05 = −1.645
+    const pBelow = U.clamp(U.normCdf((g.bd[2] - medPk) / sigma), 0.01, 0.99);
     return {
       resId: top.id, resName: top.name,
       q0: Math.round(R.mpc.preQ * 0.55 / 50) * 50,
@@ -164,9 +233,10 @@
       tPeak: R.rule.peakT,
       peakI: Math.round(R.rule.peakI / 50) * 50,
       p90I: Math.round(R.rule.peakI * 1.55 / 50) * 50,
-      gaugeName: g.name, bd3: g.bd[2],
+      gaugeId: g.id, gaugeName: g.name, bd3: g.bd[2],
       ruleStage: ruleStage, mpcStage: mpcStage,
-      pBelow: U.clamp(0.5 + (g.bd[2] - mpcStage) * 0.55, 0.08, 0.95),
+      medPeak: medPk, p05Peak: e.q05[iPk], p95Peak: e.q95[iPk],   // band endpoints at the median-peak index
+      pBelow: pBelow,                                             // = ∫ of that band below AL3 (one estimator)
       cites: ["d1865_a7", "d1865_a8", "gencast", "sensor"],
     };
   }
@@ -202,14 +272,35 @@
   H.rebuild = function () {
     const scen = D.SCENARIOS[FT.state.scenario];
     for (let i = 0; i < NT; i++) { H.t[i] = T0 + i * DT; H.rain[i] = rainAt(H.t[i], scen, FT.state.rainScale); }
-    H._localRunoff = buildRunoff(H.rain, 1.2, 0.45, 0.16);
+
+    /* per sub-catchment: orographic rainfall → antecedent index → wetness-modulated runoff.
+       Upper catchments feed reservoirs (controllable); local catchments feed the gauges
+       directly (not controllable). This split is what makes κ meaningful. FR-29. */
+    H.sub = {};
+    for (const sc of D.SUBCATCH) {
+      const rain = new Float64Array(NT);
+      for (let i = 0; i < NT; i++) rain[i] = H.rain[i] * sc.oro;
+      const api = buildAPI(rain);
+      const wet = buildWetFactor(api);
+      const wetRain = new Float64Array(NT);
+      for (let i = 0; i < NT; i++) wetRain[i] = rain[i] * wet[i];
+      H.sub[sc.id] = {
+        def: sc, rain, api, wet,
+        runoff: buildRunoff(wetRain, sc.lagH, sc.kind === "upper" ? 0.5 : 0.45, sc.kind === "upper" ? 0.14 : 0.16),
+      };
+    }
+    /* basin-mean antecedent state, for the confidence rules and the operator panel */
+    H.api = buildAPI(H.rain);
+    H.wet = buildWetFactor(H.api);
+    H._localRunoff = buildRunoff(H.rain, 1.2, 0.45, 0.16);   // retained: basin-mean fallback
 
     for (const r of D.RESERVOIRS) {
-      const runoff = buildRunoff(H.rain, r.lagH, 0.5, 0.14);
+      const sc = D.SUBCATCH.find((s) => s.res === r.id);
+      const runoff = sc ? H.sub[sc.id].runoff : buildRunoff(H.rain, r.lagH, 0.5, 0.14);
       H.res[r.id] = {
         rule: integrateReservoir(r, runoff, scen, "rule", 0),
         mpc: integrateReservoir(r, runoff, scen, "mpc", 1),
-        def: r,
+        def: r, subId: sc ? sc.id : null,
       };
     }
     for (const g of D.GAUGES) {
