@@ -113,7 +113,7 @@ function stripIgnoredMarkdown(markdown) {
     return width;
   };
   for (const line of markdown.split(/\r?\n/)) {
-    const marker = line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
+    const marker = line.match(/^(?:[ \t]*>[ \t]?)*[ \t]*(`{3,}|~{3,})(.*)$/);
     if (!fence && marker) {
       fence = { char: marker[1][0], length: marker[1].length };
       continue;
@@ -235,17 +235,59 @@ function headingAnchors(markdown) {
   return anchors;
 }
 
-function localLinks(markdown) {
-  const links = [];
-  const pattern = /(?<!!)\[[^\]]*\]\(([^)]+)\)/g;
-  for (const match of stripIgnoredMarkdown(markdown).matchAll(pattern)) {
-    let target = match[1].trim();
-    if (target.startsWith('<') && target.endsWith('>')) target = target.slice(1, -1);
-    target = target.split(/\s+["']/)[0];
-    if (!target || /^(?:[a-z]+:|\/\/)/i.test(target)) continue;
-    links.push(target);
+function normalizeReferenceLabel(label) {
+  return label.trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+function linkTarget(value) {
+  let target = value.trim();
+  if (target.startsWith('<')) {
+    const end = target.indexOf('>');
+    if (end !== -1) target = target.slice(1, end);
+  } else {
+    target = target.split(/\s+(?:["'(])/)[0];
   }
-  return links;
+  return target;
+}
+
+function markdownLinks(markdown, definitionsMarkdown = markdown) {
+  const clean = stripIgnoredMarkdown(markdown);
+  const definitionsClean = stripIgnoredMarkdown(definitionsMarkdown);
+  const definitions = new Map();
+  const definitionRanges = [];
+  const definitionPattern = /^[ \t]{0,3}\[([^\]\n]+)\]:[ \t]*(<[^>\n]*>|\S+)(?:[ \t]+(?:"[^"\n]*"|'[^'\n]*'|\([^\)\n]*\)))?[ \t]*$/gm;
+  for (const match of definitionsClean.matchAll(definitionPattern)) {
+    definitions.set(normalizeReferenceLabel(match[1]), linkTarget(match[2]));
+    if (definitionsMarkdown === markdown) {
+      definitionRanges.push([match.index, match.index + match[0].length]);
+    }
+  }
+
+  const targets = [];
+  const missingReferences = [];
+  const pattern = /(?<![!\]])\[([^\]\n]+)\](?:\(([^)\n]+)\)|\[([^\]\n]*)\])?/g;
+  for (const match of clean.matchAll(pattern)) {
+    if (definitionRanges.some(([start, end]) => match.index >= start && match.index < end)) continue;
+    if (match[2] !== undefined) {
+      const target = linkTarget(match[2]);
+      if (target && !/^(?:[a-z]+:|\/\/)/i.test(target)) targets.push(target);
+      continue;
+    }
+
+    const explicitReference = match[3] !== undefined;
+    const reference = normalizeReferenceLabel(explicitReference && match[3] ? match[3] : match[1]);
+    if (!definitions.has(reference)) {
+      if (explicitReference) missingReferences.push(reference);
+      continue;
+    }
+    const target = definitions.get(reference);
+    if (target && !/^(?:[a-z]+:|\/\/)/i.test(target)) targets.push(target);
+  }
+  return { targets, missingReferences };
+}
+
+function localLinks(markdown, definitionsMarkdown = markdown) {
+  return markdownLinks(markdown, definitionsMarkdown).targets;
 }
 
 function resolveLocalLink(sourceFile, target) {
@@ -314,7 +356,11 @@ function parseTable(markdown) {
   const lines = stripIgnoredMarkdown(markdown).split(/\r?\n/);
   const tables = [];
   for (let index = 0; index < lines.length - 1; index += 1) {
-    if (!lines[index].includes('|') || !/^\s*\|?\s*:?-{3,}/.test(lines[index + 1])) continue;
+    if (!lines[index].includes('|') || !lines[index + 1].includes('|')) continue;
+    const headerCells = tableCells(lines[index]);
+    const delimiterCells = tableCells(lines[index + 1]);
+    if (headerCells.length !== delimiterCells.length
+      || !delimiterCells.every((cell) => /^:?-{3,}:?$/.test(cell))) continue;
     const rows = [];
     let cursor = index + 2;
     while (cursor < lines.length && lines[cursor].includes('|')) {
@@ -347,7 +393,7 @@ function tableCells(row) {
   return cells;
 }
 
-function implementedRowHasEvidence(header, row, sourceFile) {
+function implementedRowHasEvidence(header, row, sourceFile, definitionsMarkdown = row) {
   const headers = tableCells(header).map(normalize);
   const cells = tableCells(row);
   const statusIndex = headers.findIndex((value) => value === 'status' || value === 'implementation status');
@@ -357,7 +403,7 @@ function implementedRowHasEvidence(header, row, sourceFile) {
   if (normalize(visibleStatus) !== 'implemented') return true;
   if (evidenceIndex === -1) return false;
   const realSource = fs.existsSync(sourceFile) ? fs.realpathSync(sourceFile) : path.resolve(sourceFile);
-  return localLinks(cells[evidenceIndex] ?? '').some((target) => {
+  return localLinks(cells[evidenceIndex] ?? '', definitionsMarkdown).some((target) => {
     const resolved = resolveLocalLink(sourceFile, target);
     return !resolved.error && resolved.realTarget !== realSource;
   });
@@ -420,6 +466,52 @@ function runSelfTest() {
   record('keeps legitimate list continuation content',
     validStatusMetadata('- Contract metadata:\n    **Status:** PLANNED'));
 
+  const nestedFence = [
+    '- Example contract:',
+    '',
+    '    ```markdown',
+    '    **Status:** PLANNED',
+    '    | Contract field | Value |',
+    '    | --- | --- |',
+    ...CONTRACT_FIELDS.map((field) => `    | ${field} | placeholder |`),
+    '    ```',
+  ].join('\n');
+  record('rejects status and contract tables inside list-nested fences',
+    !validStatusMetadata(nestedFence)
+      && missingContractFields(nestedFence).length === CONTRACT_FIELDS.length);
+
+  const malformedTables = [
+    '| Field | Value |\n| --- | not-a-separator |\n| Purpose and scope | placeholder |',
+    '| Field | Value |\n| --- | --- | --- |\n| Purpose and scope | placeholder |',
+  ];
+  record('rejects malformed Markdown pseudo-tables',
+    malformedTables.every((table) => parseTable(table).length === 0));
+
+  const missingReference = typeof markdownLinks === 'function'
+    ? markdownLinks('[evidence][missing]')
+    : { missingReferences: [] };
+  record('rejects reference links with missing definitions',
+    missingReference.missingReferences.includes('missing'));
+
+  const externalReference = typeof markdownLinks === 'function'
+    ? markdownLinks('[evidence][outside]\n\n[outside]: /etc/passwd')
+    : { targets: [] };
+  record('rejects repository-external reference link targets',
+    externalReference.targets.some((target) => resolveLocalLink(sourceFile, target).error));
+
+  const referenceForms = typeof markdownLinks === 'function'
+    ? markdownLinks([
+      '[full][target]',
+      '[target][]',
+      '[target]',
+      '![image][target]',
+      '',
+      '[target]: ../../package.json',
+    ].join('\n'))
+    : { targets: [] };
+  record('parses full, collapsed and shortcut references without treating images as links',
+    referenceForms.targets.filter((target) => target === '../../package.json').length === 3);
+
   const traceabilityHeader = '| Requirement | Canonical document | Status | Validation evidence |';
   const misplacedEvidence = '| R-1 | [package](../../package.json) | IMPLEMENTED | |';
   record('requires IMPLEMENTED evidence in the Validation evidence column',
@@ -466,7 +558,11 @@ function verifyDocumentation() {
         report(`${name}: expected allowed Status metadata (single or Scientific/Implementation pair)`);
       }
 
-      for (const target of localLinks(markdown)) {
+      const links = markdownLinks(markdown);
+      for (const reference of links.missingReferences) {
+        report(`${name}: missing link reference definition ${reference}`);
+      }
+      for (const target of links.targets) {
         const result = resolveLocalLink(path.join(ENGINEERING_DIR, name), target);
         if (result.error) report(`${name}: ${result.error}`);
       }
@@ -499,7 +595,7 @@ function verifyDocumentation() {
     const traceabilityFile = path.join(ENGINEERING_DIR, '18-requirement-traceability.md');
     for (const table of traceabilityTables) {
       for (const row of table.rows) {
-        if (!implementedRowHasEvidence(table.header, row, traceabilityFile)) {
+        if (!implementedRowHasEvidence(table.header, row, traceabilityFile, traceability)) {
           report(`18-requirement-traceability.md: IMPLEMENTED row lacks existing evidence: ${row.trim()}`);
         }
       }
