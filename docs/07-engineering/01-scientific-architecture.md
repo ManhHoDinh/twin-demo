@@ -5,13 +5,10 @@
 | Document ID | ENG-01 |
 | Owner | Scientific architecture lead |
 | Status | REFERENCE MODEL |
-| Current demo | Deterministic synthetic hydrology and flood demonstration with partial quantity envelopes |
+| Current demo | Deterministic synthetic hydrology/flood demonstration with record-specific metadata and provenance on some surfaces; no implemented observation-model quantity envelope |
 | Production target | Traceable, calibrated, independently reviewed scientific state and advisory outputs |
 | Domain review | Hydrology, hydraulics, reservoir, meteorology, GIS, dam safety, emergency management |
 | Authoritative dependencies | [Foundations](../00-foundations/01-glossary.md), [observation model](../01-domain-model/03-observation-model.md), [decision support](../04-decision-support/01-decision-engine-spec.md), [uncertainty](../04-decision-support/02-uncertainty-and-confidence.md) |
-
-**Document ID:** ENG-01
-**Status:** REFERENCE MODEL
 
 This document defines separation, evidence and claim rules. It does not replace the scientific equations in [Foundations](../00-foundations/01-glossary.md) or the entity semantics in the [Domain model](../01-domain-model/01-entity-model.md).
 
@@ -56,12 +53,20 @@ Visual plausibility, smooth animation and agreement with a hand-picked event are
 
 ## Normalized quantity envelope
 
-Every scalar, series or field exposed across engine boundaries carries these minimum fields:
+The persistence and wire authority remains the canonical [Domain model quantity contract](../01-domain-model/01-entity-model.md#7-cross-cutting-field-contract). The engineering form below is one additive projection of that contract, not an incompatible second schema. It preserves every canonical field and adds the timing, registry, model and traceability fields required for engine exchange. It remains a projection until a domain decision promotes a version 2 wire contract.
+
+Every scalar, series or field exposed across engine boundaries carries these fields:
 
 | Field | Requirement |
 |---|---|
 | `value` | Numeric, categorical, vector or explicit no-data value |
 | `unit` | SI or declared domain unit; dimensionally checked |
+| `timestamp` | Canonical domain timestamp; equals `valid_time` for a current-state projection |
+| `age` | Canonical staleness value derived from `now - valid_time`, under the applicable staleness policy |
+| `quality` | Canonical enumeration: `OK`, `SUSPECT`, `STALE`, `MISSING`, or `ESTIMATED` |
+| `uncertainty` | Canonical domain uncertainty value: band, quantiles, class, or permitted null case |
+| `source_ref` | Canonical human-readable/audit reference to a sensor, model, document, or other source |
+| `version` | Canonical envelope schema version for this additive projection |
 | `valid_time` | Time represented by the value |
 | `issue_time` | Time the source or forecast was issued |
 | `source_id` | Stable source identifier and lineage |
@@ -74,7 +79,9 @@ Every scalar, series or field exposed across engine boundaries carries these min
 | `assumptions` | Identified assumptions affecting interpretation |
 | `limitations` | Unsupported regimes, missing dependencies and known failure conditions |
 
-Spatial quantities also include CRS, vertical datum, grid/mesh/feature identifier, spatial support, resolution, interpolation method and no-data semantics. These requirements extend the canonical [observation model](../01-domain-model/03-observation-model.md); they do not redefine its entities.
+The mappings are normative: `timestamp = valid_time` for current state; `age` is derived from `now - valid_time`; `source_ref` remains the human/audit reference while `source_id` is the registry key; and `version` identifies the envelope schema while `model_version` identifies the model artifact. `quality_flags` adds detailed QC evidence without replacing the canonical enumerated `quality`. `uncertainty_representation` adds its encoding/type without replacing canonical `uncertainty`.
+
+Spatial quantities also include CRS, vertical datum, grid/mesh/feature identifier, spatial support, resolution, interpolation method and no-data semantics. These requirements extend the canonical [observation model](../01-domain-model/03-observation-model.md); they do not redefine its entities or persistence authority.
 
 ## Model-selection protocol
 

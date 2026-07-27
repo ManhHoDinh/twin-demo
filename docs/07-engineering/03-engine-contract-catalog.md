@@ -10,28 +10,54 @@
 | Domain review | Hydrology, hydraulics, reservoir, meteorology, GIS, dam safety, emergency management |
 | Authoritative dependencies | [Scientific architecture](01-scientific-architecture.md), [Simulation architecture](02-simulation-architecture.md), [Foundations](../00-foundations/01-glossary.md), [Demo evidence](../../DATA_AND_METHODS.md) |
 
-**Document ID:** ENG-03
-**Status:** REFERENCE MODEL
-
 This catalog defines boundaries and exchange obligations. It anchors equations and domain facts to existing authorities instead of duplicating them. A status of `IMPLEMENTED` means implementation evidence exists, not that the engine is calibrated, validated, operationally approved or legally authoritative.
 
-## Dependency matrix
+## Allowed dependency edges
 
-`R` means the row engine may read the column engine's published contract. `Q` means Scenario may configure/request execution of that scientific engine through orchestration to create a new immutable run; it cannot mutate accepted inputs or results. Blank cells are prohibited dependencies.
+This table is exhaustive. `READ` consumes an immutable published contract. `FEEDBACK` is an orchestrated, time-indexed coupling exchange. `REQUEST` configures a new, separately identified run and cannot mutate accepted inputs or results. Any unlisted edge is prohibited.
 
-| Consumer | Terrain | Hydrology | Hydraulic | Weather | Reservoir | River Network | Flood Propagation | Digital Twin | Scenario | Decision Support |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| Hydrology | R | | | R | | R | | | | |
-| Hydraulic | R | R | | | R | R | | | | |
-| Reservoir | | R | | | | R | | | | |
-| Flood Propagation | R | | R | | | R | | | | |
-| Digital Twin | R | R | R | R | R | R | R | | | |
-| Scenario | | Q | Q | R | Q | | Q | R | | |
-| Decision Support | | | | | | | | R | R | |
-| AI Explanation | | | | | | | | R | R | R |
-| Visualization | R | | | | | | R | R | R | R |
+| Source | Consumer | Payload | Mode |
+|---|---|---|---|
+| Terrain | Weather | Elevation/support for reviewed downscaling | READ |
+| Terrain | River Network | Elevation, slope and spatial support | READ |
+| Terrain | Hydraulic | Land/bed elevation, masks and mesh support | READ |
+| Terrain | Flood Propagation | Elevation and spatial support | READ |
+| Terrain | Digital Twin | Versioned terrain state and lineage | READ |
+| Terrain | Visualization | Display terrain derived from published elevation | READ |
+| Weather | Hydrology | Observed/forecast forcing | READ |
+| Weather | Digital Twin | Versioned forcing state and lineage | READ |
+| Weather | Scenario | Forcing members and issue/valid-time metadata | READ |
+| River Network | Hydrology | Catchment/reach topology and control points | READ |
+| River Network | Reservoir | Cascade topology, reaches and controls | READ |
+| River Network | Hydraulic | Reaches, junctions, structures and boundaries | READ |
+| River Network | Flood Propagation | Connectivity and spatial references | READ |
+| River Network | Digital Twin | Versioned topology state and lineage | READ |
+| Hydrology | Reservoir | Reservoir inflow hydrographs | READ |
+| Hydrology | Hydraulic | Lateral/upstream hydrographs | READ |
+| Hydrology | Digital Twin | Runoff, inflow and hydrograph state | READ |
+| Reservoir | Hydrology | Controlled release/storage feedback for the next coupling iteration | FEEDBACK |
+| Reservoir | Hydraulic | Releases, levels and structure boundaries | READ |
+| Reservoir | Digital Twin | Storage, level, release and constraint state | READ |
+| Hydraulic | Flood Propagation | Accepted depth, stage, discharge, velocity and wet/dry state | READ |
+| Hydraulic | Digital Twin | Accepted hydraulic state and diagnostics | READ |
+| Flood Propagation | Digital Twin | Extent, arrival, duration and hazard products | READ |
+| Flood Propagation | Scenario | Versioned derived products for comparison | READ |
+| Flood Propagation | Visualization | Extent, arrival and hazard display state | READ |
+| Digital Twin | Scenario | Immutable baseline/entity snapshots | READ |
+| Digital Twin | Decision Support | Normalized physical and derived state | READ |
+| Digital Twin | AI Explanation | Grounded physical/entity state | READ |
+| Digital Twin | Visualization | Normalized inspectable state | READ |
+| Scenario | Hydrology | New-run forcing/parameter configuration | REQUEST |
+| Scenario | Reservoir | New-run action/constraint configuration | REQUEST |
+| Scenario | Hydraulic | New-run boundary/model configuration | REQUEST |
+| Scenario | Flood Propagation | New-run product/threshold configuration | REQUEST |
+| Scenario | Decision Support | Alternatives, ensembles and counterfactual results | READ |
+| Scenario | AI Explanation | Scenario identity and comparison evidence | READ |
+| Scenario | Visualization | Scenario results and differences | READ |
+| Decision Support | AI Explanation | Decision package, evidence and limitations | READ |
+| Decision Support | Visualization | Options, constraints and uncertainty for display | READ |
 
-Terrain, Weather, Hydrology, Hydraulic, Reservoir, River Network and Flood Propagation publish accepted state to Digital Twin. Digital Twin and Weather are readable Scenario inputs; Scenario's `Q` edges only create separately identified runs through orchestration. AI Explanation and Visualization have no outgoing scientific-state dependencies. Controlled Hydrology/Reservoir feedback is exchanged only through the orchestrator described in [Simulation architecture](02-simulation-architecture.md#orchestration-and-coupling-exchanges).
+AI Explanation and Visualization have no outgoing scientific-state edges. Controlled Hydrology/Reservoir feedback and every `REQUEST` exchange pass through the orchestrator described in [Simulation architecture](02-simulation-architecture.md#orchestration-and-coupling-exchanges).
 
 ## Terrain Engine
 
@@ -41,7 +67,7 @@ Terrain, Weather, Hydrology, Hydraulic, Reservoir, River Network and Flood Propa
 | Scientific and implementation status | `IMPLEMENTED` external AWS raster loading and procedural fallback; `PLANNED` controlled production terrain; bathymetry `REQUIRES DOMAIN REVIEW`. |
 | Inputs | Versioned DEM/DTM or survey points; CRS, horizontal/vertical datum, acquisition time, quality, license and `MEASURED`/source provenance. |
 | Outputs | Elevation `m`, slope/aspect, masks and mesh/grid identifiers in normalized envelopes. |
-| Dependencies and allowed dependency direction | No scientific-engine dependency. Hydraulic and Flood Propagation may read Terrain; Terrain cannot read their state. |
+| Dependencies and allowed dependency direction | No scientific-engine dependency. Weather, River Network, Hydraulic, Flood Propagation, Digital Twin and Visualization may read Terrain; Terrain cannot read their state. |
 | Accepted alternatives and recommended method | Raster DEM, TIN or surveyed mesh. Recommend controlled DTM plus surveyed channel/bathymetric mesh after review. |
 | Governing equations and implementation form | Terrain interpolation and derivatives only; scientific formulations remain anchored in [hydraulics foundations](../00-foundations/03-hydraulics-and-routing.md). |
 | Variables, units, parameters and bounds | Elevation `z` in `m`; CRS/datum required; no invented bathymetric bounds. |
@@ -68,7 +94,7 @@ Terrain, Weather, Hydrology, Hydraulic, Reservoir, River Network and Flood Propa
 | Scientific and implementation status | `IMPLEMENTED` analytic `SYNTHETIC` demo; production method `REFERENCE MODEL` pending calibration and validation. |
 | Inputs | QC rainfall/forecast, catchments, antecedent state, terrain/network attributes and observed discharge with units and time semantics. |
 | Outputs | Discharge hydrographs `m3/s`, runoff depth `mm`, state variables, ensembles/intervals and contribution metadata. |
-| Dependencies and allowed dependency direction | Reads Weather, Terrain and River Network; supplies Reservoir, Hydraulic and Digital Twin; no rendering dependency. |
+| Dependencies and allowed dependency direction | Reads Weather, Terrain, River Network and controlled Reservoir feedback through orchestration; supplies Reservoir, Hydraulic and Digital Twin; no rendering dependency. |
 | Accepted alternatives and recommended method | Unit hydrograph, conceptual rainfall-runoff, distributed process model or ML hybrid. Select by data, scale and decision need. |
 | Governing equations and implementation form | Use the authoritative [hydrology foundations](../00-foundations/02-hydrology.md); implementations record discrete form and conservation residual. |
 | Variables, units, parameters and bounds | Rainfall `mm/h`, discharge `m3/s`, area `km2`, storage/state and bounded calibrated parameters. |
@@ -122,7 +148,7 @@ Terrain, Weather, Hydrology, Hydraulic, Reservoir, River Network and Flood Propa
 | Scientific and implementation status | Demo forcing is `IMPLEMENTED` as `SYNTHETIC`; operational observation/forecast ingestion is `PLANNED`. |
 | Inputs | Gauge, radar, satellite, NWP/ensemble products with source, issue/valid time, QC and spatial support. |
 | Outputs | Rainfall and meteorological forcing fields/series with provenance, uncertainty and member identity. |
-| Dependencies and allowed dependency direction | May read Terrain for downscaling; supplies Hydrology and Scenario; never reads flood visuals or decisions. |
+| Dependencies and allowed dependency direction | May read Terrain for downscaling; supplies Hydrology, Digital Twin and Scenario; never reads flood visuals or decisions. |
 | Accepted alternatives and recommended method | Gauge interpolation, radar-gauge merge, satellite correction and NWP ensembles; recommend blended ensemble after skill review. |
 | Governing equations and implementation form | Methods and forecast skill remain anchored in [meteorology foundations](../00-foundations/06-meteorology-and-forecasting.md). |
 | Variables, units, parameters and bounds | Rainfall `mm`/`mm/h`, temperature `degC`, wind `m/s`, probabilities and calibrated correction parameters. |
@@ -149,7 +175,7 @@ Terrain, Weather, Hydrology, Hydraulic, Reservoir, River Network and Flood Propa
 | Scientific and implementation status | `IMPLEMENTED` synthetic continuity/policy demonstration; production operations are `PLANNED` and `REQUIRES DOMAIN REVIEW`. |
 | Inputs | Hydrology inflow, storage/elevation curves, outlet/spillway/gate data, initial state, constraints and approved actions. |
 | Outputs | Storage `m3`, level `m a.s.l.`, release `m3/s`, gate/structure state, margins and constraint diagnostics. |
-| Dependencies and allowed dependency direction | Reads Hydrology and River Network; supplies Hydraulic, Hydrology coupling, Digital Twin and Decision Support. |
+| Dependencies and allowed dependency direction | Reads Hydrology and River Network; supplies Hydraulic, controlled Hydrology coupling and Digital Twin. Decision Support consumes this state through Digital Twin/Scenario contracts. |
 | Accepted alternatives and recommended method | Rule simulation, constrained optimization or MPC. Recommend transparent constraint-first evaluation before optimization. |
 | Governing equations and implementation form | Use [reservoir operations foundations](../00-foundations/04-reservoir-operations.md); implementation records continuity and structure forms. |
 | Variables, units, parameters and bounds | Storage `m3`, level `m`, flows `m3/s`, gate opening, ramp rates and reviewed bounds. |
@@ -176,7 +202,7 @@ Terrain, Weather, Hydrology, Hydraulic, Reservoir, River Network and Flood Propa
 | Scientific and implementation status | Demo topology is partly `IMPLEMENTED`; controlled hydrologic/hydraulic network is `PLANNED`. |
 | Inputs | Survey/GIS hydrography, catchments, structures, station locations, reach attributes, CRS and version. |
 | Outputs | Validated directed graph, reach geometry/attributes, adjacency, travel support and stable identifiers. |
-| Dependencies and allowed dependency direction | May read Terrain/GIS source; supplies Hydrology, Reservoir, Hydraulic and Flood Propagation. |
+| Dependencies and allowed dependency direction | May read Terrain/GIS source; supplies Hydrology, Reservoir, Hydraulic, Flood Propagation and Digital Twin. |
 | Accepted alternatives and recommended method | Node-edge graph, linear referencing or mesh-coupled network. Recommend stable versioned directed multigraph. |
 | Governing equations and implementation form | Routing physics belongs to Hydrology/Hydraulic; network enforces topology and geometric invariants. |
 | Variables, units, parameters and bounds | Length `m`, slope, chainage, bed/section references, connectivity and optional travel-time metadata. |
@@ -203,7 +229,7 @@ Terrain, Weather, Hydrology, Hydraulic, Reservoir, River Network and Flood Propa
 | Scientific and implementation status | Demo derived flood field is `IMPLEMENTED` as `SYNTHETIC`; production derived products are `PLANNED`. |
 | Inputs | Version-matched Hydraulic depth/velocity/stage, Terrain, River Network, thresholds and exposure references. |
 | Outputs | Extent polygons/cells, first-arrival/peak/duration, hazard classes and threshold exceedance with uncertainty. |
-| Dependencies and allowed dependency direction | Reads Hydraulic, Terrain and River Network; supplies Digital Twin, Scenario, Decision Support and Visualization; never writes Hydraulic state. |
+| Dependencies and allowed dependency direction | Reads Hydraulic, Terrain and River Network; supplies Digital Twin, Scenario and Visualization. Decision Support consumes these products through Digital Twin/Scenario contracts; Flood Propagation never writes Hydraulic state. |
 | Accepted alternatives and recommended method | Cell thresholding/connectivity, time-of-first-crossing and reviewed hazard classifications; recommend deterministic derived transforms. |
 | Governing equations and implementation form | No substitute flow solver. Derived equations/thresholds link to [hydraulics](../00-foundations/03-hydraulics-and-routing.md) and exposure authority. |
 | Variables, units, parameters and bounds | Depth `m`, velocity `m/s`, arrival/duration `s`, extent, thresholds and uncertainty bands. |
@@ -257,7 +283,7 @@ Terrain, Weather, Hydrology, Hydraulic, Reservoir, River Network and Flood Propa
 | Scientific and implementation status | Deterministic scenario comparison is `IMPLEMENTED` for synthetic demo inputs; production ensembles are `PLANNED`. |
 | Inputs | Base run/input versions, forcing members, initial/boundary perturbations, actions and parameter/model variants. |
 | Outputs | Scenario manifest, run family, member weights, differences, counterfactual identity and comparison metadata. |
-| Dependencies and allowed dependency direction | Reads Digital Twin baselines and Weather forcing; configures/requests Hydrology, Reservoir, Hydraulic and Flood Propagation runs through orchestration; supplies Decision Support; cannot mutate accepted scientific results. |
+| Dependencies and allowed dependency direction | Reads Digital Twin baselines, Weather forcing and versioned Flood Propagation products; configures/requests Hydrology, Reservoir, Hydraulic and Flood Propagation runs through orchestration; supplies Decision Support, AI Explanation and Visualization; cannot mutate accepted scientific results. |
 | Accepted alternatives and recommended method | Deterministic alternatives, ensembles, sensitivity designs or stochastic sampling; choose by uncertainty question. |
 | Governing equations and implementation form | Scenario sampling is not physical law; methods remain anchored in [simulation/scenario authority](../04-decision-support/03-simulation-and-scenarios.md). |
 | Variables, units, parameters and bounds | Scenario/member/run IDs, weights/probabilities, perturbations, horizon and comparison baseline. |

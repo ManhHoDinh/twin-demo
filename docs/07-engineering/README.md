@@ -10,9 +10,6 @@
 | Domain review | Hydrology, hydraulics, reservoir, meteorology, GIS, dam safety, emergency management |
 | Authoritative dependencies | [Foundations](../00-foundations/01-glossary.md), [domain model](../01-domain-model/01-entity-model.md), [decision support](../04-decision-support/01-decision-engine-spec.md), [demo evidence](../../DATA_AND_METHODS.md) |
 
-**Document ID:** ENG-INDEX
-**Status:** PLANNED
-
 This index is the control surface for engineering documentation. `IMPLEMENTED` means code or observable evidence exists; it does **not** mean operational validity, calibration, legal approval, production readiness, or fitness for a real warning or reservoir decision.
 
 ## Document precedence
@@ -82,7 +79,7 @@ Future documents are shown as inline code until they exist so this index never c
 | Advisory | Decision Support, AI Explanation | Human-reviewed options and bounded explanation |
 | Projection | Visualization | Read-only GPU and interaction state |
 
-See the [dependency matrix](03-engine-contract-catalog.md#dependency-matrix) and [simulation DAG](02-simulation-architecture.md#engine-dependency-dag).
+See the [allowed dependency edges](03-engine-contract-catalog.md#allowed-dependency-edges) and [simulation DAG](02-simulation-architecture.md#engine-dependency-dag).
 
 ## Completeness dashboard
 

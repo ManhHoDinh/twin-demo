@@ -10,9 +10,6 @@
 | Domain review | Hydrology, hydraulics, reservoir, meteorology, GIS and operations |
 | Authoritative dependencies | [Scientific architecture](01-scientific-architecture.md), [scenario authority](../04-decision-support/03-simulation-and-scenarios.md), [demo evidence](../../DATA_AND_METHODS.md), [engine contracts](03-engine-contract-catalog.md) |
 
-**Document ID:** ENG-02
-**Status:** REFERENCE MODEL
-
 ## Engine boundaries
 
 The twelve engines own distinct state:
@@ -54,7 +51,7 @@ Digital Twin + Scenario ---------------------------------> Decision Support
       +-------------+------------------------------> AI Explanation <-+
 ```
 
-Terrain, Weather, Hydrology, Hydraulic, Reservoir, River Network and Flood Propagation all publish accepted state to Digital Twin. Digital Twin and Weather supply Scenario baselines and forcing. Scenario may request/configure new immutable scientific runs through orchestration, but cannot mutate accepted inputs, completed results or published Digital Twin snapshots. Reservoir-Hydrology coupling is explicit and time-indexed; convergence policy is declared per run. AI Explanation and Visualization have no outgoing scientific-state edges.
+Terrain, Weather, Hydrology, Hydraulic, Reservoir, River Network and Flood Propagation all publish accepted state to Digital Twin. Terrain may supply Weather downscaling and River Network geometry; Reservoir may return controlled, time-indexed feedback to Hydrology. Digital Twin and Weather supply Scenario baselines and forcing. Scenario may request/configure new immutable Hydrology, Reservoir, Hydraulic and Flood Propagation runs through orchestration, but cannot mutate accepted inputs, completed results or published Digital Twin snapshots. The complete normative registry is the [allowed dependency edge table](03-engine-contract-catalog.md#allowed-dependency-edges); any edge absent there is prohibited. Reservoir-Hydrology coupling declares convergence policy per run. AI Explanation and Visualization have no outgoing scientific-state edges.
 
 ## Clocks, event time and run identity
 

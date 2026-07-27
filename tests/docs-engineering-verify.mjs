@@ -213,7 +213,26 @@ function metadataValues(markdown, label) {
     .map((match) => match[1].replace(/[*`]/g, '').trim());
 }
 
+function tableMetadataValues(markdown, label) {
+  const expected = normalize(label);
+  return parseTable(markdown).flatMap(({ rows }) => rows.flatMap((row) => {
+    const cells = tableCells(row);
+    if (normalize(cells[0] ?? '') !== expected || !cells[1]?.trim()) return [];
+    return [cells[1].replace(/<[^>]+>/g, '').replace(/[*`]/g, '').trim()];
+  }));
+}
+
 function validStatusMetadata(markdown) {
+  const tableStatuses = tableMetadataValues(markdown, 'Status');
+  const tableScientificStatuses = tableMetadataValues(markdown, 'Scientific status');
+  const tableImplementationStatuses = tableMetadataValues(markdown, 'Implementation status');
+  if (tableStatuses.length || tableScientificStatuses.length || tableImplementationStatuses.length) {
+    return tableStatuses.length === 1
+      && SCIENTIFIC_STATUSES.includes(tableStatuses[0])
+      && tableScientificStatuses.length === 0
+      && tableImplementationStatuses.length === 0;
+  }
+
   const statusBlocks = metadataValues(markdown, 'Status');
   const scientificStatusBlocks = metadataValues(markdown, 'Scientific status');
   const implementationStatusBlocks = metadataValues(markdown, 'Implementation status');
@@ -441,6 +460,28 @@ function runSelfTest() {
     || SCIENTIFIC_STATUSES.every((status) => cleanStatus.includes(status));
   record('rejects status metadata in fences and vocabulary in comments', !statusAccepted);
 
+  const validMetadataTable = [
+    '| Field | Value |',
+    '|---|---|',
+    '| Document ID | ENG-TEST |',
+    '| Status | REFERENCE MODEL |',
+  ].join('\n');
+  record('accepts a single structural metadata table',
+    tableMetadataValues(validMetadataTable, 'Document ID').length === 1
+      && validStatusMetadata(validMetadataTable));
+
+  const conflictingMetadataTable = [
+    '| Field | Value |',
+    '|---|---|',
+    '| Document ID | ENG-TEST |',
+    '| Status | REFERENCE MODEL |',
+    '| Document ID | ENG-OTHER |',
+    '| Status | INVALID |',
+  ].join('\n');
+  record('rejects duplicate conflicting table metadata and invalid status',
+    tableMetadataValues(conflictingMetadataTable, 'Document ID').length === 2
+      && !validStatusMetadata(conflictingMetadataTable));
+
   const commentedContract = `<!--\n${CONTRACT_FIELDS.join('\n')}\n-->`;
   const contractAccepted = missingContractFields(commentedContract).length === 0;
   record('rejects contract labels that exist only in comments', !contractAccepted);
@@ -454,7 +495,7 @@ function runSelfTest() {
 
   const structuralContract = CONTRACT_FIELDS.map((field) => `### ${field}`).join('\n\n');
   record('accepts real structural fields and allowed status metadata',
-    missingContractFields(structuralContract).length === 0 && validStatusMetadata('**Status:** `PLANNED`'));
+    missingContractFields(structuralContract).length === 0 && validStatusMetadata(validMetadataTable));
 
   const duplicateAnchors = headingAnchors('# Repeated heading\n\n# Repeated heading');
   record('supports duplicate GitHub-style heading anchors', duplicateAnchors.has('repeated-heading-1'));
@@ -584,7 +625,7 @@ function verifyDocumentation() {
 
     const ids = new Map();
     for (const [name, markdown] of documents) {
-      const documentIds = metadataValues(markdown, 'Document ID');
+      const documentIds = tableMetadataValues(markdown, 'Document ID');
       if (documentIds.length !== 1) {
         report(`${name}: expected exactly one Document ID`);
       } else if (ids.has(documentIds[0])) {
@@ -593,8 +634,8 @@ function verifyDocumentation() {
         ids.set(documentIds[0], name);
       }
 
-      if (!validStatusMetadata(markdown)) {
-        report(`${name}: expected allowed Status metadata (single or Scientific/Implementation pair)`);
+      if (tableMetadataValues(markdown, 'Status').length !== 1 || !validStatusMetadata(markdown)) {
+        report(`${name}: expected exactly one allowed Status row in the metadata table`);
       }
 
       const links = markdownLinks(markdown);
