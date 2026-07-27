@@ -112,8 +112,23 @@ function stripIgnoredMarkdown(markdown) {
     }
     return width;
   };
+  const fenceMarker = (line) => {
+    const topLevel = line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
+    if (topLevel) return topLevel;
+
+    const explicitContainer = line.match(/^(?:(?: {0,3}>[ \t]{0,3})+|(?: {0,3}>[ \t]{0,3})* {0,3}(?:[-+*]|\d+[.)])[ \t]{1,3})(`{3,}|~{3,})(.*)$/);
+    if (explicitContainer) return explicitContainer;
+
+    if (listContentIndent !== null) {
+      const leadingSpaces = line.match(/^ */)[0].length;
+      if (leadingSpaces >= listContentIndent && leadingSpaces <= listContentIndent + 3) {
+        return line.slice(leadingSpaces).match(/^(`{3,}|~{3,})(.*)$/);
+      }
+    }
+    return null;
+  };
   for (const line of markdown.split(/\r?\n/)) {
-    const marker = line.match(/^(?:[ \t]*>[ \t]?)*[ \t]*(`{3,}|~{3,})(.*)$/);
+    const marker = fenceMarker(line);
     if (!fence && marker) {
       fence = { char: marker[1][0], length: marker[1].length };
       continue;
@@ -465,6 +480,18 @@ function runSelfTest() {
     missingContractFields(indentedContract).length === CONTRACT_FIELDS.length);
   record('keeps legitimate list continuation content',
     validStatusMetadata('- Contract metadata:\n    **Status:** PLANNED'));
+
+  const fourSpacePseudoFence = [
+    '**Status:** PLANNED',
+    '    ````markdown',
+    '**Status:** PLANNED',
+    '[missing evidence](missing-evidence.md)',
+    '    ````',
+  ].join('\n');
+  const pseudoFenceLinks = markdownLinks(fourSpacePseudoFence);
+  record('does not let four-space pseudo-fences hide duplicate status or broken links',
+    !validStatusMetadata(fourSpacePseudoFence)
+      && pseudoFenceLinks.targets.some((target) => resolveLocalLink(sourceFile, target).error));
 
   const nestedFence = [
     '- Example contract:',
