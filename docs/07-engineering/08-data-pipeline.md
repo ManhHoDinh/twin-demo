@@ -36,7 +36,9 @@ Accepted transports include files/object storage, message streams and APIs; acce
 
 ## Governing equations and implementation form
 
-No new scientific equation is introduced. Deterministic transformations implement unit conversion, datum transformation, aggregation and QC rules from versioned registries. Quantity-envelope mapping must preserve `value`, `unit`, `timestamp/valid_time`, `age`, quality, uncertainty, source/version and additive engineering fields defined in [Scientific architecture](01-scientific-architecture.md).
+No new scientific equation is introduced. Deterministic transformations implement unit conversion, datum transformation, aggregation and QC rules from versioned registries. Each normalized record preserves the canonical Domain fields `value`, `unit`, `timestamp`, `age`, `quality`, `uncertainty`, `source_ref` and `version`, plus the exact additive fields `schema_version`, `valid_time`, `issue_time`, `source_id`, `model_id`, `model_version`, `provenance`, `confidence_grade`, `uncertainty_representation`, `quality_flags`, `assumptions` and `limitations` defined in [Scientific architecture](01-scientific-architecture.md).
+
+The mapping is lossless: `timestamp = valid_time` for a current-state projection; `age` is derived from the source observation timestamp for `MEASURED` data and from `issue_time` for `FORECAST` or `MODELLED` data. `source_ref` remains the canonical audit reference while `source_id` is the registry key. Canonical `version` identifies the governed referenced artifact, `schema_version` identifies the envelope schema, and `model_version` identifies the exact computational model. `quality_flags` supplements rather than replaces canonical `quality`; `uncertainty_representation` describes the encoding of canonical `uncertainty`; `confidence_grade` carries separately traceable reasons.
 
 ## Variables, units, parameters and bounds
 
@@ -44,7 +46,7 @@ Every quantity declares unit/dimension, valid time, issue time, ingest time, spa
 
 ## Data structures and serialization
 
-`SourceRegistry`, `RawObject`, `IngestEvent`, `QCEvent`, `NormalizedQuantity`, `DatasetVersion`, `LineageEdge`, `GapRecord` and `RunSnapshot` use stable IDs, hashes and schema versions. Formats may include Parquet/GeoParquet, JSON, COG and Zarr/NetCDF where justified; envelope compatibility is normative, format is not.
+`SourceRegistry`, `RawObject`, `IngestEvent`, `QCEvent`, `NormalizedQuantity`, `DatasetVersion`, `LineageEdge`, `GapRecord` and `RunSnapshot` use stable IDs, hashes and schema versions. `NormalizedQuantity` serializes every canonical and additive field named above without renaming or dropping it. Formats may include Parquet/GeoParquet, JSON, COG and Zarr/NetCDF where justified; envelope compatibility is normative, format is not.
 
 ## Update cadence and triggering events
 

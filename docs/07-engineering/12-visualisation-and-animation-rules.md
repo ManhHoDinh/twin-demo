@@ -36,7 +36,7 @@ Use fixed categorical/continuous ramps, contours, direction glyphs, arrival band
 
 ## Governing equations and implementation form
 
-Mappings are deterministic functions of a named quantity, unit, mapping version and state. Depth bands use fixed reviewed boundaries; wet/dry uses the model's declared threshold; arrival uses source valid time; direction uses validated vector components. Animation phase/randomness is excluded from quantitative mapping.
+Mappings are deterministic functions of a named quantity, unit, mapping version and state. Flood-surface elevation equals governed terrain or bed elevation plus modeled depth in the same horizontal CRS and vertical datum. Motion speed is a bounded, monotone display mapping from validated velocity magnitude; its scale/saturation is disclosed and the numeric readout remains the unclipped velocity. Wet/dry is the solver state produced by its declared depth threshold with separate wetting and drying thresholds (hysteresis) to prevent display flicker. Arrival is the first valid time a cell crosses the declared wet/hazard threshold. Extent is the union of connected wet cells or an authoritative model-defined polygon under the same threshold/version. Direction uses validated vector components. Animation phase/randomness is excluded from quantitative mapping.
 
 ## Variables, units, parameters and bounds
 
@@ -76,11 +76,12 @@ Test fixed mapping fixtures, legend/readout agreement, deterministic replay, no-
 
 ## Visualization derived from measurable state
 
-- Depth color/bands derive only from depth; wet/dry and extent derive from corresponding model products.
+- Flood surface uses `terrain_or_bed_elevation + modeled_depth`; depth color/bands derive only from modeled depth. Wet/dry uses the solver threshold and hysteresis, arrival uses first threshold crossing, and extent uses connected wet cells or model-defined polygons.
 - Direction arrows/streamlines derive only from validated physical velocity/direction. A momentum proxy must be labelled “momentum proxy”, define its inputs/units, and never appear as velocity.
+- Motion animation speed is the documented bounded mapping from validated velocity magnitude; without validated velocity it is “Not computed”, not inferred from particles or waves.
 - Wave animation is decorative surface motion and cannot report wave height, velocity or discharge.
 - Particles are never the source for numeric readouts, legends, exports or downstream computation.
-- Decorative rain uses a deterministic seed and is labelled illustrative unless driven by a normalized rainfall field; random flood expansion and random flow are prohibited.
+- Decorative rain that communicates scenario forcing uses a deterministic seed and a documented intensity mapping tied to the normalized scenario rainfall forcing; it is labelled “Forcing visualization”, not measurement. Rain without forcing linkage is labelled illustrative. Random flood expansion and random flow are prohibited.
 
 ## Assumptions and limitations
 

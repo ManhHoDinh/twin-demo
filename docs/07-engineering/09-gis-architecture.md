@@ -20,7 +20,7 @@ Terrarium retrieval/display is `IMPLEMENTED` as external-raster use. Production 
 
 ## Inputs
 
-DEM/DSM, surveyed cross-sections/bathymetry, hydrography, administrative/assets/exposure vectors, imagery, tile services, geoid/datum grids, no-data masks, accuracy metadata and source/licensing/version records.
+DEM/DSM, surveyed cross-sections/bathymetry, hydrography, buildings, roads, population surfaces, shelters, administrative/assets/exposure vectors, imagery, tile services, geoid/datum grids, no-data masks, accuracy metadata and source/licensing/version records.
 
 ## Outputs
 
@@ -46,9 +46,11 @@ Coordinates [m or degrees with CRS], elevation/depth [m with vertical datum/sign
 
 `SpatialDataset`, `CRSDefinition`, `VerticalDatum`, `TransformPipeline`, `RasterLayer`, `VectorLayer`, `TileSet`, `SolverMesh`, `RenderMesh`, `SpatialIndex` and `AccuracyReport` carry source hash, extent, resolution, no-data, provenance, license/access and validity.
 
+Buildings, roads, population and shelters each use a governed layer record containing source and provenance, observation/publication timestamp and validity interval, horizontal CRS and any vertical datum, spatial resolution or feature scale, stated positional/thematic accuracy, explicit no-data/unknown semantics and immutable version. Every version builds or references a spatial index. Point-in-polygon, nearest-feature, intersection, routing-access and zonal population queries declare boundary inclusion, distance CRS, no-data behavior and returned layer version; results must be reproducible for identical versioned inputs.
+
 ## Update cadence and triggering events
 
-Regenerate derived products when source bytes, transform grids, CRS/datum decisions, clipping, resampling or mesh configuration change. Tile cache expiry alone cannot change a governed dataset version.
+Regenerate derived products when source bytes, transform grids, CRS/datum decisions, clipping, resampling or mesh configuration change. Building, road, population and shelter layers update only on a new governed source/version or corrected validity interval; dependent indexes and cached queries are invalidated atomically. Tile cache expiry alone cannot change a governed dataset version.
 
 ## Spatial and temporal resolution
 
@@ -84,7 +86,7 @@ DEM represents surface/terrain according to its product, not river bed beneath w
 
 ## Failure detection, degraded behavior and recovery
 
-Detect missing/unknown CRS or datum, transform-grid failure, invalid geometry, no-data leakage, resolution mismatch, tile corruption and mesh defects. Quarantine affected layers; permit a labelled coarse display fallback but no physical solver substitution. Recover by rebuilding from governed source/config.
+Detect missing/unknown CRS or datum, transform-grid failure, invalid geometry, no-data leakage, resolution mismatch, tile corruption, mesh defects, stale exposure validity, failed indexes and non-reproducible queries. Quarantine the affected building, road, population or shelter layer and suppress dependent exposure/access/shelter results; a labelled older or coarser layer may support orientation only, never current decision counts or routes. Recover by rebuilding the layer and index from governed source/config and publishing a new version.
 
 ## Future extensions and scientific prerequisites
 

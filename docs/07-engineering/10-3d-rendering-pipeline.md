@@ -38,9 +38,11 @@ Accepted mappings include per-vertex attributes, textures, tiled fields and inst
 
 No hydraulic equation is solved in shaders. Mapping functions transform supplied depth to elevation/color/opacity, validated vector state to direction glyphs, arrival to time categories and uncertainty to an approved channel. Interpolation is bounded between same-quantity valid states and carries source timestamps; visual waves/particles are additive decoration.
 
+A momentum proxy is an optional typed upstream field, never a shader-derived value. Its definition must be fixed per mapping version, for example depth times validated depth-averaged velocity with units m2/s, or documented discharge per unit width with units m2/s. It carries source field IDs, units, `MODELLED` or `SYNTHETIC` provenance as applicable, valid time, uncertainty and an explicit computed/not-computed status. It is labelled “Momentum proxy” and is not physical momentum unless the solver publishes a supported momentum quantity with its own contract and units.
+
 ## Variables, units, parameters and bounds
 
-Depth [m], elevation [m datum], validated velocity [m/s], direction [degrees/vector], arrival [UTC timestamp or duration], wet/dry boolean, uncertainty [declared representation], opacity/color/glyph scale [display units], wave phase and particle speed [decorative units]. Clamp display parameters only; never silently clamp exported/readout physical values.
+Depth [m], elevation [m datum], validated velocity [m/s], direction [degrees/vector], optional momentum proxy [documented units such as m2/s], arrival [UTC timestamp or duration], wet/dry boolean, uncertainty [declared representation], opacity/color/glyph scale [display units], wave phase and particle speed [decorative units]. Clamp display parameters only; never silently clamp exported/readout physical values.
 
 ## Data structures and serialization
 
@@ -76,7 +78,7 @@ Test typed binding rejection, unit/CRS/time mismatch, exact known vertex/texture
 
 ## Visualization derived from measurable state
 
-Depth, extent, wet/dry, arrival and uncertainty require corresponding normalized fields. Direction requires validated velocity/direction. If a quantity is absent, the exact behavior is: show “Not computed”, remove its quantitative legend/readout/export, and suppress any decoration that could be mistaken for it.
+Depth, extent, wet/dry, arrival and uncertainty require corresponding normalized fields. Direction requires validated velocity/direction. The momentum-proxy GPU binding accepts only the precomputed typed proxy field; shaders cannot derive it from depth, visual currents, particles or neighboring pixels. If the proxy or any other quantity is absent, the exact behavior is: show “Not computed”, remove its quantitative legend/readout/export, and suppress any decoration that could be mistaken for it.
 
 ## Assumptions and limitations
 
