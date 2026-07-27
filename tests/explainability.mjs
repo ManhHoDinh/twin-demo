@@ -475,6 +475,58 @@ async function explainabilityContract(browser, base) {
       && escaped.current === null && escaped.hidden && escaped.restored;
   });
 
+  await check('3D label Escape uses a visible view fallback when its recorded origin becomes hidden', async (d) => {
+    const run = async (mode) => {
+      await page.evaluate(() => {
+        window.FT.state.layers.labels = true;
+        window.FT.explain.clear();
+      });
+      await page.waitForTimeout(80);
+      const selector = await page.evaluate(() => {
+        const label = [...document.querySelectorAll('#labels3d button[data-explain-kind]')]
+          .find((el) => getComputedStyle(el).display !== 'none' && el.getClientRects().length > 0);
+        return label ? `#labels3d button[data-explain-kind="${label.dataset.explainKind}"][data-explain-id="${label.dataset.explainId}"]` : null;
+      });
+      if (!selector) return { mode, selector: null };
+      await page.focus(selector);
+      await page.keyboard.press('Enter');
+      if (mode === 'labels') {
+        await page.evaluate(() => { window.FT.state.layers.labels = false; });
+        await page.waitForTimeout(80);
+      } else {
+        await page.evaluate(() => document.querySelector('#viewTabs button[data-view="2d"]').click());
+        await page.waitForTimeout(120);
+      }
+      await page.keyboard.press('Escape');
+      return page.evaluate((originSelector) => {
+        const active = document.activeElement;
+        const style = active && getComputedStyle(active);
+        return {
+          mode: document.body.dataset.view || window.FT.state.view,
+          current: window.FT.explain.current,
+          inspectorHidden: document.getElementById('explainInspector').hidden,
+          originVisible: document.querySelector(originSelector)?.getClientRects().length > 0,
+          activeId: active && active.id,
+          activeView: active && active.dataset && active.dataset.view,
+          activeVisible: !!active && style.display !== 'none' && style.visibility !== 'hidden' && active.getClientRects().length > 0,
+          activeInInspector: document.getElementById('explainInspector').contains(active),
+        };
+      }, selector);
+    };
+    const labelsHidden = await run('labels');
+    await page.evaluate(() => {
+      window.FT.state.layers.labels = true;
+      document.querySelector('#viewTabs button[data-view="3d"]').click();
+    });
+    await page.waitForTimeout(120);
+    const switched2d = await run('2d');
+    d({ labelsHidden, switched2d });
+    return [labelsHidden, switched2d].every((item) => item.selector !== null
+      && item.current === null && item.inspectorHidden && !item.originVisible
+      && item.activeVisible && !item.activeInInspector
+      && (['canvas2d', 'canvas3d'].includes(item.activeId) || ['2d', '3d'].includes(item.activeView)));
+  });
+
   await check('camera, layer and shader-render updates cannot change the selected scientific contract', async (d) => {
     const r = await page.evaluate(async () => {
       const FT = window.FT;

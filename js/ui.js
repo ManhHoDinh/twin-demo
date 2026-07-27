@@ -159,6 +159,22 @@
     return style.display !== "none" && style.visibility !== "hidden" && element.getClientRects().length > 0;
   }
 
+  function restoreExplanationFocus() {
+    const view = FT.state.view === "2d" ? "2d" : "3d";
+    const activeCanvas = document.getElementById(`canvas${view}`);
+    const viewControl = document.querySelector(`#viewTabs button[data-view="${view}"]`);
+    const candidates = [
+      explainReturnFocus,
+      activeCanvas && activeCanvas.classList.contains("isActive") ? activeCanvas : null,
+      viewControl,
+    ];
+    for (const candidate of candidates) {
+      if (!isVisible(candidate)) continue;
+      candidate.focus({ preventScroll: true });
+      if (document.activeElement === candidate) return;
+    }
+  }
+
   function renderExplanation(contract) {
     if (!contract) {
       el.explainInspector.hidden = true;
@@ -628,7 +644,7 @@
       } else {
         activeExplanation = null;
         renderExplanation(null);
-        if (explainReturnFocus && isVisible(explainReturnFocus)) explainReturnFocus.focus({ preventScroll: true });
+        restoreExplanationFocus();
         explainReturnFocus = null;
         explainMoveFocus = false;
       }
