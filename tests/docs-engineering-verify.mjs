@@ -105,13 +105,15 @@ function stripIgnoredMarkdown(markdown) {
   let inIndentedCode = false;
   let listContentIndent = null;
   let previousLineBlank = true;
-  const indentationWidth = (line) => {
-    let width = 0;
-    for (const character of line.match(/^[ \t]*/)[0]) {
-      width = character === '\t' ? width + (4 - (width % 4)) : width + 1;
+  const leadingIndentation = (line) => {
+    const value = line.match(/^[ \t]*/)[0];
+    let columns = 0;
+    for (const character of value) {
+      columns = character === '\t' ? columns + (4 - (columns % 4)) : columns + 1;
     }
-    return width;
+    return { characters: value.length, columns };
   };
+  const indentationWidth = (line) => leadingIndentation(line).columns;
   const fenceMarker = (line) => {
     const topLevel = line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
     if (topLevel) return topLevel;
@@ -120,9 +122,9 @@ function stripIgnoredMarkdown(markdown) {
     if (explicitContainer) return explicitContainer;
 
     if (listContentIndent !== null) {
-      const leadingSpaces = line.match(/^ */)[0].length;
-      if (leadingSpaces >= listContentIndent && leadingSpaces <= listContentIndent + 3) {
-        return line.slice(leadingSpaces).match(/^(`{3,}|~{3,})(.*)$/);
+      const leading = leadingIndentation(line);
+      if (leading.columns >= listContentIndent && leading.columns <= listContentIndent + 3) {
+        return line.slice(leading.characters).match(/^(`{3,}|~{3,})(.*)$/);
       }
     }
     return null;
@@ -506,6 +508,16 @@ function runSelfTest() {
   record('rejects status and contract tables inside list-nested fences',
     !validStatusMetadata(nestedFence)
       && missingContractFields(nestedFence).length === CONTRACT_FIELDS.length);
+
+  const tabIndentedListFence = [
+    '- Example contract:',
+    '',
+    '\t```markdown',
+    '\t**Status:** PLANNED',
+    '\t```',
+  ].join('\n');
+  record('rejects status metadata inside tab-indented list fences',
+    !validStatusMetadata(tabIndentedListFence));
 
   const malformedTables = [
     '| Field | Value |\n| --- | not-a-separator |\n| Purpose and scope | placeholder |',
