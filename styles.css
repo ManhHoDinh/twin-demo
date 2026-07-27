@@ -1229,9 +1229,13 @@ canvas:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .explainBody h3 { margin: 0 0 7px; color: var(--ink-1); font-size: 11px; letter-spacing: .5px; text-transform: uppercase; }
 .explainBody ul { margin: 0; padding-left: 18px; color: var(--ink-1); }
 .explainBody li + li { margin-top: 5px; }
-.explainQuantity { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; padding: 5px 0; border-bottom: 1px solid rgba(130, 174, 207, .1); }
-.explainQuantity span { color: var(--ink-2); }
-.explainQuantity strong { color: var(--ink-0); font-family: var(--mono); font-size: 11px; text-align: right; }
+.explainQuantity { padding: 7px 0; border-bottom: 1px solid rgba(130, 174, 207, .1); }
+.explainQuantityMain { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; }
+.explainQuantityMain span { color: var(--ink-2); }
+.explainQuantityMain strong { color: var(--ink-0); font-family: var(--mono); font-size: 11px; text-align: right; }
+.explainQuantityMeta { display: block; margin-top: 4px; color: var(--ink-2); font-family: var(--mono); font-size: 10px; line-height: 1.45; }
+.explainConfidenceRow { margin: 0; color: var(--ink-1); font-family: var(--mono); font-size: 10px; line-height: 1.45; }
+.explainConfidenceRow + .explainConfidenceRow { margin-top: 5px; }
 .explainDocsLink { display: inline-block; margin-top: 8px; color: var(--cyan); font-weight: 700; }
 body.geoshell .explainInspector { top: 62px; right: 8px; bottom: 30px; }
 body.geoshell.explain-open .geoDecision,
@@ -1246,3 +1250,5 @@ body.geoshell.explain-open .geoAI {
     position: fixed; top: auto; right: 8px; bottom: 34px; left: 8px;
     width: auto; max-height: min(56vh, calc(100vh - 180px)); border-radius: 16px 16px 10px 10px;
   }
+  .explainBody { max-height: calc(min(56vh, 100vh - 180px) - 66px); }
+}

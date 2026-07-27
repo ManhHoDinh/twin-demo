@@ -456,7 +456,11 @@
 
   function explainHit(hit, mx, my, pointerType) {
     let selection;
-    if (!hit) selection = { kind: "point", xKm: invX(mx), yKm: invY(my) };
+    if (!hit) {
+      const xKm = invX(mx), yKm = invY(my);
+      if (!Number.isFinite(xKm) || !Number.isFinite(yKm) || xKm < 0 || yKm < 0 || xKm > SZ || yKm > SZ) return;
+      selection = { kind: "point", xKm, yKm };
+    }
     else if (hit.kind === "gauge") selection = { kind: "gauge", id: hit.obj.id };
     else if (hit.kind === "res") selection = { kind: "reservoir", id: hit.obj.id };
     else if (hit.kind === "zone") selection = { kind: "zone", id: hit.obj.def.id };

@@ -8,7 +8,7 @@
   const $ = (id) => document.getElementById(id);
   const el = {};
   let resRefs = [], closureSig = "", rebuildTimer = null, logCount = 0;
-  let activeExplanation = null, explainReturnFocus = null;
+  let activeExplanation = null, explainReturnFocus = null, methodReturnFocus = null;
 
   const UI = (FT.ui = {});
 
@@ -46,6 +46,12 @@
     return key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
   }
 
+  function isVisible(element) {
+    if (!element || !document.contains(element)) return false;
+    const style = getComputedStyle(element);
+    return style.display !== "none" && style.visibility !== "hidden" && element.getClientRects().length > 0;
+  }
+
   function renderExplanation(contract) {
     if (!contract) {
       el.explainInspector.hidden = true;
@@ -68,19 +74,40 @@
       const row = document.createElement("div");
       row.className = "explainQuantity";
       row.dataset.quantityKey = q.key;
+      const main = document.createElement("div");
+      main.className = "explainQuantityMain";
       const label = document.createElement("span");
       label.textContent = quantityLabel(q.key);
       const value = document.createElement("strong");
       value.textContent = q.value == null ? `${t("explain.notComputed")} · ${q.status}` : `${U.fmt(q.value, 2)} ${q.unit}`;
-      row.append(label, value);
+      main.append(label, value);
+      const meta = document.createElement("small");
+      meta.className = "explainQuantityMeta";
+      meta.textContent = [
+        `${t("explain.valid")}: ${q.valid_time.iso}`,
+        `${t("explain.issue")}: ${q.issue_time.iso}`,
+        `${t("explain.age")}: ${q.age == null ? t("explain.unavailable") : q.age}`,
+        `${t("explain.quality")}: ${q.quality}`,
+        `${t("explain.status")}: ${q.status}`,
+        `${t("explain.reason")}: ${q.reason || "—"}`,
+        `${t("explain.flags")}: ${(q.quality_flags || []).join(", ") || "—"}`,
+      ].join(" · ");
+      row.append(main, meta);
       el.explainQuantities.appendChild(row);
     }
 
     replaceTextList(el.explainSources, contract.sources.map((source) =>
       `${source.source_id} · ${source.provenance} · ${source.model_id} ${source.model_version}`));
-    const grades = [...new Set(contract.quantities.map((q) => q.confidence_grade))];
-    const uncertainty = [...new Set(contract.quantities.map((q) => q.uncertainty && q.uncertainty.type).filter(Boolean))];
-    el.explainConfidence.textContent = `${grades.join(" · ")} · ${uncertainty.join(" · ")}`;
+    el.explainConfidence.replaceChildren();
+    for (const q of contract.quantities) {
+      const detail = document.createElement("p");
+      detail.className = "explainConfidenceRow";
+      const uncertainty = q.uncertainty || {};
+      detail.textContent = `${quantityLabel(q.key)} · ${t("explain.grade")}: ${q.confidence_grade}`
+        + ` · ${t("explain.uncertaintyDetail")}: ${uncertainty.type || t("explain.unavailable")}`
+        + ` · ${t("explain.reason")}: ${uncertainty.reason || q.reason || "—"}`;
+      el.explainConfidence.appendChild(detail);
+    }
     const assumptions = [...new Set(contract.assumptions.concat(contract.quantities.flatMap((q) => q.assumptions || [])))];
     const limitations = [...new Set(contract.limitations.concat(contract.quantities.flatMap((q) => q.limitations || [])))];
     replaceTextList(el.explainAssumptions, assumptions);
@@ -477,10 +504,17 @@
         activeExplanation = null;
         renderExplanation(null);
         if (explainReturnFocus && document.contains(explainReturnFocus)) explainReturnFocus.focus({ preventScroll: true });
+        explainReturnFocus = null;
       }
     });
     FT.bus.on("lang", () => { if (activeExplanation) renderExplanation(activeExplanation); });
     el.explainClose.addEventListener("click", () => FT.explain.clear());
+    el.explainInspector.addEventListener("keydown", (ev) => {
+      if (ev.key !== "Escape") return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      FT.explain.clear();
+    });
 
     /* transport */
     el.btnPlay.addEventListener("click", togglePlay);
@@ -632,6 +666,7 @@
     });
     const btnMethod = $("btnMethod");
     if (btnMethod) btnMethod.addEventListener("click", () => {
+      methodReturnFocus = isVisible(btnMethod) ? btnMethod : $("canvas2d");
       const vi = FT.state.lang === "vi";
       openModal("modal.method", (vi ? `
         <h4>Thật (chạy trong trình duyệt)</h4>
@@ -662,6 +697,7 @@
         <p>Forcing §4 → forcing panel · Surrogate §5 → SWE + 68× chip · Optimisation §6 → Rule⇄MPC + decision package · LLM §7 → briefs · Benchmarks §8 → metric card.</p>`) +
         `<button id="methodExplainState" class="btnPrimary" type="button">${FT.i18n.t("explain.methodGateway")}</button>`);
       $("methodExplainState").addEventListener("click", () => {
+        explainReturnFocus = methodReturnFocus;
         if (FT.explain.current) renderExplanation(FT.explain.current);
         else FT.explain.select({ kind: "point", xKm: D.DOMAIN.sizeKm / 2, yKm: D.DOMAIN.sizeKm / 2 });
         closeModal();

@@ -77,6 +77,28 @@ async function mapPoint(page, kind) {
   }, kind);
 }
 
+async function mapPaddingPoint(page) {
+  return page.evaluate(() => {
+    const canvas = document.getElementById('canvas2d');
+    const rect = canvas.getBoundingClientRect();
+    const domainSide = Math.min(rect.width, rect.height) / 1.04;
+    const left = rect.left + (rect.width - domainSide) / 2;
+    const right = rect.right - (rect.width - domainSide) / 2;
+    const top = rect.top + (rect.height - domainSide) / 2;
+    const bottom = rect.bottom - (rect.height - domainSide) / 2;
+    const candidates = [
+      { x: left - 4, y: rect.top + rect.height / 2 },
+      { x: right + 4, y: rect.top + rect.height / 2 },
+      { x: rect.left + rect.width / 2, y: top - 4 },
+      { x: rect.left + rect.width / 2, y: bottom + 4 },
+    ];
+    const point = candidates.find((p) => p.x > rect.left && p.x < rect.right
+      && p.y > rect.top && p.y < rect.bottom && document.elementFromPoint(p.x, p.y) === canvas);
+    if (!point) throw new Error('no unobstructed canvas padding point found');
+    return point;
+  });
+}
+
 async function explainabilityContract(browser, base) {
   step('Scientific explainability · normalized physical state');
   const { ctx, page, errors } = await bootApp(browser, base, { context: { hasTouch: true } });
@@ -391,7 +413,26 @@ async function explainabilityContract(browser, base) {
     return r.pointer === 'touch' && r.selection.kind === 'road' && r.selection.id === p.id;
   });
 
+  await check('real clicks in canvas letterbox padding are ignored without an invalid selection or page error', async (d) => {
+    await page.evaluate(() => {
+      window.FT.explain.clear();
+      window.__paddingErrors = [];
+      window.addEventListener('error', (event) => window.__paddingErrors.push(event.message), { once: true });
+    });
+    const point = await mapPaddingPoint(page);
+    await page.mouse.click(point.x, point.y);
+    await page.waitForTimeout(80);
+    const r = await page.evaluate(() => ({
+      current: window.FT.explain.current,
+      hidden: document.getElementById('explainInspector').hidden,
+      errors: window.__paddingErrors,
+    }));
+    d({ point, result: r });
+    return r.current === null && r.hidden && r.errors.length === 0;
+  });
+
   await check('inspector renders contract quantities, status, provenance, confidence, assumptions and limitations', async (d) => {
+    await page.evaluate(() => window.FT.explain.select({ kind: 'road', id: 'road:0' }));
     const r = await page.evaluate(() => ({
       hidden: document.getElementById('explainInspector').hidden,
       title: document.getElementById('explainTitle').textContent,
@@ -406,6 +447,35 @@ async function explainabilityContract(browser, base) {
     d(r);
     return !r.hidden && !!r.title && !!r.summary && r.quantities >= 7 && !!r.status
       && /SYNTHETIC/.test(r.sources) && !!r.confidence && !!r.assumptions && !!r.limitations;
+  });
+
+  await check('inspector visibly renders exact freshness, quality, flags, reasons and uncertainty details', async (d) => {
+    const r = await page.evaluate(() => {
+      const contract = window.FT.explain.current;
+      const available = contract.quantities.find((q) => q.key === 'road_flood_excess');
+      const unsupported = contract.quantities.find((q) => q.key === 'arrival_time');
+      return {
+        quantities: document.getElementById('explainQuantities').textContent,
+        confidence: document.getElementById('explainConfidence').textContent,
+        expected: {
+          age: String(available.age),
+          quality: available.quality,
+          flag: available.quality_flags[0],
+          statusReason: unsupported.reason,
+          confidence: unsupported.confidence_grade,
+          uncertaintyType: unsupported.uncertainty.type,
+          uncertaintyReason: unsupported.uncertainty.reason,
+        },
+      };
+    });
+    d(r);
+    return r.quantities.includes(r.expected.age)
+      && r.quantities.includes(r.expected.quality)
+      && r.quantities.includes(r.expected.flag)
+      && r.quantities.includes(r.expected.statusReason)
+      && r.confidence.includes(r.expected.confidence)
+      && r.confidence.includes(r.expected.uncertaintyType)
+      && r.confidence.includes(r.expected.uncertaintyReason);
   });
 
   await check('keyboard arrows expose and move a visible cursor, Enter selects, and Escape restores canvas focus', async (d) => {
@@ -446,6 +516,23 @@ async function explainabilityContract(browser, base) {
     return r.current === null && r.hidden && r.active === 'canvas2d';
   });
 
+  await check('Escape anywhere inside the inspector closes it and restores the selecting canvas', async (d) => {
+    const results = [];
+    for (const target of ['explainDocsLink', 'explainClose']) {
+      const p = await mapPoint(page, 'point');
+      await page.mouse.click(p.x, p.y);
+      await page.focus(`#${target}`);
+      await page.keyboard.press('Escape');
+      results.push(await page.evaluate(() => ({
+        current: window.FT.explain.current,
+        hidden: document.getElementById('explainInspector').hidden,
+        active: document.activeElement && document.activeElement.id,
+      })));
+    }
+    d(results);
+    return results.every((r) => r.current === null && r.hidden && r.active === 'canvas2d');
+  });
+
   await check('Method modal keeps its overview and exposes an Explain this state gateway', async (d) => {
     await page.evaluate(() => window.FT.explain.clear());
     await page.evaluate(() => document.getElementById('btnMethod').click());
@@ -462,6 +549,40 @@ async function explainabilityContract(browser, base) {
     d({ before, after });
     return /shallow-water/i.test(before.body) && before.gateway
       && after.modalHidden && !after.inspectorHidden && after.selection === 'point';
+  });
+
+  await check('Method-origin selection restores focus without targeting a hidden modal control', async (d) => {
+    await page.evaluate(() => {
+      window.FT.explain.clear();
+      const trigger = document.getElementById('btnMethod');
+      trigger.dataset.testStyle = trigger.getAttribute('style') || '';
+      window.__methodParent = trigger.parentNode;
+      window.__methodNext = trigger.nextSibling;
+      document.body.appendChild(trigger);
+      trigger.style.cssText = 'position:fixed;left:80px;top:180px;z-index:89;display:block';
+    });
+    await page.click('#btnMethod');
+    await page.click('#methodExplainState');
+    await page.click('#explainClose');
+    const r = await page.evaluate(() => {
+      const active = document.activeElement;
+      const style = active && getComputedStyle(active);
+      const result = {
+        active: active && active.id,
+        visible: !!active && style.display !== 'none' && style.visibility !== 'hidden'
+          && active.getClientRects().length > 0,
+        modalHidden: document.getElementById('modalScrim').hidden,
+      };
+      const trigger = document.getElementById('btnMethod');
+      trigger.setAttribute('style', trigger.dataset.testStyle);
+      window.__methodParent.insertBefore(trigger, window.__methodNext);
+      delete trigger.dataset.testStyle;
+      delete window.__methodParent;
+      delete window.__methodNext;
+      return result;
+    });
+    d(r);
+    return r.modalHidden && r.visible && r.active === 'btnMethod';
   });
 
   await check('language changes rerender the same immutable contract object', async (d) => {
