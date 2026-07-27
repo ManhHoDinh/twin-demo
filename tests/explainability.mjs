@@ -59,7 +59,7 @@ async function explainabilityContract(browser, base) {
         invalidValue: quantities.filter((q) => q.value !== null && !Number.isFinite(q.value)).map((q) => q.key),
         invalidCanonical: quantities.filter((q) =>
           JSON.stringify(q.timestamp) !== JSON.stringify(q.valid_time)
-          || !Number.isFinite(q.age)
+          || (!Number.isFinite(q.age) && !(q.age === null && q.quality_flags.includes('AGE_UNAVAILABLE')))
           || !['OK', 'SUSPECT', 'STALE', 'MISSING', 'ESTIMATED'].includes(q.quality)
           || !q.uncertainty
           || !q.source_ref
@@ -127,9 +127,12 @@ async function explainabilityContract(browser, base) {
     d(r);
     return r.velocity.value === null && r.velocity.status === 'UNSUPPORTED'
       && r.velocity.reason === 'UNSUPPORTED_PHYSICS'
+      && r.velocity.provenance !== 'MODELLED'
       && r.momentum.value === null
       && r.arrival.value === null && r.arrival.status === 'NOT_COMPUTED'
-      && r.attribution.value === null && r.attribution.status === 'UNSUPPORTED';
+      && r.arrival.provenance !== 'MODELLED'
+      && r.attribution.value === null && r.attribution.status === 'UNSUPPORTED'
+      && r.attribution.provenance !== 'MODELLED';
   });
 
   await check('render layers, camera and active view cannot change the scientific contract', async (d) => {
@@ -251,6 +254,45 @@ async function explainabilityContract(browser, base) {
       && r.firstContract === 'floodtwin.explain/v1' && r.last === null;
   });
 
+  await check('a missing zones subsystem yields explicit missing zone quantities', async (d) => {
+    const r = await page.evaluate(() => {
+      const FT = window.FT;
+      const saved = FT.zones;
+      let contract;
+      try {
+        FT.zones = null;
+        contract = FT.explain.forEntity('zone', FT.data.ZONES[0].id);
+      } finally {
+        FT.zones = saved;
+      }
+      const keys = ['zone_max_flood_excess', 'zone_mean_flood_excess', 'zone_exposed_population'];
+      return {
+        selection: contract.selection,
+        quantities: keys.map((key) => contract.quantities.find((q) => q.key === key)),
+      };
+    });
+    d(r);
+    return r.selection.kind === 'zone'
+      && r.quantities.every((q) => q && q.value === null && q.reason === 'MISSING_DATA')
+      && r.quantities.every((q) => q.status === 'UNAVAILABLE_FOR_OPERATIONS'
+        && q.quality === 'MISSING' && q.confidence_grade === 'UNAVAILABLE')
+      && r.quantities.every((q) => /zone/i.test(q.source_id) && /FT\.zones/.test(q.source_ref));
+  });
+
+  await setDegradation(page, 1);
+  await check('L1 unrelated feed staleness does not become the model quantity age', async (d) => {
+    const r = await page.evaluate(() => {
+      const FT = window.FT;
+      const z = FT.data.ZONES[0];
+      const c = FT.explain.atPoint(z.x, z.y);
+      const flood = c.quantities.find((q) => q.key === 'flood_excess');
+      return { health: c.data_health, flood };
+    });
+    d(r);
+    return r.health.level === 1 && r.health.oldest_age_min === 42
+      && r.flood.age === 0 && r.flood.status === 'DEGRADED' && r.flood.reason === 'STALE';
+  });
+
   await setDegradation(page, 2);
   await check('L2 health degrades model output without relabeling it as measured', async (d) => {
     const r = await page.evaluate(() => {
@@ -258,12 +300,32 @@ async function explainabilityContract(browser, base) {
       const z = FT.data.ZONES[0];
       const c = FT.explain.atPoint(z.x, z.y);
       const physical = c.quantities.filter((q) => ['depth', 'flood_excess'].includes(q.key));
-      return { health: c.data_health, physical };
+      const gauge = FT.explain.forEntity('gauge', FT.data.GAUGES[0].id)
+        .quantities.find((q) => q.key === 'gauge_stage');
+      const reservoir = FT.explain.forEntity('reservoir', FT.data.RESERVOIRS[0].id)
+        .quantities.find((q) => q.key === 'reservoir_stage');
+      return { health: c.data_health, physical, gauge, reservoir };
     });
     d(r);
     return r.health.level === 2 && r.health.reason === 'MISSING_DATA'
       && r.physical.every((q) => q.status === 'DEGRADED' && q.reason === 'MISSING_DATA')
-      && r.physical.every((q) => q.provenance === 'SYNTHETIC');
+      && r.physical.every((q) => q.provenance === 'SYNTHETIC' && q.age === 0)
+      && r.gauge.age === 95 && r.reservoir.age === 0;
+  });
+
+  await setDegradation(page, 3);
+  await check('L3 cached operation degrades usability without assigning global feed age', async (d) => {
+    const r = await page.evaluate(() => {
+      const FT = window.FT;
+      const z = FT.data.ZONES[0];
+      const c = FT.explain.atPoint(z.x, z.y);
+      const flood = c.quantities.find((q) => q.key === 'flood_excess');
+      return { health: c.data_health, flood };
+    });
+    d(r);
+    return r.health.level === 3 && r.health.oldest_age_min === 180
+      && r.flood.age === 0 && r.flood.status === 'DEGRADED'
+      && r.flood.reason === 'MISSING_DATA' && r.flood.provenance === 'SYNTHETIC';
   });
 
   await setDegradation(page, 4);
@@ -279,6 +341,7 @@ async function explainabilityContract(browser, base) {
     return r.health.level === 4 && r.health.reason === 'MISSING_DATA'
       && r.physical.every((q) => q.status === 'UNAVAILABLE_FOR_OPERATIONS' && q.reason === 'MISSING_DATA')
       && r.physical.every((q) => q.provenance === 'SYNTHETIC')
+      && r.physical.every((q) => q.age === 0)
       && r.physical.every((q) => Number.isFinite(q.value));
   });
 
