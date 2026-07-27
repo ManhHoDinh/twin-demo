@@ -35,7 +35,7 @@ This workspace is the single source of truth for *what the product knows*, *what
 [Personas](02-stakeholders/01-personas.md) → [Workflow catalog](03-operations/01-workflow-catalog.md) → [Communication protocols](03-operations/03-communication-protocols.md).
 
 **If you are an engineer about to build it:**
-[Entity model](01-domain-model/01-entity-model.md) → [Observation model](01-domain-model/03-observation-model.md) → [Decision engine](04-decision-support/01-decision-engine-spec.md) → [NFRs](05-product/05-non-functional-requirements.md) → [Demo gap analysis](99-appendix/demo-gap-analysis.md).
+[Entity model](01-domain-model/01-entity-model.md) → [Observation model](01-domain-model/03-observation-model.md) → [Engineering handbook](07-engineering/README.md) → [Decision engine](04-decision-support/01-decision-engine-spec.md) → [NFRs](05-product/05-non-functional-requirements.md) → [Demo gap analysis](99-appendix/demo-gap-analysis.md).
 
 ---
 
@@ -99,6 +99,16 @@ This workspace is the single source of truth for *what the product knows*, *what
 | [01-red-team-review.md](06-critique/01-red-team-review.md) | 8-role adversarial review, 3 rounds, what got cut |
 | [02-open-risk-register.md](06-critique/02-open-risk-register.md) | Surviving risks with owners and mitigations |
 | [03-roadmap.md](06-critique/03-roadmap.md) | Maturity ladder M0→M4 with exit gates |
+
+### 07 — Engineering
+| Doc | Contains |
+|---|---|
+| [README.md](07-engineering/README.md) | Engineering precedence, status/provenance rules, reading paths and completeness dashboard |
+| [01-scientific-architecture.md](07-engineering/01-scientific-architecture.md) | One-way scientific state flow, evidence hierarchy, model selection and production claim gates |
+| [02-simulation-architecture.md](07-engineering/02-simulation-architecture.md) | Twelve-engine DAG, clocks, coupling, replay, checkpoints and failure isolation |
+| [03-engine-contract-catalog.md](07-engineering/03-engine-contract-catalog.md) | Uniform contracts and dependency matrix for all twelve engines |
+
+Foundational equations and scientific facts remain authoritative in [00 — Foundations](#00-foundations-domain-expertise). Engineering documents define implementation boundaries and evidence obligations; they do not replace foundation authority.
 
 ### 99 — Appendix
 | Doc | Contains |
