@@ -8,7 +8,7 @@
 | Current demo | Displays indicative target metrics over synthetic behavior; no independent scientific validation claim |
 | Production target | Versioned calibration and independent validation by subsystem, event, location and decision use |
 | Domain review | Hydrology, hydraulics, reservoirs, GIS, impact, meteorology and operations |
-| Authoritative dependencies | [Observation model](../01-domain-model/03-observation-model.md), [uncertainty](../04-decision-support/02-uncertainty-and-confidence.md), [hydrology](04-hydrology-model.md), [hydraulics](05-hydraulic-model.md) |
+| Authoritative dependencies | [Observation model](../01-domain-model/03-observation-model.md), [exposure and impact model](../01-domain-model/04-exposure-and-impact-model.md), [uncertainty](../04-decision-support/02-uncertainty-and-confidence.md), [hydrology](04-hydrology-model.md), [hydraulics](05-hydraulic-model.md) |
 
 ## Purpose and scope
 
