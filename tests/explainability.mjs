@@ -99,6 +99,13 @@ async function mapPaddingPoint(page) {
   });
 }
 
+async function sceneTarget(page, selection) {
+  return page.evaluate((value) => {
+    const target = window.FT.scene3d.selectionTarget && window.FT.scene3d.selectionTarget(value);
+    return target || null;
+  }, selection);
+}
+
 async function explainabilityContract(browser, base) {
   step('Scientific explainability · normalized physical state');
   const { ctx, page, errors } = await bootApp(browser, base, { context: { hasTouch: true } });
@@ -229,12 +236,16 @@ async function explainabilityContract(browser, base) {
       const FT = window.FT;
       const z = FT.data.ZONES[0];
       const before = JSON.stringify(FT.explain.atPoint(z.x, z.y));
+      const saved = { layers: { ...FT.state.layers }, view: FT.state.view, camPreset: FT.state.camPreset };
       FT.state.layers.water = !FT.state.layers.water;
       FT.state.layers.flow = !FT.state.layers.flow;
       FT.state.layers.labels = !FT.state.layers.labels;
       FT.state.view = FT.state.view === '2d' ? '3d' : '2d';
       FT.state.camPreset = 'hoian';
       const after = JSON.stringify(FT.explain.atPoint(z.x, z.y));
+      Object.assign(FT.state.layers, saved.layers);
+      FT.state.view = saved.view;
+      FT.state.camPreset = saved.camPreset;
       return { same: before === after };
     });
     d(r);
@@ -341,6 +352,117 @@ async function explainabilityContract(browser, base) {
     return r.frozen && r.mutationBlocked && r.sameCurrent && r.cleared === null
       && r.current === null && r.eventCount === 2
       && r.firstContract === 'floodtwin.explain/v1' && r.last === null;
+  });
+
+  step('Scientific explainability · accessible 3D selection');
+
+  await page.evaluate(() => { window.FT.state.layers.labels = false; });
+  await page.waitForTimeout(100);
+
+  await check('actual 3D mouse and touch rays select entity hits before terrain or water coordinates', async (d) => {
+    const reservoirId = await page.evaluate(() => window.FT.data.RESERVOIRS[0].id);
+    const reservoir = await sceneTarget(page, { kind: 'reservoir', id: reservoirId });
+    if (!reservoir) { d({ reservoir: null }); return false; }
+    await page.mouse.click(reservoir.x, reservoir.y);
+    await page.waitForTimeout(80);
+    const entity = await page.evaluate(() => window.FT.explain.current && window.FT.explain.current.selection);
+
+    const surface = await sceneTarget(page, { kind: 'point', xKm: 48, yKm: 48 });
+    if (!surface) { d({ reservoir, entity, surface: null }); return false; }
+    await page.touchscreen.tap(surface.x, surface.y);
+    await page.waitForTimeout(80);
+    const point = await page.evaluate(() => ({
+      pointer: document.getElementById('canvas3d').dataset.lastExplainPointer,
+      selection: window.FT.explain.current && window.FT.explain.current.selection,
+    }));
+    d({ reservoir, entity, surface, point });
+    return entity.kind === 'reservoir' && entity.id === reservoir.id
+      && point.pointer === 'touch' && point.selection.kind === 'point'
+      && Math.abs(point.selection.xKm - 48) < 1 && Math.abs(point.selection.yKm - 48) < 1;
+  });
+
+  await check('actual 3D rays resolve stable gauge and zone selectors', async (d) => {
+    const selectors = await page.evaluate(() => ({
+      gauge: { kind: 'gauge', id: window.FT.data.GAUGES[0].id },
+      zone: { kind: 'zone', id: window.FT.data.ZONES[0].id },
+    }));
+    const selected = {};
+    for (const [kind, selector] of Object.entries(selectors)) {
+      const target = await sceneTarget(page, selector);
+      if (!target) { d({ kind, target: null }); return false; }
+      await page.mouse.click(target.x, target.y);
+      await page.waitForTimeout(60);
+      selected[kind] = await page.evaluate(() => window.FT.explain.current && window.FT.explain.current.selection);
+    }
+    d(selected);
+    return selected.gauge.kind === 'gauge' && selected.gauge.id === selectors.gauge.id
+      && selected.zone.kind === 'zone' && selected.zone.id === selectors.zone.id;
+  });
+
+  await check('3D orbit drags never become explanation selections', async (d) => {
+    const surface = await sceneTarget(page, { kind: 'point', xKm: 52, yKm: 52 });
+    if (!surface) { d({ surface: null }); return false; }
+    await page.evaluate(() => window.FT.explain.clear());
+    await page.mouse.move(surface.x, surface.y);
+    await page.mouse.down();
+    await page.mouse.move(surface.x + 18, surface.y + 12, { steps: 3 });
+    await page.mouse.up();
+    await page.waitForTimeout(80);
+    const r = await page.evaluate(() => window.FT.explain.current);
+    d({ surface, current: r });
+    return r === null;
+  });
+
+  await check('secondary mouse buttons never become explanation selections', async (d) => {
+    const surface = await sceneTarget(page, { kind: 'point', xKm: 52, yKm: 52 });
+    if (!surface) { d({ surface: null }); return false; }
+    await page.evaluate(() => window.FT.explain.clear());
+    await page.mouse.click(surface.x, surface.y, { button: 'right' });
+    await page.waitForTimeout(80);
+    const r = await page.evaluate(() => window.FT.explain.current);
+    d({ surface, current: r });
+    return r === null;
+  });
+
+  await check('projected gauge and reservoir labels are keyboard buttons while place labels remain decorative', async (d) => {
+    await page.evaluate(() => { window.FT.state.layers.labels = true; });
+    await page.waitForTimeout(100);
+    const r = await page.evaluate(() => ({
+      wrapperHidden: document.getElementById('labels3d').getAttribute('aria-hidden'),
+      interactive: [...document.querySelectorAll('#labels3d button[data-explain-kind]')].map((el) => ({
+        kind: el.dataset.explainKind, id: el.dataset.explainId, label: el.getAttribute('aria-label'), type: el.type,
+        visible: getComputedStyle(el).display !== 'none' && el.getClientRects().length > 0,
+      })),
+      decorative: [...document.querySelectorAll('#labels3d .label3d:not(button)')]
+        .every((el) => el.getAttribute('aria-hidden') === 'true'),
+    }));
+    const gauge = r.interactive.find((item) => item.kind === 'gauge' && item.visible);
+    if (!gauge) { d(r); return false; }
+    await page.focus(`#labels3d button[data-explain-kind="gauge"][data-explain-id="${gauge.id}"]`);
+    await page.keyboard.press('Enter');
+    const selected = await page.evaluate(() => window.FT.explain.current && window.FT.explain.current.selection);
+    d({ ...r, selected });
+    return r.wrapperHidden === null && r.decorative
+      && r.interactive.some((item) => item.kind === 'reservoir')
+      && r.interactive.every((item) => item.type === 'button' && !!item.label)
+      && selected.kind === 'gauge' && selected.id === gauge.id;
+  });
+
+  await check('camera, layer and shader-render updates cannot change the selected scientific contract', async (d) => {
+    const r = await page.evaluate(async () => {
+      const FT = window.FT;
+      const before = JSON.stringify(FT.explain.atPoint(48, 48));
+      FT.scene3d.setCamera('hoian');
+      FT.state.layers.water = !FT.state.layers.water;
+      FT.state.layers.labels = !FT.state.layers.labels;
+      await new Promise((resolve) => setTimeout(resolve, 120));
+      const after = JSON.stringify(FT.explain.atPoint(48, 48));
+      FT.state.layers.water = !FT.state.layers.water;
+      FT.state.layers.labels = !FT.state.layers.labels;
+      return { same: before === after };
+    });
+    d(r);
+    return r.same;
   });
 
   step('Scientific explainability · accessible 2D inspector');
@@ -618,6 +740,7 @@ async function explainabilityContract(browser, base) {
       && /Chất lượng: Đạt/.test(vi.quantities)
       && /Tuổi từ thời điểm phát hành/.test(vi.quantities)
       && /Vật lý chưa được hỗ trợ/.test(vi.quantities)
+      && /Trạng thái SWE trong trình duyệt/.test(vi.sources)
       && /Tổng hợp/.test(vi.sources)
       && /Mức tin cậy: Không khả dụng/.test(vi.confidence)
       && /Bất định: Không khả dụng/.test(vi.confidence)
@@ -628,12 +751,42 @@ async function explainabilityContract(browser, base) {
       && /Quality: OK/.test(en.quantities)
       && /Age from issue time/.test(en.quantities)
       && /Unsupported physics/.test(en.quantities)
+      && /In-browser SWE state/.test(en.sources)
       && /Synthetic/.test(en.sources)
       && /Confidence grade: Unavailable/.test(en.confidence)
       && /Uncertainty: Unavailable/.test(en.confidence)
       && /Quantity not computed/.test(en.confidence)
       && /Hydrology, reservoir routing and inundation are synthetic demonstration outputs/.test(en.assumptions)
       && /Not calibrated or validated for operational use/.test(en.limitations)
+      && en.same && en.unchanged;
+  });
+
+  await check('procedural fallback and planned output labels are translated without changing canonical contract values', async (d) => {
+    const vi = await page.evaluate(() => {
+      const saved = window.FT.geo.hasDEM;
+      window.FT.geo.hasDEM = false;
+      window.FT.explain.select({ kind: 'point', xKm: 48, yKm: 48 });
+      window.FT.geo.hasDEM = saved;
+      window.__fallbackContract = window.FT.explain.current;
+      window.__fallbackJSON = JSON.stringify(window.FT.explain.current);
+      return {
+        quantities: document.getElementById('explainQuantities').textContent,
+        confidence: document.getElementById('explainConfidence').textContent,
+      };
+    });
+    await page.click('#langToggle');
+    const en = await page.evaluate(() => ({
+      quantities: document.getElementById('explainQuantities').textContent,
+      confidence: document.getElementById('explainConfidence').textContent,
+      same: window.FT.explain.current === window.__fallbackContract,
+      unchanged: JSON.stringify(window.FT.explain.current) === window.__fallbackJSON,
+    }));
+    await page.click('#langToggle');
+    d({ vi, en });
+    return /Địa hình thủ tục dự phòng/.test(vi.quantities)
+      && /Chức năng đã lên kế hoạch/.test(vi.quantities)
+      && /Procedural terrain fallback/.test(en.quantities)
+      && /Planned functionality/.test(en.quantities)
       && en.same && en.unchanged;
   });
 
@@ -740,6 +893,36 @@ async function explainabilityContract(browser, base) {
       && r.gauge.age === 95 && r.reservoir.age === 0;
   });
 
+  await check('L2 degradation names the missing dependency, last valid time, confidence effect and permitted use', async (d) => {
+    const r = await page.evaluate(() => {
+      const c = window.FT.explain.atPoint(48, 48);
+      return c.data_health;
+    });
+    d(r);
+    return r.reason_category === 'MISSING_DATA'
+      && r.missing_quantity === 'critical_observation_feed'
+      && !!r.missing_dependency
+      && r.last_valid_time && Number.isFinite(r.last_valid_time.tH)
+      && /confidence/i.test(r.confidence_effect)
+      && r.permitted_use === 'DEMO_ONLY_NO_OPERATIONAL_DECISIONS';
+  });
+
+  await check('degradation evidence is visible in the inspector in Vietnamese and equivalent English', async (d) => {
+    const vi = await page.evaluate(() => {
+      window.FT.explain.select({ kind: 'point', xKm: 48, yKm: 48 });
+      const section = document.getElementById('explainDegradation');
+      return section ? section.textContent : '';
+    });
+    await page.click('#langToggle');
+    const en = await page.evaluate(() => document.getElementById('explainDegradation')?.textContent || '');
+    await page.click('#langToggle');
+    d({ vi, en });
+    return /Thiếu dữ liệu/.test(vi) && /Phụ thuộc bị thiếu/.test(vi)
+      && /Thời điểm hợp lệ gần nhất/.test(vi) && /Không dùng cho quyết định vận hành/.test(vi)
+      && /Missing data/.test(en) && /Missing dependency/.test(en)
+      && /Last valid time/.test(en) && /No operational decisions/.test(en);
+  });
+
   await setDegradation(page, 3);
   await check('L3 cached operation degrades usability without assigning global feed age', async (d) => {
     const r = await page.evaluate(() => {
@@ -752,7 +935,7 @@ async function explainabilityContract(browser, base) {
     d(r);
     return r.health.level === 3 && r.health.oldest_age_min === 180
       && r.flood.age === 0 && r.flood.status === 'DEGRADED'
-      && r.flood.reason === 'MISSING_DATA' && r.flood.provenance === 'SYNTHETIC';
+      && r.flood.reason === 'STALE' && r.flood.provenance === 'SYNTHETIC';
   });
 
   await setDegradation(page, 4);
@@ -770,6 +953,52 @@ async function explainabilityContract(browser, base) {
       && r.physical.every((q) => q.provenance === 'SYNTHETIC')
       && r.physical.every((q) => q.age === 0)
       && r.physical.every((q) => Number.isFinite(q.value));
+  });
+
+  await check('L4 degradation refuses operational use while retaining the last valid observation time', async (d) => {
+    const r = await page.evaluate(() => window.FT.explain.atPoint(48, 48).data_health);
+    d(r);
+    return r.reason_category === 'MISSING_DATA'
+      && r.missing_quantity === 'usable_observations'
+      && r.last_valid_time && Number.isFinite(r.last_valid_time.tH)
+      && r.confidence_effect === 'UNAVAILABLE_FOR_OPERATIONS'
+      && r.permitted_use === 'DEMO_ONLY_NO_OPERATIONAL_DECISIONS';
+  });
+
+  await check('all governed reason categories normalize into contracts, including quality rejection and model failure', async (d) => {
+    const r = await page.evaluate(() => {
+      const FT = window.FT;
+      const expected = ['MISSING_DATA', 'STALE', 'QUALITY_REJECTED', 'MODEL_FAILURE', 'UNSUPPORTED_PHYSICS', 'PLANNED'];
+      const original = FT.ops.health;
+      const base = original();
+      const normalized = {};
+      try {
+        for (const reasonCode of ['QUALITY_REJECTED', 'MODEL_FAILURE']) {
+          FT.ops.health = () => ({ ...base, level: 4, reasonCode, missingCritical: 'synthetic-test-feed' });
+          const c = FT.explain.atPoint(48, 48);
+          normalized[reasonCode] = {
+            health: c.data_health.reason_category,
+            quantities: [...new Set(c.quantities.filter((q) => q.value !== null).map((q) => q.reason))],
+          };
+        }
+      } finally {
+        FT.ops.health = original;
+      }
+      const point = FT.explain.atPoint(48, 48);
+      return {
+        categories: FT.explain.reasonCategories,
+        normalized,
+        unsupported: point.quantities.find((q) => q.key === 'velocity').reason,
+        planned: point.quantities.find((q) => q.key === 'arrival_time').reason,
+      };
+    });
+    d(r);
+    return JSON.stringify(r.categories) === JSON.stringify(['MISSING_DATA', 'STALE', 'QUALITY_REJECTED', 'MODEL_FAILURE', 'UNSUPPORTED_PHYSICS', 'PLANNED'])
+      && r.normalized.QUALITY_REJECTED.health === 'QUALITY_REJECTED'
+      && r.normalized.QUALITY_REJECTED.quantities.includes('QUALITY_REJECTED')
+      && r.normalized.MODEL_FAILURE.health === 'MODEL_FAILURE'
+      && r.normalized.MODEL_FAILURE.quantities.includes('MODEL_FAILURE')
+      && r.unsupported === 'UNSUPPORTED_PHYSICS' && r.planned === 'PLANNED';
   });
 
   await setDegradation(page, null);

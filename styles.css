@@ -338,6 +338,8 @@ canvas { display: block; }
   padding: 2px 7px; border-radius: 7px; white-space: nowrap;
   backdrop-filter: blur(4px);
 }
+.labels3d button.label3d { font: inherit; cursor: pointer; pointer-events: auto; }
+.labels3d button.label3d:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .label3d.city { color: #fff; font-weight: 600; }
 .label3d.pl-dist { color: rgba(200, 216, 234, 0.8); font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; background: none; border: none; }
 .label3d.pl-bridge { color: #aae1ff; font-size: 11px; }
@@ -1236,6 +1238,7 @@ canvas:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .explainQuantityMeta { display: block; margin-top: 4px; color: var(--ink-2); font-family: var(--mono); font-size: 10px; line-height: 1.45; }
 .explainConfidenceRow { margin: 0; color: var(--ink-1); font-family: var(--mono); font-size: 10px; line-height: 1.45; }
 .explainConfidenceRow + .explainConfidenceRow { margin-top: 5px; }
+.explainDegradationRow { margin: 0; color: var(--ink-1); font-family: var(--mono); font-size: 10px; line-height: 1.55; }
 .explainDocsLink { display: inline-block; margin-top: 8px; color: var(--cyan); font-weight: 700; }
 body.geoshell .explainInspector { top: 62px; right: 8px; bottom: 30px; }
 body.geoshell.explain-open .geoDecision,

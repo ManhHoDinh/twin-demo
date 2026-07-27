@@ -7,6 +7,7 @@
   const SZ = D.DOMAIN.sizeKm;
 
   let THREE, W, renderer, scene, camera, controls, canvas;
+  let raycaster, rayPointer;
   let terrainMesh, waterMesh, waterGeo, waterMat;
   let roadGeo, roadColors, roadPosCount = 0, roadRanges = [];
   let vehMesh, vehDummy, vehColor;
@@ -17,6 +18,7 @@
   let skyClear = null, skyStorm = null, skyTmp = null;
   const tmpV = { v: null };
   let clock = 0;
+  let pointerDownX = 0, pointerDownY = 0, pointerMoved = 0, selectionPointerId = null;
 
   const S3 = (FT.scene3d = {});
 
@@ -702,6 +704,7 @@
       const te = terrAt(r.x, r.y);
       const baseY = elevToY(Math.max(2, te));
       const g = new THREE.Group();
+      g.userData.explainSelection = { kind: "reservoir", id: r.id };
       g.position.set(r.x, 0, r.y);
       const crest = new THREE.Mesh(
         new THREE.BoxGeometry(1.35, 0.35, 0.45),
@@ -759,6 +762,7 @@
       const te = terrAt(g.x, g.y);
       const y = elevToY(Math.max(1, te));
       const grp = new THREE.Group();
+      grp.userData.explainSelection = { kind: "gauge", id: g.id };
       grp.position.set(g.x, 0, g.y);
       const pole = new THREE.Mesh(new THREE.BoxGeometry(0.045, 1.1, 0.045), new THREE.MeshBasicMaterial({ color: 0xd7e6f2 }));
       pole.position.y = y + 0.55;
@@ -795,8 +799,9 @@
       ring.rotation.x = -Math.PI / 2;
       ring.position.set(z.x, elevToY(te) + 0.05, z.y);
       ring.renderOrder = 4;
+      ring.userData.explainSelection = { kind: "zone", id: z.id };
       scene.add(ring);
-      zoneRings.push({ id: z.id, ring, mat });
+      zoneRings.push({ id: z.id, ring, mat, def: z });
     }
   }
   function updateZones(t) {
@@ -850,16 +855,34 @@
     labelWrap = document.getElementById("labels3d");
     labelWrap.textContent = "";
     labels = [];
-    const mk = (txt, cls, x, yKm, elevOff, gaugeId, nearDist) => {
-      const el = document.createElement("span");
+    labelWrap.removeAttribute("aria-hidden");
+    const mk = (txt, cls, x, yKm, elevOff, gaugeId, nearDist, selection) => {
+      const el = document.createElement(selection ? "button" : "span");
       el.className = `label3d ${cls}`;
       el.textContent = txt;
+      if (selection) {
+        el.type = "button";
+        el.dataset.explainKind = selection.kind;
+        el.dataset.explainId = selection.id;
+        el.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          FT.explain.select(selection);
+        });
+        el.addEventListener("keydown", (ev) => {
+          if (ev.key !== "Enter" && ev.key !== " ") return;
+          ev.preventDefault();
+          ev.stopPropagation();
+          FT.explain.select(selection);
+        });
+      } else {
+        el.setAttribute("aria-hidden", "true");
+      }
       labelWrap.appendChild(el);
-      labels.push({ el, x, z: yKm, elevOff, cls, gaugeId, name: txt, nearDist: nearDist || 0 });
+      labels.push({ el, x, z: yKm, elevOff, cls, gaugeId, name: txt, nearDist: nearDist || 0, selection });
     };
     for (const c of D.CITIES) if (c.size >= 0.8) mk(c.name, "city", c.x, c.y, 0.55);
-    for (const r of D.RESERVOIRS) mk(r.name, "res", r.x, r.y, 1.9);
-    for (const g of D.GAUGES) mk(g.name, "gauge", g.x, g.y, 1.55, g.id);
+    for (const r of D.RESERVOIRS) mk(r.name, "res", r.x, r.y, 1.9, null, 0, { kind: "reservoir", id: r.id });
+    for (const g of D.GAUGES) mk(g.name, "gauge", g.x, g.y, 1.55, g.id, 0, { kind: "gauge", id: g.id });
     /* gazetteer thật: quận/huyện hiện khi < 110, cầu & địa danh khi < 40 (đỡ rối toàn cảnh) */
     if (D.PLACES) for (const p of D.PLACES) {
       mk(p.n, `pl-${p.k}`, p.x, p.y, p.k === "bridge" ? 0.35 : 0.55, null, p.t === 1 ? 110 : 40);
@@ -881,6 +904,10 @@
       L.el.style.display = "";
       L.el.style.left = `${((v.x + 1) / 2) * rect.width}px`;
       L.el.style.top = `${((1 - v.y) / 2) * rect.height}px`;
+      if (L.selection) {
+        const kind = FT.i18n.t(`explain.label.${L.selection.kind}`);
+        L.el.setAttribute("aria-label", `${kind}: ${L.name}`);
+      }
       /* gauges: live stage + alert colour on the label itself */
       if (L.gaugeId) {
         const gs = snap.gauges[L.gaugeId];
@@ -890,6 +917,67 @@
         if (L.el.className !== cls) L.el.className = cls;
       }
     }
+  }
+
+  function selectorFromHit(object) {
+    for (let node = object; node; node = node.parent) {
+      if (node.userData && node.userData.explainSelection) return node.userData.explainSelection;
+    }
+    return null;
+  }
+
+  function visibleThroughParents(object) {
+    for (let node = object; node; node = node.parent) if (!node.visible) return false;
+    return true;
+  }
+
+  function rayFromClient(clientX, clientY) {
+    const rect = canvas.getBoundingClientRect();
+    rayPointer.set(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
+    raycaster.setFromCamera(rayPointer, camera);
+  }
+
+  function resolveRay(clientX, clientY) {
+    rayFromClient(clientX, clientY);
+    const entityHits = raycaster.intersectObjects([damGroup, gaugeGroup, ...zoneRings.map((item) => item.ring)], true);
+    for (const hit of entityHits) {
+      if (!visibleThroughParents(hit.object)) continue;
+      const selection = selectorFromHit(hit.object);
+      if (selection) return selection;
+    }
+    const surfaceHits = raycaster.intersectObjects([waterMesh, terrainMesh].filter(Boolean), false);
+    const surface = surfaceHits.find((hit) => visibleThroughParents(hit.object));
+    if (!surface) return null;
+    const xKm = U.clamp(surface.point.x, 0, SZ), yKm = U.clamp(surface.point.z, 0, SZ);
+    return { kind: "point", xKm, yKm };
+  }
+
+  function selectRay(clientX, clientY, pointerType) {
+    const selection = resolveRay(clientX, clientY);
+    if (!selection) return;
+    canvas.dataset.lastExplainPointer = pointerType || "mouse";
+    FT.explain.select(selection);
+  }
+
+  function bindSelection() {
+    canvas.addEventListener("pointerdown", (ev) => {
+      if (!ev.isPrimary || ev.button !== 0) return;
+      selectionPointerId = ev.pointerId;
+      pointerDownX = ev.clientX; pointerDownY = ev.clientY; pointerMoved = 0;
+    });
+    canvas.addEventListener("pointermove", (ev) => {
+      if (ev.pointerId !== selectionPointerId) return;
+      pointerMoved = Math.max(pointerMoved, Math.hypot(ev.clientX - pointerDownX, ev.clientY - pointerDownY));
+    });
+    canvas.addEventListener("pointerup", (ev) => {
+      if (ev.pointerId !== selectionPointerId || !ev.isPrimary || ev.button !== 0) return;
+      selectionPointerId = null;
+      if (pointerMoved >= 6) return;
+      selectRay(ev.clientX, ev.clientY, ev.pointerType);
+    });
+    canvas.addEventListener("pointercancel", (ev) => {
+      if (ev.pointerId === selectionPointerId) selectionPointerId = null;
+    });
   }
 
   /* ============ dynamic close-zoom detail (live slippy tiles draped on terrain — Google-Earth style) ============ */
@@ -1027,6 +1115,8 @@
     controls.minDistance = 1.2;
     controls.maxDistance = 220;
     controls.target.set(...CAMS.overview.tgt);
+    raycaster = new THREE.Raycaster();
+    rayPointer = new THREE.Vector2();
 
     scene.add(new THREE.HemisphereLight(0xbcd8ff, 0x18261f, 0.85));
     const key = new THREE.DirectionalLight(0xffd9a8, 1.25);
@@ -1046,6 +1136,7 @@
     buildZones();
     buildRain();
     buildLabels();
+    bindSelection();
 
     const ro = new ResizeObserver(() => S3.resize());
     ro.observe(cv);
@@ -1071,6 +1162,56 @@
     flyTo = c;
     flyT = 0;
     FT.state.camPreset = preset;
+  };
+
+  S3.selectionTarget = function (selection) {
+    if (!renderer || !selection) return null;
+    const candidates = [];
+    const id = selection.id || null;
+    if (selection.kind === "reservoir") {
+      const item = dams.find((candidate) => candidate.r.id === selection.id);
+      if (!item) return null;
+      item.g.traverse((object) => {
+        if (!object.isMesh || !object.geometry) return;
+        object.geometry.computeBoundingBox();
+        const box = object.geometry.boundingBox;
+        for (const fx of [0.2, 0.5, 0.8]) for (const fy of [0.2, 0.5, 0.8]) {
+          candidates.push(object.localToWorld(new THREE.Vector3(
+            U.lerp(box.min.x, box.max.x, fx), U.lerp(box.min.y, box.max.y, fy), U.lerp(box.min.z, box.max.z, 0.5)
+          )));
+        }
+      });
+    } else if (selection.kind === "gauge") {
+      const item = gauges.find((candidate) => candidate.g.id === selection.id);
+      if (!item) return null;
+      candidates.push(item.disc.getWorldPosition(new THREE.Vector3()));
+    } else if (selection.kind === "zone") {
+      const item = zoneRings.find((candidate) => candidate.id === selection.id);
+      if (!item) return null;
+      for (let i = 0; i < 48; i++) {
+        const a = i * Math.PI * 2 / 48;
+        candidates.push(item.ring.localToWorld(new THREE.Vector3(Math.cos(a) * item.def.r * 0.97, Math.sin(a) * item.def.r * 0.97, 0)));
+      }
+    } else if (selection.kind === "point") {
+      candidates.push(new THREE.Vector3(selection.xKm, elevToY(Math.max(1, terrAt(selection.xKm, selection.yKm))) * scene.scale.y, selection.yKm));
+    } else return null;
+    scene.updateMatrixWorld(true);
+    camera.updateMatrixWorld(true);
+    const rect = canvas.getBoundingClientRect();
+    for (const world of candidates) {
+      world.project(camera);
+      const target = {
+        x: rect.left + ((world.x + 1) / 2) * rect.width,
+        y: rect.top + ((1 - world.y) / 2) * rect.height,
+        kind: selection.kind,
+        id,
+      };
+      if (document.elementFromPoint(target.x, target.y) !== canvas) continue;
+      if (selection.kind === "point") return target;
+      const resolved = resolveRay(target.x, target.y);
+      if (resolved && resolved.kind === selection.kind && resolved.id === selection.id) return target;
+    }
+    return null;
   };
 
   /* fly close to a world point (zone drill-down) */

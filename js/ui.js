@@ -58,7 +58,9 @@
     AVAILABLE: ["Khả dụng", "Available"], DEGRADED: ["Suy giảm", "Degraded"], UNAVAILABLE_FOR_OPERATIONS: ["Không dùng được cho vận hành", "Unavailable for operations"],
     UNSUPPORTED: ["Chưa hỗ trợ", "Unsupported"], NOT_COMPUTED: ["Chưa tính", "Not computed"], STALE: ["Cũ", "Stale"],
     MISSING_DATA: ["Thiếu dữ liệu", "Missing data"], UNSUPPORTED_PHYSICS: ["Vật lý chưa được hỗ trợ", "Unsupported physics"],
-    OK: ["Đạt", "OK"], ESTIMATED: ["Ước tính", "Estimated"], MISSING: ["Thiếu", "Missing"],
+    QUALITY_REJECTED: ["Bị loại do chất lượng", "Quality rejected"], MODEL_FAILURE: ["Lỗi mô hình", "Model failure"],
+    PLANNED: ["Chức năng đã lên kế hoạch", "Planned functionality"],
+    OK: ["Đạt", "OK"], ESTIMATED: ["Ước tính", "Estimated"], SUSPECT: ["Đáng ngờ", "Suspect"], MISSING: ["Thiếu", "Missing"],
     LOW: ["Thấp", "Low"], VERY_LOW: ["Rất thấp", "Very low"], UNAVAILABLE: ["Không khả dụng", "Unavailable"],
     NO_VALIDATED_ERROR_MODEL: ["Chưa có mô hình sai số được kiểm định", "No validated error model"],
     NO_SURVEY_ERROR_MODEL: ["Chưa có mô hình sai số khảo sát", "No survey error model"],
@@ -69,9 +71,28 @@
     AGE_UNAVAILABLE: ["Không có tuổi dữ liệu", "Age unavailable"], SYNTHETIC_DEMO: ["Dữ liệu tổng hợp trình diễn", "Synthetic demo"],
     NOT_OPERATIONALLY_VALIDATED: ["Chưa kiểm định vận hành", "Not operationally validated"], EXTERNAL_GLOBAL_RASTER: ["Raster toàn cầu bên ngoài", "External global raster"],
     NOT_SURVEYED_BATHYMETRY: ["Không phải địa hình đáy khảo sát", "Not surveyed bathymetry"], SYNTHETIC_CHANNEL_CARVING: ["Lòng dẫn khắc tổng hợp", "Synthetic channel carving"],
+    PROCEDURAL_FALLBACK: ["Địa hình thủ tục dự phòng", "Procedural terrain fallback"],
     NOT_VALIDATED_AS_PHYSICAL_OUTPUT: ["Chưa kiểm định như đầu ra vật lý", "Not validated as physical output"],
     MISSING_DEPENDENCY: ["Thiếu phụ thuộc", "Missing dependency"], ZONES_SUBSYSTEM_UNAVAILABLE: ["Phân hệ khu vực không khả dụng", "Zones subsystem unavailable"],
+    critical_observation_feed: ["Nguồn quan trắc then chốt", "Critical observation feed"], usable_observations: ["Quan trắc dùng được", "Usable observations"],
+    BASELINE_LOW_DEMO_CONFIDENCE: ["Mức thấp cơ sở của bản trình diễn", "Baseline low demo confidence"],
+    CONFIDENCE_REDUCED: ["Giảm độ tin cậy", "Confidence reduced"],
+    DEMO_ONLY: ["Chỉ dùng trình diễn", "Demo only"],
+    DEMO_ONLY_NO_OPERATIONAL_DECISIONS: ["Không dùng cho quyết định vận hành", "No operational decisions"],
   };
+
+  const SOURCE_LABELS = [
+    [/^world-sample-(excess|depth)$/, ["Trạng thái SWE trong trình duyệt", "In-browser SWE state"]],
+    [/^in-browser-swe-state$/, ["Trạng thái SWE trong trình duyệt", "In-browser SWE state"]],
+    [/^(aws-terrarium|procedural-terrain)/, ["Địa hình và lòng dẫn mô hình", "Terrain and modeled channel"]],
+    [/^hydro-gauge-series:/, ["Chuỗi mực nước trạm tổng hợp", "Synthetic gauge-stage series"]],
+    [/^hydro-reservoir-series:/, ["Chuỗi diễn toán hồ tổng hợp", "Synthetic reservoir-routing series"]],
+    [/^zone-grid-statistics:/, ["Thống kê lưới khu vực", "Zone grid statistics"]],
+    [/^zone-synthetic-exposure:/, ["Phơi nhiễm dân số tổng hợp", "Synthetic population exposure"]],
+    [/^world-road-depth:/, ["Độ sâu mô hình trên đường", "Modeled road depth"]],
+    [/^world-road-passability:/, ["Ngưỡng lưu thông đường", "Road passability thresholds"]],
+    [/^not-available$/, ["Không có nguồn trạng thái vật lý", "No physical-state source"]],
+  ];
 
   const CONTRACT_TEXT = {
     "Hydrology, reservoir routing and inundation are synthetic demonstration outputs.": ["Thủy văn, diễn toán hồ chứa và ngập lụt là đầu ra tổng hợp dùng để trình diễn.", "Hydrology, reservoir routing and inundation are synthetic demonstration outputs."],
@@ -103,6 +124,10 @@
   function localPair(pair, fallback) { return pair ? pair[FT.state.lang === "vi" ? 0 : 1] : fallback; }
   function enumLabel(value) { return value == null ? "—" : localPair(ENUM_LABELS[value], value); }
   function contractText(value) { return localPair(CONTRACT_TEXT[value], value); }
+  function sourceLabel(value) {
+    const match = SOURCE_LABELS.find(([pattern]) => pattern.test(value));
+    return match ? localPair(match[1], value) : value;
+  }
 
   function quantityLabel(key) {
     return localPair(QUANTITY_LABELS[key], key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()));
@@ -159,7 +184,7 @@
     }
 
     replaceTextList(el.explainSources, contract.sources.map((source) =>
-      `${source.source_id} · ${enumLabel(source.provenance)} · ${source.model_id} ${source.model_version}`));
+      `${sourceLabel(source.source_id)} [${source.source_id}] · ${enumLabel(source.provenance)} · ${source.model_id} ${source.model_version}`));
     el.explainConfidence.replaceChildren();
     for (const q of contract.quantities) {
       const detail = document.createElement("p");
@@ -174,6 +199,16 @@
     const limitations = [...new Set(contract.limitations.concat(contract.quantities.flatMap((q) => q.limitations || [])))];
     replaceTextList(el.explainAssumptions, assumptions.map(contractText));
     replaceTextList(el.explainLimitations, limitations.map(contractText));
+    const health = contract.data_health;
+    el.explainDegradation.className = "explainDegradationRow";
+    el.explainDegradation.textContent = [
+      `${t("explain.reason")}: ${enumLabel(health.reason_category)}`,
+      `${t("explain.missingQuantity")}: ${enumLabel(health.missing_quantity)}`,
+      `${t("explain.missingDependency")}: ${health.missing_dependency || t("explain.unavailable")}`,
+      `${t("explain.lastValid")}: ${health.last_valid_time ? health.last_valid_time.iso : t("explain.unavailable")}`,
+      `${t("explain.confidenceEffect")}: ${enumLabel(health.confidence_effect)}`,
+      `${t("explain.permittedUse")}: ${enumLabel(health.permitted_use)}`,
+    ].join(" · ");
     el.explainInspector.hidden = false;
     document.body.classList.add("explain-open");
   }
@@ -555,7 +590,7 @@
       "floodedArea", "peopleExposed", "modalScrim", "modalTitle", "modalBody", "modalClose",
       "toasts", "zoneList", "zonesSummary", "kpiZonesValue",
       "explainInspector", "explainTitle", "explainClose", "explainSummary", "explainStatus",
-      "explainQuantities", "explainSources", "explainConfidence", "explainAssumptions", "explainLimitations",
+      "explainQuantities", "explainSources", "explainConfidence", "explainAssumptions", "explainLimitations", "explainDegradation",
     ].forEach((id) => (el[id] = $(id)));
 
     FT.bus.on("explainSelection", (contract) => {

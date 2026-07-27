@@ -9,6 +9,8 @@
   const QUANTITY_SCHEMA = "eng-quantity-envelope/1";
   const MODEL_VERSION = "swe-144-1";
   const PROVENANCE = new Set(["MEASURED", "FORECAST", "MODELLED", "ASSUMED", "SYNTHETIC"]);
+  const REASON_CATEGORIES = Object.freeze(["MISSING_DATA", "STALE", "QUALITY_REJECTED", "MODEL_FAILURE", "UNSUPPORTED_PHYSICS", "PLANNED"]);
+  const REASONS = new Set(REASON_CATEGORIES);
   let current = null;
 
   function deepFreeze(value) {
@@ -27,12 +29,21 @@
   function healthState() {
     const health = FT.ops && FT.ops.health ? FT.ops.health() : { level: 0, oldest: 0, missingCritical: null };
     const level = health.level || 0;
+    const fallbackReason = level === 0 ? null : level === 1 || level === 3 ? "STALE" : "MISSING_DATA";
+    const reasonCategory = REASONS.has(health.reasonCode) ? health.reasonCode : fallbackReason;
+    const oldest = health.oldest || 0;
+    const unavailable = level === 4 || reasonCategory === "QUALITY_REJECTED" || reasonCategory === "MODEL_FAILURE";
     return {
       level,
-      status: level === 0 ? "AVAILABLE" : level === 4 ? "UNAVAILABLE_FOR_OPERATIONS" : "DEGRADED",
-      reason: level === 0 ? null : level === 1 ? "STALE" : "MISSING_DATA",
-      oldest_age_min: health.oldest || 0,
+      status: level === 0 ? "AVAILABLE" : unavailable ? "UNAVAILABLE_FOR_OPERATIONS" : "DEGRADED",
+      reason: reasonCategory,
+      reason_category: reasonCategory,
+      oldest_age_min: oldest,
+      missing_quantity: level === 4 ? "usable_observations" : level >= 2 ? "critical_observation_feed" : null,
       missing_dependency: health.missingCritical || null,
+      last_valid_time: oldest > 0 ? scenarioTime(FT.state.timeH - oldest / 60, "last_valid_source_time") : null,
+      confidence_effect: level === 0 ? "BASELINE_LOW_DEMO_CONFIDENCE" : unavailable ? "UNAVAILABLE_FOR_OPERATIONS" : "CONFIDENCE_REDUCED",
+      permitted_use: level === 0 ? "DEMO_ONLY" : "DEMO_ONLY_NO_OPERATIONAL_DECISIONS",
     };
   }
 
@@ -44,9 +55,10 @@
 
   function modelAvailability(dataHealth) {
     if (dataHealth.level === 0) return { status: "AVAILABLE", reason: null, confidence: "LOW" };
-    if (dataHealth.level === 1) return { status: "DEGRADED", reason: "STALE", confidence: "VERY_LOW" };
-    if (dataHealth.level === 4) return { status: "UNAVAILABLE_FOR_OPERATIONS", reason: "MISSING_DATA", confidence: "UNAVAILABLE" };
-    return { status: "DEGRADED", reason: "MISSING_DATA", confidence: "VERY_LOW" };
+    if (dataHealth.status === "UNAVAILABLE_FOR_OPERATIONS") {
+      return { status: dataHealth.status, reason: dataHealth.reason_category, confidence: "UNAVAILABLE" };
+    }
+    return { status: "DEGRADED", reason: dataHealth.reason_category, confidence: "VERY_LOW" };
   }
 
   function spatialSupport(xKm, yKm, options) {
@@ -140,7 +152,8 @@
     const W = FT.world;
     const availability = modelAvailability(dataHealth);
     const flags = ["AGE_FROM_ISSUE_TIME", "SYNTHETIC_DEMO", "NOT_OPERATIONALLY_VALIDATED"];
-    const quality = dataHealth.level === 0 ? "OK" : dataHealth.level === 1 ? "STALE" : "ESTIMATED";
+    const quality = dataHealth.level === 0 ? "OK" : dataHealth.reason_category === "STALE" ? "STALE"
+      : dataHealth.reason_category === "QUALITY_REJECTED" ? "SUSPECT" : "ESTIMATED";
     const modelLimitations = [
       "Synthetic browser model; not calibrated or validated for operational use.",
       "No validated uncertainty/error model is available.",
@@ -238,7 +251,12 @@
       quantity("terrain", W.sampleTerrain(xKm, yKm), "m", terrainOpts),
       quantity("velocity", unsupported.value, "m/s", unsupported),
       quantity("momentum", unsupported.value, "m2/s", unsupported),
-      quantity("arrival_time", null, "h", { ...unsupported, status: "NOT_COMPUTED" }),
+      quantity("arrival_time", null, "h", {
+        ...unsupported,
+        status: "NOT_COMPUTED",
+        reason: "PLANNED",
+        uncertainty: { type: "UNAVAILABLE", reason: "PLANNED" },
+      }),
       quantity("source_attribution", null, "fraction", unsupported),
     ];
   }
@@ -318,7 +336,8 @@
   function entityQuantities(kind, entity, dataHealth) {
     const availability = modelAvailability(dataHealth);
     const featureId = kind === "road" ? `road:${entity.def.idx}` : entity.def.id;
-    const quality = dataHealth.level === 0 ? "OK" : dataHealth.level === 1 ? "STALE" : "ESTIMATED";
+    const quality = dataHealth.level === 0 ? "OK" : dataHealth.reason_category === "STALE" ? "STALE"
+      : dataHealth.reason_category === "QUALITY_REJECTED" ? "SUSPECT" : "ESTIMATED";
     const common = {
       status: availability.status,
       reason: availability.reason,
@@ -523,5 +542,6 @@
     },
   };
   Object.defineProperty(E, "current", { enumerable: true, get() { return current; } });
+  Object.defineProperty(E, "reasonCategories", { enumerable: true, get() { return REASON_CATEGORIES; } });
   FT.explain = E;
 })();

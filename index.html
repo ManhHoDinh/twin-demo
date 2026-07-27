@@ -257,7 +257,7 @@
       <div class="stageCanvasWrap" id="stageWrap">
         <canvas id="canvas3d" class="stageCanvas isActive" aria-label="3D flood digital twin"></canvas>
         <canvas id="canvas2d" class="stageCanvas" aria-label="2D operational flood map"></canvas>
-        <div id="labels3d" class="labels3d" aria-hidden="true"></div>
+        <div id="labels3d" class="labels3d"></div>
 
         <button class="pip" id="pipSwap" type="button" aria-label="Swap 2D/3D view">
           <canvas id="canvasPip" width="280" height="180"></canvas>
@@ -300,6 +300,10 @@
             <section aria-labelledby="explainLimitationsTitle">
               <h3 id="explainLimitationsTitle" data-i18n="explain.limitations">Giới hạn</h3>
               <ul id="explainLimitations"></ul>
+            </section>
+            <section aria-labelledby="explainDegradationTitle">
+              <h3 id="explainDegradationTitle" data-i18n="explain.degradation">Bằng chứng suy giảm</h3>
+              <div id="explainDegradation"></div>
             </section>
             <a id="explainDocsLink" class="explainDocsLink" href="https://info.skylabs.vn/scientific-architecture.html#scientific-chain" target="_blank" rel="noopener" data-i18n="explain.docs">Đọc kiến trúc khoa học</a>
           </div>
