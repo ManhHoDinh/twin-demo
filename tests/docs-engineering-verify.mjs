@@ -103,12 +103,17 @@ function stripIgnoredMarkdown(markdown) {
   const kept = [];
   let fence = null;
   for (const line of markdown.split(/\r?\n/)) {
-    const marker = line.match(/^\s*(`{3,}|~{3,})/);
+    const marker = line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
     if (!fence && marker) {
-      fence = marker[1][0];
+      fence = { char: marker[1][0], length: marker[1].length };
       continue;
     }
-    if (fence && marker && marker[1][0] === fence) {
+    const closesFence = fence
+      && marker
+      && marker[1][0] === fence.char
+      && marker[1].length >= fence.length
+      && marker[2].trim() === '';
+    if (closesFence) {
       fence = null;
       continue;
     }
@@ -236,7 +241,7 @@ function resolveLocalLink(sourceFile, target) {
       return { error: `missing anchor ${target}` };
     }
   }
-  return { targetFile };
+  return { targetFile, realTarget };
 }
 
 function sectionForEngine(markdown, engine, followingEngines) {
@@ -276,6 +281,41 @@ function parseTable(markdown) {
   return tables;
 }
 
+function tableCells(row) {
+  const value = row.trim().replace(/^\|/, '').replace(/\|$/, '');
+  const cells = [];
+  let cell = '';
+  for (let index = 0; index < value.length; index += 1) {
+    const character = value[index];
+    if (character === '\\' && value[index + 1] === '|') {
+      cell += '|';
+      index += 1;
+    } else if (character === '|') {
+      cells.push(cell.trim());
+      cell = '';
+    } else {
+      cell += character;
+    }
+  }
+  cells.push(cell.trim());
+  return cells;
+}
+
+function implementedRowHasEvidence(header, row, sourceFile) {
+  const headers = tableCells(header).map(normalize);
+  const cells = tableCells(row);
+  const statusIndex = headers.findIndex((value) => value === 'status' || value === 'implementation status');
+  const evidenceIndex = headers.findIndex((value) => value === 'validation evidence');
+  if (statusIndex === -1) return !cells.some((cell) => normalize(cell) === 'implemented');
+  if (normalize(cells[statusIndex] ?? '') !== 'implemented') return true;
+  if (evidenceIndex === -1) return false;
+  const realSource = fs.existsSync(sourceFile) ? fs.realpathSync(sourceFile) : path.resolve(sourceFile);
+  return localLinks(cells[evidenceIndex] ?? '').some((target) => {
+    const resolved = resolveLocalLink(sourceFile, target);
+    return !resolved.error && resolved.realTarget !== realSource;
+  });
+}
+
 function runSelfTest() {
   const cases = [];
   const record = (name, rejected) => cases.push({ name, rejected });
@@ -308,6 +348,24 @@ function runSelfTest() {
 
   const duplicateAnchors = headingAnchors('# Repeated heading\n\n# Repeated heading');
   record('supports duplicate GitHub-style heading anchors', duplicateAnchors.has('repeated-heading-1'));
+
+  const longFence = [
+    '````markdown',
+    '```',
+    '**Status:** `PLANNED`',
+    ...CONTRACT_FIELDS.map((field) => `### ${field}`),
+    '````',
+  ].join('\n');
+  record('keeps shorter same-character fences inside their opening fence',
+    !validStatusMetadata(longFence) && missingContractFields(longFence).length === CONTRACT_FIELDS.length);
+
+  const traceabilityHeader = '| Requirement | Canonical document | Status | Validation evidence |';
+  const misplacedEvidence = '| R-1 | [package](../../package.json) | IMPLEMENTED | |';
+  record('requires IMPLEMENTED evidence in the Validation evidence column',
+    !implementedRowHasEvidence(traceabilityHeader, misplacedEvidence, sourceFile));
+  const validEvidence = '| R-2 | [package](../../package.json) | IMPLEMENTED | [verifier](../../tests/docs-engineering-verify.mjs) |';
+  record('accepts repository evidence in the Validation evidence column',
+    implementedRowHasEvidence(traceabilityHeader, validEvidence, sourceFile));
 
   const failures = cases.filter(({ rejected }) => !rejected);
   if (failures.length) {
@@ -374,12 +432,13 @@ function verifyDocumentation() {
     const traceabilityTables = parseTable(traceability).filter(({ header }) => /requirement/i.test(header));
     const traceabilityRows = traceabilityTables.flatMap(({ rows }) => rows).filter((row) => !/^\s*\|?\s*$/.test(row));
     if (!traceabilityRows.length) report('18-requirement-traceability.md: no requirement traceability rows');
-    for (const row of traceabilityRows.filter((value) => /\bIMPLEMENTED\b/.test(value))) {
-      const evidenceLinks = localLinks(row).filter((target) => {
-        const resolved = resolveLocalLink(path.join(ENGINEERING_DIR, '18-requirement-traceability.md'), target);
-        return !resolved.error && resolved.targetFile !== path.join(ENGINEERING_DIR, '18-requirement-traceability.md');
-      });
-      if (!evidenceLinks.length) report(`18-requirement-traceability.md: IMPLEMENTED row lacks existing evidence: ${row.trim()}`);
+    const traceabilityFile = path.join(ENGINEERING_DIR, '18-requirement-traceability.md');
+    for (const table of traceabilityTables) {
+      for (const row of table.rows) {
+        if (!implementedRowHasEvidence(table.header, row, traceabilityFile)) {
+          report(`18-requirement-traceability.md: IMPLEMENTED row lacks existing evidence: ${row.trim()}`);
+        }
+      }
     }
   }
 
