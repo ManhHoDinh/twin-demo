@@ -392,6 +392,7 @@ async function explainabilityContract(browser, base) {
         await page.evaluate(() => document.getElementById('modalClose').click());
         await page.waitForTimeout(40);
       }
+      await page.evaluate(() => window.FT.explain.clear());
     }
     const legacy = await page.evaluate(() => window.__legacySelections);
     d({ selected, legacy });
@@ -446,7 +447,7 @@ async function explainabilityContract(browser, base) {
     }));
     d(r);
     return !r.hidden && !!r.title && !!r.summary && r.quantities >= 7 && !!r.status
-      && /SYNTHETIC/.test(r.sources) && !!r.confidence && !!r.assumptions && !!r.limitations;
+      && /Tổng hợp/.test(r.sources) && !!r.confidence && !!r.assumptions && !!r.limitations;
   });
 
   await check('inspector visibly renders exact freshness, quality, flags, reasons and uncertainty details', async (d) => {
@@ -459,12 +460,12 @@ async function explainabilityContract(browser, base) {
         confidence: document.getElementById('explainConfidence').textContent,
         expected: {
           age: String(available.age),
-          quality: available.quality,
-          flag: available.quality_flags[0],
-          statusReason: unsupported.reason,
-          confidence: unsupported.confidence_grade,
-          uncertaintyType: unsupported.uncertainty.type,
-          uncertaintyReason: unsupported.uncertainty.reason,
+          quality: 'Đạt',
+          flag: 'Tuổi từ thời điểm phát hành',
+          statusReason: 'Vật lý chưa được hỗ trợ',
+          confidence: 'Không khả dụng',
+          uncertaintyType: 'Không khả dụng',
+          uncertaintyReason: 'Đại lượng chưa được tính',
         },
       };
     });
@@ -545,10 +546,13 @@ async function explainabilityContract(browser, base) {
       modalHidden: document.getElementById('modalScrim').hidden,
       inspectorHidden: document.getElementById('explainInspector').hidden,
       selection: window.FT.explain.current && window.FT.explain.current.selection.kind,
+      active: document.activeElement && document.activeElement.id,
+      activeVisible: !!document.activeElement && document.activeElement.getClientRects().length > 0,
     }));
     d({ before, after });
     return /shallow-water/i.test(before.body) && before.gateway
-      && after.modalHidden && !after.inspectorHidden && after.selection === 'point';
+      && after.modalHidden && !after.inspectorHidden && after.selection === 'point'
+      && ['explainTitle', 'explainClose'].includes(after.active) && after.activeVisible;
   });
 
   await check('Method-origin selection restores focus without targeting a hidden modal control', async (d) => {
@@ -583,6 +587,54 @@ async function explainabilityContract(browser, base) {
     });
     d(r);
     return r.modalHidden && r.visible && r.active === 'btnMethod';
+  });
+
+  await check('Vietnamese-first presentation maps every inspector section with equivalent English and preserves contract identity', async (d) => {
+    const vi = await page.evaluate(() => {
+      window.FT.explain.select({ kind: 'road', id: 'road:0' });
+      window.__localizedContract = window.FT.explain.current;
+      window.__localizedJSON = JSON.stringify(window.FT.explain.current);
+      return {
+        quantities: document.getElementById('explainQuantities').textContent,
+        sources: document.getElementById('explainSources').textContent,
+        confidence: document.getElementById('explainConfidence').textContent,
+        assumptions: document.getElementById('explainAssumptions').textContent,
+        limitations: document.getElementById('explainLimitations').textContent,
+      };
+    });
+    await page.click('#langToggle');
+    const en = await page.evaluate(() => ({
+      quantities: document.getElementById('explainQuantities').textContent,
+      sources: document.getElementById('explainSources').textContent,
+      confidence: document.getElementById('explainConfidence').textContent,
+      assumptions: document.getElementById('explainAssumptions').textContent,
+      limitations: document.getElementById('explainLimitations').textContent,
+      same: window.FT.explain.current === window.__localizedContract,
+      unchanged: JSON.stringify(window.FT.explain.current) === window.__localizedJSON,
+    }));
+    await page.click('#langToggle');
+    d({ vi, en });
+    return /Ngập vượt nền/.test(vi.quantities)
+      && /Chất lượng: Đạt/.test(vi.quantities)
+      && /Tuổi từ thời điểm phát hành/.test(vi.quantities)
+      && /Vật lý chưa được hỗ trợ/.test(vi.quantities)
+      && /Tổng hợp/.test(vi.sources)
+      && /Mức tin cậy: Không khả dụng/.test(vi.confidence)
+      && /Bất định: Không khả dụng/.test(vi.confidence)
+      && /Đại lượng chưa được tính/.test(vi.confidence)
+      && /Thủy văn, diễn toán hồ chứa và ngập lụt là đầu ra tổng hợp/.test(vi.assumptions)
+      && /Chưa được hiệu chỉnh hoặc kiểm định cho vận hành thực tế/.test(vi.limitations)
+      && /Flood excess/.test(en.quantities)
+      && /Quality: OK/.test(en.quantities)
+      && /Age from issue time/.test(en.quantities)
+      && /Unsupported physics/.test(en.quantities)
+      && /Synthetic/.test(en.sources)
+      && /Confidence grade: Unavailable/.test(en.confidence)
+      && /Uncertainty: Unavailable/.test(en.confidence)
+      && /Quantity not computed/.test(en.confidence)
+      && /Hydrology, reservoir routing and inundation are synthetic demonstration outputs/.test(en.assumptions)
+      && /Not calibrated or validated for operational use/.test(en.limitations)
+      && en.same && en.unchanged;
   });
 
   await check('language changes rerender the same immutable contract object', async (d) => {
