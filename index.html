@@ -267,6 +267,43 @@
         <div class="mapHint" id="mapHint">
           <strong data-i18n="hint.orbit">Kéo xoay · lăn thu phóng · phải rê dịch</strong>
         </div>
+        <p class="srOnly" id="map2dInstructions" data-i18n="explain.mapHelp">Dùng phím mũi tên để di chuyển con trỏ kiểm tra, Enter để chọn, Escape để đóng.</p>
+
+        <aside class="explainInspector" id="explainInspector" role="complementary" aria-labelledby="explainTitle" hidden>
+          <header class="explainHead">
+            <div>
+              <span class="explainEyebrow" data-i18n="explain.eyebrow">Trạng thái vật lý đã chuẩn hóa</span>
+              <h2 id="explainTitle" data-i18n="explain.title">Giải thích trạng thái này</h2>
+            </div>
+            <button id="explainClose" type="button" aria-label="Đóng giải thích">×</button>
+          </header>
+          <div class="explainBody">
+            <p class="explainSummary" id="explainSummary" aria-live="polite"></p>
+            <p class="explainStatus" id="explainStatus"></p>
+
+            <section aria-labelledby="explainQuantitiesTitle">
+              <h3 id="explainQuantitiesTitle" data-i18n="explain.quantities">Đại lượng</h3>
+              <div class="explainQuantities" id="explainQuantities"></div>
+            </section>
+            <section aria-labelledby="explainSourcesTitle">
+              <h3 id="explainSourcesTitle" data-i18n="explain.sources">Nguồn và xuất xứ</h3>
+              <ul id="explainSources"></ul>
+            </section>
+            <section aria-labelledby="explainConfidenceTitle">
+              <h3 id="explainConfidenceTitle" data-i18n="explain.confidence">Bất định và độ tin cậy</h3>
+              <div id="explainConfidence"></div>
+            </section>
+            <section aria-labelledby="explainAssumptionsTitle">
+              <h3 id="explainAssumptionsTitle" data-i18n="explain.assumptions">Giả định</h3>
+              <ul id="explainAssumptions"></ul>
+            </section>
+            <section aria-labelledby="explainLimitationsTitle">
+              <h3 id="explainLimitationsTitle" data-i18n="explain.limitations">Giới hạn</h3>
+              <ul id="explainLimitations"></ul>
+            </section>
+            <a id="explainDocsLink" class="explainDocsLink" href="https://info.skylabs.vn/scientific-architecture.html#scientific-chain" target="_blank" rel="noopener" data-i18n="explain.docs">Đọc kiến trúc khoa học</a>
+          </div>
+        </aside>
 
         <div class="waterBadge" id="waterBadge">
           <span data-i18n="badge.flooded">Diện ngập</span>

@@ -10,9 +10,76 @@ import {
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
 
+async function show2d(page) {
+  await page.click('#viewTabs button[data-view="2d"]');
+  await page.waitForTimeout(120);
+}
+
+async function mapPoint(page, kind) {
+  return page.evaluate((targetKind) => {
+    const FT = window.FT;
+    const canvas = document.getElementById('canvas2d');
+    const rect = canvas.getBoundingClientRect();
+    const size = FT.data.DOMAIN.sizeKm;
+    const scale = Math.min(rect.width, rect.height) / (size * 1.04);
+    const toScreen = (x, y) => ({
+      x: rect.left + rect.width / 2 + (x - size / 2) * scale,
+      y: rect.top + rect.height / 2 + (y - size / 2) * scale,
+      xKm: x,
+      yKm: y,
+    });
+    const reachesCanvas = (x, y) => {
+      const p = toScreen(x, y);
+      return document.elementFromPoint(p.x, p.y) === canvas;
+    };
+    const farFromPointEntities = (x, y, minKm = 2.2) =>
+      [...FT.data.GAUGES, ...FT.data.RESERVOIRS].every((item) => Math.hypot(item.x - x, item.y - y) > minKm);
+    const segmentDistance = (x, y, a, b) => {
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const t = Math.max(0, Math.min(1, ((x - a.x) * dx + (y - a.y) * dy) / (dx * dx + dy * dy || 1)));
+      return Math.hypot(x - (a.x + t * dx), y - (a.y + t * dy));
+    };
+    const outsideZones = (x, y) => FT.data.ZONES.every((z) => {
+      const d = Math.hypot(z.x - x, z.y - y);
+      return d > Math.min(z.r, 16 / scale) + 1 && Math.abs(d - z.r) > 9 / scale;
+    });
+    const awayFromRoads = (x, y) => FT.world.roads.edges.every((edge) => {
+      const a = FT.world.roads.nodes[edge.a], b = FT.world.roads.nodes[edge.b];
+      return segmentDistance(x, y, a, b) > 18 / scale;
+    });
+
+    if (targetKind === 'point') {
+      for (let y = 5; y < size - 5; y += 4) {
+        for (let x = 5; x < size - 5; x += 4) {
+          if (farFromPointEntities(x, y) && outsideZones(x, y) && awayFromRoads(x, y) && reachesCanvas(x, y)) return toScreen(x, y);
+        }
+      }
+      throw new Error('no blank map point found');
+    }
+    if (targetKind === 'gauge') {
+      const item = FT.data.GAUGES[0];
+      return { ...toScreen(item.x, item.y), id: item.id };
+    }
+    if (targetKind === 'reservoir') {
+      const item = FT.data.RESERVOIRS[0];
+      return { ...toScreen(item.x, item.y), id: item.id };
+    }
+    if (targetKind === 'zone') {
+      const item = FT.data.ZONES.find((z) => farFromPointEntities(z.x, z.y)) || FT.data.ZONES[0];
+      return { ...toScreen(item.x, item.y), id: item.id };
+    }
+    const edge = FT.world.roads.edges.find((candidate) => {
+      const p = FT.world.roadPoint(candidate, candidate.a, 0.5);
+      return farFromPointEntities(p[0], p[1]) && outsideZones(p[0], p[1]) && reachesCanvas(p[0], p[1]);
+    }) || FT.world.roads.edges[0];
+    const p = FT.world.roadPoint(edge, edge.a, 0.5);
+    return { ...toScreen(p[0], p[1]), id: `road:${edge.idx}` };
+  }, kind);
+}
+
 async function explainabilityContract(browser, base) {
   step('Scientific explainability · normalized physical state');
-  const { ctx, page, errors } = await bootApp(browser, base);
+  const { ctx, page, errors } = await bootApp(browser, base, { context: { hasTouch: true } });
   usePage(page);
   await setTime(page, 8);
 
@@ -252,6 +319,193 @@ async function explainabilityContract(browser, base) {
     return r.frozen && r.mutationBlocked && r.sameCurrent && r.cleared === null
       && r.current === null && r.eventCount === 2
       && r.firstContract === 'floodtwin.explain/v1' && r.last === null;
+  });
+
+  step('Scientific explainability · accessible 2D inspector');
+  await show2d(page);
+
+  await check('persistent inspector shell has the required accessible regions and exact public link', async (d) => {
+    const r = await page.evaluate(() => {
+      const aside = document.getElementById('explainInspector');
+      const heading = document.getElementById('explainTitle');
+      const close = document.getElementById('explainClose');
+      const summary = document.getElementById('explainSummary');
+      const link = document.getElementById('explainDocsLink');
+      return {
+        exists: !!aside,
+        role: aside && aside.getAttribute('role'),
+        labelledBy: aside && aside.getAttribute('aria-labelledby'),
+        heading: heading && heading.id,
+        closeType: close && close.getAttribute('type'),
+        closeLabel: close && close.getAttribute('aria-label'),
+        live: summary && summary.getAttribute('aria-live'),
+        sections: ['explainQuantities', 'explainSources', 'explainConfidence', 'explainAssumptions', 'explainLimitations']
+          .every((id) => !!document.getElementById(id)),
+        href: link && link.href,
+      };
+    });
+    d(r);
+    return r.exists && r.role === 'complementary' && r.labelledBy === r.heading
+      && r.closeType === 'button' && !!r.closeLabel && r.live === 'polite' && r.sections
+      && r.href === 'https://info.skylabs.vn/scientific-architecture.html#scientific-chain';
+  });
+
+  await check('real pointer selection handles blank points and named entities without replacing existing actions', async (d) => {
+    await page.evaluate(() => {
+      window.__legacySelections = { gauge: [], reservoir: [], zone: [] };
+      window.FT.bus.on('gaugeSelected', (id) => window.__legacySelections.gauge.push(id));
+      window.FT.bus.on('reservoirFocus', (id) => window.__legacySelections.reservoir.push(id));
+      window.FT.bus.on('zoneSelected', (id) => window.__legacySelections.zone.push(id));
+    });
+    const selected = {};
+    for (const kind of ['point', 'gauge', 'reservoir', 'zone']) {
+      const p = await mapPoint(page, kind);
+      await page.mouse.click(p.x, p.y);
+      await page.waitForTimeout(80);
+      selected[kind] = await page.evaluate(() => ({
+        selection: window.FT.explain.current && window.FT.explain.current.selection,
+        visible: !document.getElementById('explainInspector').hidden,
+      }));
+      if (kind === 'zone') {
+        await page.evaluate(() => document.getElementById('modalClose').click());
+        await page.waitForTimeout(40);
+      }
+    }
+    const legacy = await page.evaluate(() => window.__legacySelections);
+    d({ selected, legacy });
+    return selected.point.selection.kind === 'point' && selected.point.visible
+      && selected.gauge.selection.kind === 'gauge' && legacy.gauge.includes(selected.gauge.selection.id)
+      && selected.reservoir.selection.kind === 'reservoir' && legacy.reservoir.includes(selected.reservoir.selection.id)
+      && selected.zone.selection.kind === 'zone' && legacy.zone.includes(selected.zone.selection.id);
+  });
+
+  await check('real touch selection resolves a stable road selector', async (d) => {
+    const p = await mapPoint(page, 'road');
+    await page.touchscreen.tap(p.x, p.y);
+    await page.waitForTimeout(80);
+    const r = await page.evaluate(() => ({
+      pointer: document.getElementById('canvas2d').dataset.lastExplainPointer,
+      selection: window.FT.explain.current && window.FT.explain.current.selection,
+    }));
+    d({ point: p, result: r });
+    return r.pointer === 'touch' && r.selection.kind === 'road' && r.selection.id === p.id;
+  });
+
+  await check('inspector renders contract quantities, status, provenance, confidence, assumptions and limitations', async (d) => {
+    const r = await page.evaluate(() => ({
+      hidden: document.getElementById('explainInspector').hidden,
+      title: document.getElementById('explainTitle').textContent,
+      summary: document.getElementById('explainSummary').textContent,
+      quantities: document.querySelectorAll('#explainQuantities [data-quantity-key]').length,
+      status: document.getElementById('explainStatus').textContent,
+      sources: document.getElementById('explainSources').textContent,
+      confidence: document.getElementById('explainConfidence').textContent,
+      assumptions: document.getElementById('explainAssumptions').textContent,
+      limitations: document.getElementById('explainLimitations').textContent,
+    }));
+    d(r);
+    return !r.hidden && !!r.title && !!r.summary && r.quantities >= 7 && !!r.status
+      && /SYNTHETIC/.test(r.sources) && !!r.confidence && !!r.assumptions && !!r.limitations;
+  });
+
+  await check('keyboard arrows expose and move a visible cursor, Enter selects, and Escape restores canvas focus', async (d) => {
+    await page.evaluate(() => window.FT.explain.clear());
+    await page.focus('#canvas2d');
+    const before = await page.evaluate(() => window.FT.map2d.keyboardCursor);
+    await page.keyboard.press('ArrowRight');
+    const moved = await page.evaluate(() => ({
+      cursor: window.FT.map2d.keyboardCursor,
+      visible: document.getElementById('canvas2d').dataset.inspectionCursor,
+      timeH: window.FT.state.timeH,
+    }));
+    await page.keyboard.press('Enter');
+    const entered = await page.evaluate(() => window.FT.explain.current && window.FT.explain.current.selection);
+    await page.keyboard.press('Escape');
+    const escaped = await page.evaluate(() => ({
+      current: window.FT.explain.current,
+      hidden: document.getElementById('explainInspector').hidden,
+      active: document.activeElement && document.activeElement.id,
+    }));
+    d({ before, moved, entered, escaped });
+    return moved.visible === 'visible' && moved.cursor.visible
+      && (!before.visible || moved.cursor.xKm > before.xKm) && entered.kind === 'point'
+      && escaped.current === null && escaped.hidden && escaped.active === 'canvas2d';
+  });
+
+  await check('close button clears selection and returns focus to the selecting canvas', async (d) => {
+    const p = await mapPoint(page, 'point');
+    await page.mouse.click(p.x, p.y);
+    await page.waitForTimeout(60);
+    await page.click('#explainClose');
+    const r = await page.evaluate(() => ({
+      current: window.FT.explain.current,
+      hidden: document.getElementById('explainInspector').hidden,
+      active: document.activeElement && document.activeElement.id,
+    }));
+    d(r);
+    return r.current === null && r.hidden && r.active === 'canvas2d';
+  });
+
+  await check('Method modal keeps its overview and exposes an Explain this state gateway', async (d) => {
+    await page.evaluate(() => window.FT.explain.clear());
+    await page.evaluate(() => document.getElementById('btnMethod').click());
+    const before = await page.evaluate(() => ({
+      body: document.getElementById('modalBody').textContent,
+      gateway: !!document.getElementById('methodExplainState'),
+    }));
+    await page.click('#methodExplainState');
+    const after = await page.evaluate(() => ({
+      modalHidden: document.getElementById('modalScrim').hidden,
+      inspectorHidden: document.getElementById('explainInspector').hidden,
+      selection: window.FT.explain.current && window.FT.explain.current.selection.kind,
+    }));
+    d({ before, after });
+    return /shallow-water/i.test(before.body) && before.gateway
+      && after.modalHidden && !after.inspectorHidden && after.selection === 'point';
+  });
+
+  await check('language changes rerender the same immutable contract object', async (d) => {
+    const before = await page.evaluate(() => {
+      window.__explainIdentity = window.FT.explain.current;
+      return document.getElementById('explainTitle').textContent;
+    });
+    await page.click('#langToggle');
+    const after = await page.evaluate(() => ({
+      same: window.FT.explain.current === window.__explainIdentity,
+      title: document.getElementById('explainTitle').textContent,
+      lang: window.FT.state.lang,
+    }));
+    await page.click('#langToggle');
+    d({ before, after });
+    return after.same && after.lang === 'en' && after.title !== before;
+  });
+
+  await check('desktop overlay and bounded mobile bottom sheet leave permanent safety signals visible', async (d) => {
+    const desktop = await page.evaluate(() => {
+      const inspector = document.getElementById('explainInspector').getBoundingClientRect();
+      const stage = document.getElementById('stageWrap').getBoundingClientRect();
+      return { inspector, stage, position: getComputedStyle(document.getElementById('explainInspector')).position };
+    });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.waitForTimeout(100);
+    const mobile = await page.evaluate(() => {
+      const inspector = document.getElementById('explainInspector').getBoundingClientRect();
+      const signal = document.querySelector('.geoRibbon .ribbonChip') || document.getElementById('opsMode');
+      const signalRect = signal && signal.getBoundingClientRect();
+      return {
+        inspector,
+        viewport: { width: innerWidth, height: innerHeight },
+        signalVisible: !!signal && getComputedStyle(signal).visibility !== 'hidden' && getComputedStyle(signal).display !== 'none',
+        overlapsSignal: !!signalRect && !(inspector.bottom <= signalRect.top || inspector.top >= signalRect.bottom),
+      };
+    });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    d({ desktop, mobile });
+    return desktop.position === 'absolute' && desktop.inspector.right <= desktop.stage.right + 1
+      && desktop.inspector.width < desktop.stage.width * 0.6
+      && mobile.inspector.width <= mobile.viewport.width
+      && mobile.inspector.height <= mobile.viewport.height * 0.58
+      && mobile.signalVisible && !mobile.overlapsSignal;
   });
 
   await check('a missing zones subsystem yields explicit missing zone quantities', async (d) => {

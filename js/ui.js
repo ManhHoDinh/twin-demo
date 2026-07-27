@@ -8,6 +8,7 @@
   const $ = (id) => document.getElementById(id);
   const el = {};
   let resRefs = [], closureSig = "", rebuildTimer = null, logCount = 0;
+  let activeExplanation = null, explainReturnFocus = null;
 
   const UI = (FT.ui = {});
 
@@ -30,6 +31,63 @@
   }
   function closeModal() { el.modalScrim.hidden = true; }
   UI.openModal = openModal;                              // used by the ops layer (js/opsui.js)
+
+  /* ---------- normalized physical-state inspector ---------- */
+  function replaceTextList(root, values) {
+    root.replaceChildren();
+    for (const value of values) {
+      const li = document.createElement("li");
+      li.textContent = value;
+      root.appendChild(li);
+    }
+  }
+
+  function quantityLabel(key) {
+    return key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  }
+
+  function renderExplanation(contract) {
+    if (!contract) {
+      el.explainInspector.hidden = true;
+      document.body.classList.remove("explain-open");
+      return;
+    }
+    activeExplanation = contract;
+    const t = FT.i18n.t;
+    const selection = contract.selection;
+    const subject = selection.name || (selection.kind === "point"
+      ? `${t("explain.selection.point")} ${selection.cell_id}`
+      : `${t("explain.selection.feature")} ${selection.id}`);
+    el.explainTitle.textContent = t("explain.title");
+    el.explainClose.setAttribute("aria-label", t("explain.close"));
+    el.explainSummary.textContent = `${subject} · ${t("explain.valid")} ${contract.valid_time.iso}`;
+    el.explainStatus.textContent = `${t("explain.status")}: ${contract.data_health.status} · ${t("explain.issue")} ${contract.issue_time.iso}`;
+
+    el.explainQuantities.replaceChildren();
+    for (const q of contract.quantities) {
+      const row = document.createElement("div");
+      row.className = "explainQuantity";
+      row.dataset.quantityKey = q.key;
+      const label = document.createElement("span");
+      label.textContent = quantityLabel(q.key);
+      const value = document.createElement("strong");
+      value.textContent = q.value == null ? `${t("explain.notComputed")} · ${q.status}` : `${U.fmt(q.value, 2)} ${q.unit}`;
+      row.append(label, value);
+      el.explainQuantities.appendChild(row);
+    }
+
+    replaceTextList(el.explainSources, contract.sources.map((source) =>
+      `${source.source_id} · ${source.provenance} · ${source.model_id} ${source.model_version}`));
+    const grades = [...new Set(contract.quantities.map((q) => q.confidence_grade))];
+    const uncertainty = [...new Set(contract.quantities.map((q) => q.uncertainty && q.uncertainty.type).filter(Boolean))];
+    el.explainConfidence.textContent = `${grades.join(" · ")} · ${uncertainty.join(" · ")}`;
+    const assumptions = [...new Set(contract.assumptions.concat(contract.quantities.flatMap((q) => q.assumptions || [])))];
+    const limitations = [...new Set(contract.limitations.concat(contract.quantities.flatMap((q) => q.limitations || [])))];
+    replaceTextList(el.explainAssumptions, assumptions);
+    replaceTextList(el.explainLimitations, limitations);
+    el.explainInspector.hidden = false;
+    document.body.classList.add("explain-open");
+  }
 
   /* ---------- MPC text ---------- */
   function mpcText() {
@@ -407,7 +465,22 @@
       "llmBrief", "btnBrief", "btnCitizen", "eventLog", "logCount",
       "floodedArea", "peopleExposed", "modalScrim", "modalTitle", "modalBody", "modalClose",
       "toasts", "zoneList", "zonesSummary", "kpiZonesValue",
+      "explainInspector", "explainTitle", "explainClose", "explainSummary", "explainStatus",
+      "explainQuantities", "explainSources", "explainConfidence", "explainAssumptions", "explainLimitations",
     ].forEach((id) => (el[id] = $(id)));
+
+    FT.bus.on("explainSelection", (contract) => {
+      if (contract) {
+        if (document.activeElement && document.activeElement.id === "canvas2d") explainReturnFocus = document.activeElement;
+        renderExplanation(contract);
+      } else {
+        activeExplanation = null;
+        renderExplanation(null);
+        if (explainReturnFocus && document.contains(explainReturnFocus)) explainReturnFocus.focus({ preventScroll: true });
+      }
+    });
+    FT.bus.on("lang", () => { if (activeExplanation) renderExplanation(activeExplanation); });
+    el.explainClose.addEventListener("click", () => FT.explain.clear());
 
     /* transport */
     el.btnPlay.addEventListener("click", togglePlay);
@@ -560,7 +633,7 @@
     const btnMethod = $("btnMethod");
     if (btnMethod) btnMethod.addEventListener("click", () => {
       const vi = FT.state.lang === "vi";
-      openModal("modal.method", vi ? `
+      openModal("modal.method", (vi ? `
         <h4>Thật (chạy trong trình duyệt)</h4>
         <p>· Mô phỏng nước mặt: <b>shallow-water height-field</b> (virtual pipes, Mei 2007) lưới 144², chỉ chạy động lực trên đồng bằng &lt;28 m — thượng lưu là đoạn chẩn đoán (tương ứng cấu trúc 1D/2D của paper §5).<br>
         · <b>Đồng hóa mực trạm</b> dọc hành lang sông (vòng lặp DA của twin, §6).<br>
@@ -586,7 +659,13 @@
         <p>· Rainfall/inflows are analytic functions shaped after Oct-2020 & Yagi; buildings are inferred from imagery pixels (not per-building footprints); the CSI/NSE/KGE shown are the paper's <b>§8 design targets</b>, not measurements.<br>
         · The LLM brief is a cited template — illustrating the ≥0.95 groundedness bound (§7), no live model call.</p>
         <h4>Paper mapping</h4>
-        <p>Forcing §4 → forcing panel · Surrogate §5 → SWE + 68× chip · Optimisation §6 → Rule⇄MPC + decision package · LLM §7 → briefs · Benchmarks §8 → metric card.</p>`);
+        <p>Forcing §4 → forcing panel · Surrogate §5 → SWE + 68× chip · Optimisation §6 → Rule⇄MPC + decision package · LLM §7 → briefs · Benchmarks §8 → metric card.</p>`) +
+        `<button id="methodExplainState" class="btnPrimary" type="button">${FT.i18n.t("explain.methodGateway")}</button>`);
+      $("methodExplainState").addEventListener("click", () => {
+        if (FT.explain.current) renderExplanation(FT.explain.current);
+        else FT.explain.select({ kind: "point", xKm: D.DOMAIN.sizeKm / 2, yKm: D.DOMAIN.sizeKm / 2 });
+        closeModal();
+      });
     });
 
     /* toasts + log */

@@ -421,6 +421,7 @@
 
   /* ---------- interactivity ---------- */
   let hover = null, dragging = false, lastPX = 0, lastPY = 0, moved = 0, userPanned = false;
+  const keyboardCursor = { xKm: SZ / 2, yKm: SZ / 2, visible: false };
   const cursorKm = [NaN, NaN];
   function hitTest(mx, my) {
     const R = 14 * dpr;
@@ -451,6 +452,17 @@
     const dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy || 1e-9;
     const t = U.clamp(((pxl - ax) * dx + (pyl - ay) * dy) / L2, 0, 1);
     return Math.hypot(pxl - (ax + t * dx), pyl - (ay + t * dy));
+  }
+
+  function explainHit(hit, mx, my, pointerType) {
+    let selection;
+    if (!hit) selection = { kind: "point", xKm: invX(mx), yKm: invY(my) };
+    else if (hit.kind === "gauge") selection = { kind: "gauge", id: hit.obj.id };
+    else if (hit.kind === "res") selection = { kind: "reservoir", id: hit.obj.id };
+    else if (hit.kind === "zone") selection = { kind: "zone", id: hit.obj.def.id };
+    else selection = { kind: "road", id: `road:${hit.obj.idx}` };
+    canvas.dataset.lastExplainPointer = pointerType || "mouse";
+    FT.explain.select(selection);
   }
 
   function showTooltip(hit, clientX, clientY) {
@@ -492,7 +504,10 @@
       cam.y = wy - (my - ch / 2) / (cam.scale * dpr);
       clampCam();
     }, { passive: false });
-    canvas.addEventListener("pointerdown", (ev) => { dragging = true; moved = 0; lastPX = ev.clientX; lastPY = ev.clientY; canvas.setPointerCapture(ev.pointerId); });
+    canvas.addEventListener("pointerdown", (ev) => {
+      canvas.focus({ preventScroll: true });
+      dragging = true; moved = 0; lastPX = ev.clientX; lastPY = ev.clientY; canvas.setPointerCapture(ev.pointerId);
+    });
     canvas.addEventListener("pointermove", (ev) => {
       if (dragging) {
         const dx = ev.clientX - lastPX, dy = ev.clientY - lastPY;
@@ -516,7 +531,32 @@
         if (hit && hit.kind === "gauge") { FT.state.selectedGauge = hit.obj.id; FT.bus.emit("gaugeSelected", hit.obj.id); }
         else if (hit && hit.kind === "res") FT.bus.emit("reservoirFocus", hit.obj.id);
         else if (hit && hit.kind === "zone") FT.bus.emit("zoneSelected", hit.obj.def.id);
+        explainHit(hit, ev.offsetX * dpr, ev.offsetY * dpr, ev.pointerType);
       }
+    });
+    canvas.addEventListener("keydown", (ev) => {
+      if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Enter", "Escape"].includes(ev.key)) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      if (ev.key === "Escape") {
+        FT.explain.clear();
+        return;
+      }
+      if (ev.key === "Enter") {
+        keyboardCursor.visible = true;
+        canvas.dataset.inspectionCursor = "visible";
+        FT.explain.select({ kind: "point", xKm: keyboardCursor.xKm, yKm: keyboardCursor.yKm });
+        return;
+      }
+      const step = ev.shiftKey ? 5 : 1;
+      keyboardCursor.visible = true;
+      if (ev.key === "ArrowLeft") keyboardCursor.xKm -= step;
+      if (ev.key === "ArrowRight") keyboardCursor.xKm += step;
+      if (ev.key === "ArrowUp") keyboardCursor.yKm -= step;
+      if (ev.key === "ArrowDown") keyboardCursor.yKm += step;
+      keyboardCursor.xKm = U.clamp(keyboardCursor.xKm, 0, SZ);
+      keyboardCursor.yKm = U.clamp(keyboardCursor.yKm, 0, SZ);
+      canvas.dataset.inspectionCursor = "visible";
     });
     canvas.addEventListener("pointerleave", () => { tooltip.hidden = true; });
     canvas.addEventListener("dblclick", (ev) => {
@@ -872,10 +912,28 @@
     ctx.fillText(label, 18 * dpr, 23.5 * dpr);
   }
 
+  function drawKeyboardCursor() {
+    if (!keyboardCursor.visible) return;
+    const x = sx(keyboardCursor.xKm), y = sy(keyboardCursor.yKm), r = 9 * dpr;
+    ctx.save();
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 2 * dpr;
+    ctx.shadowColor = "rgba(5, 14, 24, .95)";
+    ctx.shadowBlur = 4 * dpr;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.moveTo(x - r * 1.6, y); ctx.lineTo(x + r * 1.6, y);
+    ctx.moveTo(x, y - r * 1.6); ctx.lineTo(x, y + r * 1.6);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   /* ---------- API ---------- */
   M.init = function (mainCanvas, pip) {
     W = FT.world;
     canvas = mainCanvas; ctx = canvas.getContext("2d");
+    canvas.tabIndex = 0;
+    canvas.setAttribute("aria-describedby", "map2dInstructions");
     pipCanvas = pip; pipCtx = pip.getContext("2d");
     tooltip = document.getElementById("tooltip");
     prng = U.mulberry(777);
@@ -958,8 +1016,11 @@
     if (FT.state.layers.gauges) drawGauges(snap, clock);
     if (FT.state.layers.labels) drawCities();
     if (FT.state.layers.rain) drawRain(snap, dtReal);
+    drawKeyboardCursor();
     drawHUD(snap);
   };
+
+  Object.defineProperty(M, "keyboardCursor", { enumerable: true, get() { return { ...keyboardCursor }; } });
 
   M.renderPip = function (snap, mode) {
     const now = performance.now();
