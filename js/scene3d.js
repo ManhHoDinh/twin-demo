@@ -872,6 +872,7 @@
           if (ev.key !== "Enter" && ev.key !== " ") return;
           ev.preventDefault();
           ev.stopPropagation();
+          FT.bus.emit("explainOrigin", { element: el, moveFocus: true });
           FT.explain.select(selection);
         });
       } else {

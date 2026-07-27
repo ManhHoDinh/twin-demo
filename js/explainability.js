@@ -26,6 +26,42 @@
     return { tH, iso: new Date(ms).toISOString(), semantics };
   }
 
+  function quantityForDependency(id) {
+    if (!id) return null;
+    if (id.startsWith("H:")) return "gauge_stage";
+    if (id.startsWith("Z:")) return "reservoir_stage";
+    return {
+      rain: "basin_rainfall",
+      qpf: "ensemble_rainfall_forecast",
+      tide: "tide_stage",
+      gates: "gate_position",
+    }[id] || null;
+  }
+
+  function lastValidTime(feed) {
+    if (!feed) return null;
+    const timestamp = feed.last_valid_time || feed.lastValidTime || feed.valid_time || feed.timestamp;
+    if (timestamp && Number.isFinite(timestamp.tH)) {
+      return { ...timestamp, semantics: timestamp.semantics || "last_valid_source_time" };
+    }
+    if (Number.isFinite(feed.ageMin)) return scenarioTime(FT.state.timeH - feed.ageMin / 60, "last_valid_source_time");
+    return null;
+  }
+
+  function degradedDependency(health, level) {
+    const feeds = Array.isArray(health.feeds) ? health.feeds : [];
+    const named = health.missingCritical
+      ? feeds.find((feed) => feed.id === health.missingCritical || feed.name === health.missingCritical)
+      : null;
+    const threshold = level === 1 ? 15 : 60;
+    const feed = named || feeds.find((candidate) => Number.isFinite(candidate.ageMin) && candidate.ageMin > threshold) || null;
+    return {
+      id: feed ? feed.id : null,
+      quantity: feed ? quantityForDependency(feed.id) : null,
+      lastValid: lastValidTime(feed),
+    };
+  }
+
   function healthState() {
     const health = FT.ops && FT.ops.health ? FT.ops.health() : { level: 0, oldest: 0, missingCritical: null };
     const level = health.level || 0;
@@ -33,15 +69,16 @@
     const reasonCategory = REASONS.has(health.reasonCode) ? health.reasonCode : fallbackReason;
     const oldest = health.oldest || 0;
     const unavailable = level === 4 || reasonCategory === "QUALITY_REJECTED" || reasonCategory === "MODEL_FAILURE";
+    const dependency = level === 0 ? { id: null, quantity: null, lastValid: null } : degradedDependency(health, level);
     return {
       level,
       status: level === 0 ? "AVAILABLE" : unavailable ? "UNAVAILABLE_FOR_OPERATIONS" : "DEGRADED",
       reason: reasonCategory,
       reason_category: reasonCategory,
       oldest_age_min: oldest,
-      missing_quantity: level === 4 ? "usable_observations" : level >= 2 ? "critical_observation_feed" : null,
-      missing_dependency: health.missingCritical || null,
-      last_valid_time: oldest > 0 ? scenarioTime(FT.state.timeH - oldest / 60, "last_valid_source_time") : null,
+      missing_quantity: dependency.quantity,
+      missing_dependency: dependency.id,
+      last_valid_time: dependency.lastValid,
       confidence_effect: level === 0 ? "BASELINE_LOW_DEMO_CONFIDENCE" : unavailable ? "UNAVAILABLE_FOR_OPERATIONS" : "CONFIDENCE_REDUCED",
       permitted_use: level === 0 ? "DEMO_ONLY" : "DEMO_ONLY_NO_OPERATIONAL_DECISIONS",
     };

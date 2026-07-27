@@ -448,6 +448,33 @@ async function explainabilityContract(browser, base) {
       && selected.kind === 'gauge' && selected.id === gauge.id;
   });
 
+  await check('3D label Enter moves focus into the inspector and Escape restores the originating label', async (d) => {
+    const selector = await page.evaluate(() => {
+      const label = [...document.querySelectorAll('#labels3d button[data-explain-kind]')]
+        .find((el) => getComputedStyle(el).display !== 'none' && el.getClientRects().length > 0);
+      return label ? `#labels3d button[data-explain-kind="${label.dataset.explainKind}"][data-explain-id="${label.dataset.explainId}"]` : null;
+    });
+    if (!selector) { d({ selector: null }); return false; }
+    await page.evaluate(() => window.FT.explain.clear());
+    await page.focus(selector);
+    await page.keyboard.press('Enter');
+    const entered = await page.evaluate(() => ({
+      current: window.FT.explain.current && window.FT.explain.current.selection,
+      hidden: document.getElementById('explainInspector').hidden,
+      active: document.activeElement && document.activeElement.id,
+      activeInside: document.getElementById('explainInspector').contains(document.activeElement),
+    }));
+    await page.keyboard.press('Escape');
+    const escaped = await page.evaluate((originSelector) => ({
+      current: window.FT.explain.current,
+      hidden: document.getElementById('explainInspector').hidden,
+      restored: document.activeElement === document.querySelector(originSelector),
+    }), selector);
+    d({ selector, entered, escaped });
+    return entered.current && !entered.hidden && entered.activeInside
+      && escaped.current === null && escaped.hidden && escaped.restored;
+  });
+
   await check('camera, layer and shader-render updates cannot change the selected scientific contract', async (d) => {
     const r = await page.evaluate(async () => {
       const FT = window.FT;
@@ -866,10 +893,12 @@ async function explainabilityContract(browser, base) {
       const z = FT.data.ZONES[0];
       const c = FT.explain.atPoint(z.x, z.y);
       const flood = c.quantities.find((q) => q.key === 'flood_excess');
-      return { health: c.data_health, flood };
+      return { health: c.data_health, flood, expectedDependency: `H:${FT.data.GAUGES[1].id}`, timeH: FT.state.timeH };
     });
     d(r);
     return r.health.level === 1 && r.health.oldest_age_min === 42
+      && r.health.missing_quantity === 'gauge_stage' && r.health.missing_dependency === r.expectedDependency
+      && Math.abs(r.health.last_valid_time.tH - (r.timeH - 42 / 60)) < 1e-9
       && r.flood.age === 0 && r.flood.status === 'DEGRADED' && r.flood.reason === 'STALE';
   });
 
@@ -895,32 +924,68 @@ async function explainabilityContract(browser, base) {
 
   await check('L2 degradation names the missing dependency, last valid time, confidence effect and permitted use', async (d) => {
     const r = await page.evaluate(() => {
-      const c = window.FT.explain.atPoint(48, 48);
-      return c.data_health;
+      const FT = window.FT;
+      const c = FT.explain.atPoint(48, 48);
+      return { health: c.data_health, expectedDependency: `H:${FT.data.GAUGES[0].id}`, timeH: FT.state.timeH };
     });
     d(r);
-    return r.reason_category === 'MISSING_DATA'
-      && r.missing_quantity === 'critical_observation_feed'
-      && !!r.missing_dependency
-      && r.last_valid_time && Number.isFinite(r.last_valid_time.tH)
-      && /confidence/i.test(r.confidence_effect)
-      && r.permitted_use === 'DEMO_ONLY_NO_OPERATIONAL_DECISIONS';
+    return r.health.reason_category === 'MISSING_DATA'
+      && r.health.missing_quantity === 'gauge_stage'
+      && r.health.missing_dependency === r.expectedDependency
+      && r.health.last_valid_time && Math.abs(r.health.last_valid_time.tH - (r.timeH - 95 / 60)) < 1e-9
+      && /confidence/i.test(r.health.confidence_effect)
+      && r.health.permitted_use === 'DEMO_ONLY_NO_OPERATIONAL_DECISIONS';
+  });
+
+  await check('a different oldest feed cannot corrupt the named dependency or its last-valid time', async (d) => {
+    const r = await page.evaluate(() => {
+      const FT = window.FT;
+      const original = FT.ops.health;
+      const dependency = `H:${FT.data.GAUGES[0].id}`;
+      let health;
+      try {
+        FT.ops.health = () => ({
+          level: 2,
+          oldest: 600,
+          missingCritical: `${FT.data.GAUGES[0].name} — mực nước sông`,
+          feeds: [
+            { id: dependency, name: `${FT.data.GAUGES[0].name} — mực nước sông`, critical: true, ageMin: 95 },
+            { id: 'tide', name: 'Triều / nước dâng', critical: false, ageMin: 600 },
+          ],
+        });
+        health = FT.explain.atPoint(48, 48).data_health;
+      } finally {
+        FT.ops.health = original;
+      }
+      return { health, dependency, timeH: FT.state.timeH };
+    });
+    d(r);
+    return r.health.oldest_age_min === 600
+      && r.health.missing_quantity === 'gauge_stage'
+      && r.health.missing_dependency === r.dependency
+      && Math.abs(r.health.last_valid_time.tH - (r.timeH - 95 / 60)) < 1e-9;
   });
 
   await check('degradation evidence is visible in the inspector in Vietnamese and equivalent English', async (d) => {
     const vi = await page.evaluate(() => {
       window.FT.explain.select({ kind: 'point', xKm: 48, yKm: 48 });
       const section = document.getElementById('explainDegradation');
-      return section ? section.textContent : '';
+      return { text: section ? section.textContent : '', dependency: window.FT.explain.current.data_health.missing_dependency };
     });
     await page.click('#langToggle');
-    const en = await page.evaluate(() => document.getElementById('explainDegradation')?.textContent || '');
+    const en = await page.evaluate(() => ({
+      text: document.getElementById('explainDegradation')?.textContent || '',
+      dependency: window.FT.explain.current.data_health.missing_dependency,
+    }));
     await page.click('#langToggle');
     d({ vi, en });
-    return /Thiếu dữ liệu/.test(vi) && /Phụ thuộc bị thiếu/.test(vi)
-      && /Thời điểm hợp lệ gần nhất/.test(vi) && /Không dùng cho quyết định vận hành/.test(vi)
-      && /Missing data/.test(en) && /Missing dependency/.test(en)
-      && /Last valid time/.test(en) && /No operational decisions/.test(en);
+    return /Thiếu dữ liệu/.test(vi.text) && /Phụ thuộc bị thiếu/.test(vi.text)
+      && /mực nước sông/.test(vi.text) && vi.text.includes(`[${vi.dependency}]`)
+      && /Thời điểm hợp lệ gần nhất/.test(vi.text) && /Không dùng cho quyết định vận hành/.test(vi.text)
+      && /Missing data/.test(en.text) && /Missing dependency/.test(en.text)
+      && /river stage/i.test(en.text) && en.text.includes(`[${en.dependency}]`)
+      && /Last valid time/.test(en.text) && /No operational decisions/.test(en.text)
+      && vi.dependency === en.dependency;
   });
 
   await setDegradation(page, 3);
@@ -930,10 +995,12 @@ async function explainabilityContract(browser, base) {
       const z = FT.data.ZONES[0];
       const c = FT.explain.atPoint(z.x, z.y);
       const flood = c.quantities.find((q) => q.key === 'flood_excess');
-      return { health: c.data_health, flood };
+      return { health: c.data_health, flood, expectedDependency: `Z:${FT.data.RESERVOIRS[0].id}`, timeH: FT.state.timeH };
     });
     d(r);
     return r.health.level === 3 && r.health.oldest_age_min === 180
+      && r.health.missing_quantity === 'reservoir_stage' && r.health.missing_dependency === r.expectedDependency
+      && Math.abs(r.health.last_valid_time.tH - (r.timeH - 180 / 60)) < 1e-9
       && r.flood.age === 0 && r.flood.status === 'DEGRADED'
       && r.flood.reason === 'STALE' && r.flood.provenance === 'SYNTHETIC';
   });
@@ -956,13 +1023,21 @@ async function explainabilityContract(browser, base) {
   });
 
   await check('L4 degradation refuses operational use while retaining the last valid observation time', async (d) => {
-    const r = await page.evaluate(() => window.FT.explain.atPoint(48, 48).data_health);
+    const r = await page.evaluate(() => {
+      const FT = window.FT;
+      return {
+        health: FT.explain.atPoint(48, 48).data_health,
+        expectedDependency: `Z:${FT.data.RESERVOIRS[0].id}`,
+        timeH: FT.state.timeH,
+      };
+    });
     d(r);
-    return r.reason_category === 'MISSING_DATA'
-      && r.missing_quantity === 'usable_observations'
-      && r.last_valid_time && Number.isFinite(r.last_valid_time.tH)
-      && r.confidence_effect === 'UNAVAILABLE_FOR_OPERATIONS'
-      && r.permitted_use === 'DEMO_ONLY_NO_OPERATIONAL_DECISIONS';
+    return r.health.reason_category === 'MISSING_DATA'
+      && r.health.missing_quantity === 'reservoir_stage'
+      && r.health.missing_dependency === r.expectedDependency
+      && Math.abs(r.health.last_valid_time.tH - (r.timeH - 600 / 60)) < 1e-9
+      && r.health.confidence_effect === 'UNAVAILABLE_FOR_OPERATIONS'
+      && r.health.permitted_use === 'DEMO_ONLY_NO_OPERATIONAL_DECISIONS';
   });
 
   await check('all governed reason categories normalize into contracts, including quality rejection and model failure', async (d) => {

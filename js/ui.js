@@ -8,7 +8,7 @@
   const $ = (id) => document.getElementById(id);
   const el = {};
   let resRefs = [], closureSig = "", rebuildTimer = null, logCount = 0;
-  let activeExplanation = null, explainReturnFocus = null, methodReturnFocus = null;
+  let activeExplanation = null, explainReturnFocus = null, explainMoveFocus = false, methodReturnFocus = null;
 
   const UI = (FT.ui = {});
 
@@ -129,6 +129,24 @@
     return match ? localPair(match[1], value) : value;
   }
 
+  function dependencyLabel(value) {
+    if (!value) return FT.i18n.t("explain.unavailable");
+    if (value.startsWith("H:")) {
+      const gauge = D.GAUGES.find((item) => item.id === value.slice(2));
+      return gauge ? `${gauge.name} — ${localPair(["mực nước sông", "river stage"], value)}` : value;
+    }
+    if (value.startsWith("Z:")) {
+      const reservoir = D.RESERVOIRS.find((item) => item.id === value.slice(2));
+      return reservoir ? `${reservoir.name} — ${localPair(["mực nước hồ", "reservoir level"], value)}` : value;
+    }
+    return localPair({
+      rain: ["Mưa lưu vực", "Basin rainfall"],
+      qpf: ["Dự báo mưa tổ hợp", "Ensemble rainfall forecast"],
+      tide: ["Triều / nước dâng", "Tide / storm surge"],
+      gates: ["Vị trí cửa van (SCADA)", "Gate position (SCADA)"],
+    }[value], value);
+  }
+
   function quantityLabel(key) {
     return localPair(QUANTITY_LABELS[key], key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()));
   }
@@ -203,8 +221,8 @@
     el.explainDegradation.className = "explainDegradationRow";
     el.explainDegradation.textContent = [
       `${t("explain.reason")}: ${enumLabel(health.reason_category)}`,
-      `${t("explain.missingQuantity")}: ${enumLabel(health.missing_quantity)}`,
-      `${t("explain.missingDependency")}: ${health.missing_dependency || t("explain.unavailable")}`,
+      `${t("explain.missingQuantity")}: ${health.missing_quantity ? quantityLabel(health.missing_quantity) : t("explain.unavailable")}`,
+      `${t("explain.missingDependency")}: ${health.missing_dependency ? `${dependencyLabel(health.missing_dependency)} [${health.missing_dependency}]` : t("explain.unavailable")}`,
       `${t("explain.lastValid")}: ${health.last_valid_time ? health.last_valid_time.iso : t("explain.unavailable")}`,
       `${t("explain.confidenceEffect")}: ${enumLabel(health.confidence_effect)}`,
       `${t("explain.permittedUse")}: ${enumLabel(health.permitted_use)}`,
@@ -593,15 +611,24 @@
       "explainQuantities", "explainSources", "explainConfidence", "explainAssumptions", "explainLimitations", "explainDegradation",
     ].forEach((id) => (el[id] = $(id)));
 
+    FT.bus.on("explainOrigin", (origin) => {
+      if (!origin || !origin.element || !document.contains(origin.element)) return;
+      explainReturnFocus = origin.element;
+      explainMoveFocus = !!origin.moveFocus;
+    });
+
     FT.bus.on("explainSelection", (contract) => {
       if (contract) {
         if (document.activeElement && document.activeElement.id === "canvas2d") explainReturnFocus = document.activeElement;
         renderExplanation(contract);
+        if (explainMoveFocus) el.explainClose.focus({ preventScroll: true });
+        explainMoveFocus = false;
       } else {
         activeExplanation = null;
         renderExplanation(null);
-        if (explainReturnFocus && document.contains(explainReturnFocus)) explainReturnFocus.focus({ preventScroll: true });
+        if (explainReturnFocus && isVisible(explainReturnFocus)) explainReturnFocus.focus({ preventScroll: true });
         explainReturnFocus = null;
+        explainMoveFocus = false;
       }
     });
     FT.bus.on("lang", () => { if (activeExplanation) renderExplanation(activeExplanation); });
