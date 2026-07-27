@@ -8,7 +8,7 @@
     "serve": "node tests/serve.mjs 4310",
     "e2e": "node tests/e2e.mjs",
     "e2e:quick": "node tests/e2e.mjs --quick",
-    "test": "node tests/e2e.mjs && node tests/ux-audit.mjs",
+    "test": "npm run docs:engineering && node tests/e2e.mjs && node tests/ux-audit.mjs",
     "docs:engineering": "node tests/docs-engineering-verify.mjs",
     "ux": "node tests/ux-audit.mjs",
     "ux:strict": "node tests/ux-audit.mjs --strict"
