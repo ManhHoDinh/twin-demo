@@ -102,6 +102,16 @@ function normalize(value) {
 function stripIgnoredMarkdown(markdown) {
   const kept = [];
   let fence = null;
+  let inIndentedCode = false;
+  let listContentIndent = null;
+  let previousLineBlank = true;
+  const indentationWidth = (line) => {
+    let width = 0;
+    for (const character of line.match(/^[ \t]*/)[0]) {
+      width = character === '\t' ? width + (4 - (width % 4)) : width + 1;
+    }
+    return width;
+  };
   for (const line of markdown.split(/\r?\n/)) {
     const marker = line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
     if (!fence && marker) {
@@ -117,7 +127,43 @@ function stripIgnoredMarkdown(markdown) {
       fence = null;
       continue;
     }
-    if (!fence) kept.push(line);
+    if (fence) continue;
+
+    if (!line.trim()) {
+      kept.push(line);
+      previousLineBlank = true;
+      continue;
+    }
+
+    const indent = indentationWidth(line);
+    const listMarker = line.match(/^([ \t]{0,3})(?:[-+*]|\d+[.)])([ \t]+)/);
+    if (listMarker) {
+      listContentIndent = indentationWidth(listMarker[1])
+        + listMarker[0].length - listMarker[1].length;
+      inIndentedCode = false;
+    } else if (listContentIndent !== null && indent >= listContentIndent) {
+      if (indent >= listContentIndent + 4) {
+        inIndentedCode = true;
+        previousLineBlank = false;
+        continue;
+      }
+      inIndentedCode = false;
+    } else {
+      listContentIndent = null;
+      if (inIndentedCode && indent >= 4) {
+        previousLineBlank = false;
+        continue;
+      }
+      inIndentedCode = false;
+      if (indent >= 4 && previousLineBlank) {
+        inIndentedCode = true;
+        previousLineBlank = false;
+        continue;
+      }
+    }
+
+    kept.push(line);
+    previousLineBlank = false;
   }
   return kept.join('\n').replace(/<!--[\s\S]*?-->/g, '');
 }
@@ -307,7 +353,8 @@ function implementedRowHasEvidence(header, row, sourceFile) {
   const statusIndex = headers.findIndex((value) => value === 'status' || value === 'implementation status');
   const evidenceIndex = headers.findIndex((value) => value === 'validation evidence');
   if (statusIndex === -1) return !cells.some((cell) => normalize(cell) === 'implemented');
-  if (normalize(cells[statusIndex] ?? '') !== 'implemented') return true;
+  const visibleStatus = (cells[statusIndex] ?? '').replace(/<[^>]+>/g, '');
+  if (normalize(visibleStatus) !== 'implemented') return true;
   if (evidenceIndex === -1) return false;
   const realSource = fs.existsSync(sourceFile) ? fs.realpathSync(sourceFile) : path.resolve(sourceFile);
   return localLinks(cells[evidenceIndex] ?? '').some((target) => {
@@ -359,6 +406,20 @@ function runSelfTest() {
   record('keeps shorter same-character fences inside their opening fence',
     !validStatusMetadata(longFence) && missingContractFields(longFence).length === CONTRACT_FIELDS.length);
 
+  record('rejects status metadata in indented code blocks',
+    !validStatusMetadata('    **Status:** PLANNED'));
+  record('rejects status metadata in tab-indented code blocks',
+    !validStatusMetadata('\t**Status:** PLANNED'));
+  const indentedContract = [
+    '    | Contract field | Value |',
+    '    | --- | --- |',
+    ...CONTRACT_FIELDS.map((field) => `    | ${field} | placeholder |`),
+  ].join('\n');
+  record('rejects contract labels in indented code blocks',
+    missingContractFields(indentedContract).length === CONTRACT_FIELDS.length);
+  record('keeps legitimate list continuation content',
+    validStatusMetadata('- Contract metadata:\n    **Status:** PLANNED'));
+
   const traceabilityHeader = '| Requirement | Canonical document | Status | Validation evidence |';
   const misplacedEvidence = '| R-1 | [package](../../package.json) | IMPLEMENTED | |';
   record('requires IMPLEMENTED evidence in the Validation evidence column',
@@ -366,6 +427,9 @@ function runSelfTest() {
   const validEvidence = '| R-2 | [package](../../package.json) | IMPLEMENTED | [verifier](../../tests/docs-engineering-verify.mjs) |';
   record('accepts repository evidence in the Validation evidence column',
     implementedRowHasEvidence(traceabilityHeader, validEvidence, sourceFile));
+  const wrappedStatus = '| R-3 | [package](../../package.json) | <span>IMPLEMENTED</span> | |';
+  record('requires evidence for HTML-wrapped IMPLEMENTED status',
+    !implementedRowHasEvidence(traceabilityHeader, wrappedStatus, sourceFile));
 
   const failures = cases.filter(({ rejected }) => !rejected);
   if (failures.length) {
