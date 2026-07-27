@@ -988,6 +988,59 @@ async function explainabilityContract(browser, base) {
       && vi.dependency === en.dependency;
   });
 
+  await check('every degraded feed maps to a stable quantity key with equivalent Vietnamese and English labels', async (d) => {
+    const r = await page.evaluate(() => {
+      const FT = window.FT;
+      const originalHealth = FT.ops.health;
+      const gauge = FT.data.GAUGES[0];
+      const reservoir = FT.data.RESERVOIRS[0];
+      const cases = [
+        { id: `H:${gauge.id}`, name: `${gauge.name} — mực nước sông`, quantity: 'gauge_stage', vi: ['Mực nước trạm', 'mực nước sông'], en: ['Gauge stage', 'river stage'] },
+        { id: `Z:${reservoir.id}`, name: `${reservoir.name} — mực nước`, quantity: 'reservoir_stage', vi: ['Mực hồ', 'mực nước hồ'], en: ['Reservoir stage', 'reservoir level'] },
+        { id: 'rain', name: 'Mưa lưu vực', quantity: 'basin_rainfall', vi: ['Mưa lưu vực', 'Mưa lưu vực'], en: ['Basin rainfall', 'Basin rainfall'] },
+        { id: 'qpf', name: 'Dự báo mưa tổ hợp', quantity: 'ensemble_rainfall_forecast', vi: ['Dự báo mưa tổ hợp', 'Dự báo mưa tổ hợp'], en: ['Ensemble rainfall forecast', 'Ensemble rainfall forecast'] },
+        { id: 'tide', name: 'Triều / nước dâng', quantity: 'tide_stage', vi: ['Mực triều / nước dâng', 'Triều / nước dâng'], en: ['Tide / storm-surge stage', 'Tide / storm surge'] },
+        { id: 'gates', name: 'Vị trí cửa van (SCADA)', quantity: 'gate_position', vi: ['Vị trí cửa van', 'Vị trí cửa van (SCADA)'], en: ['Gate position', 'Gate position (SCADA)'] },
+      ];
+      const results = [];
+      try {
+        for (const item of cases) {
+          FT.ops.health = () => ({
+            level: 2,
+            oldest: 95,
+            missingCritical: item.name,
+            feeds: [{ id: item.id, name: item.name, critical: true, ageMin: 95 }],
+          });
+          FT.i18n.setLang('vi');
+          FT.explain.select({ kind: 'point', xKm: 48, yKm: 48 });
+          const contract = FT.explain.current;
+          const viText = document.getElementById('explainDegradation').textContent;
+          FT.i18n.setLang('en');
+          const enText = document.getElementById('explainDegradation').textContent;
+          results.push({
+            id: item.id,
+            quantity: contract.data_health.missing_quantity,
+            dependency: contract.data_health.missing_dependency,
+            identityStable: contract === FT.explain.current,
+            viText,
+            enText,
+            expected: item,
+          });
+        }
+      } finally {
+        FT.ops.health = originalHealth;
+        FT.i18n.setLang('vi');
+      }
+      return results;
+    });
+    d(r);
+    return r.length === 6 && r.every((item) => item.quantity === item.expected.quantity
+      && item.dependency === item.id && item.identityStable
+      && item.viText.includes(item.expected.vi[0]) && item.viText.includes(item.expected.vi[1])
+      && item.enText.includes(item.expected.en[0]) && item.enText.includes(item.expected.en[1])
+      && item.viText.includes(`[${item.id}]`) && item.enText.includes(`[${item.id}]`));
+  });
+
   await setDegradation(page, 3);
   await check('L3 cached operation degrades usability without assigning global feed age', async (d) => {
     const r = await page.evaluate(() => {

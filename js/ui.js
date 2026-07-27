@@ -51,7 +51,9 @@
     reservoir_outflow: ["Lưu lượng xả hồ", "Reservoir outflow"], zone_max_flood_excess: ["Ngập vượt nền lớn nhất khu vực", "Zone maximum flood excess"],
     zone_mean_flood_excess: ["Ngập vượt nền trung bình khu vực", "Zone mean flood excess"],
     zone_exposed_population: ["Dân số phơi nhiễm khu vực", "Zone exposed population"], road_flood_excess: ["Ngập vượt nền trên đường", "Road flood excess"],
-    road_passability_class: ["Cấp lưu thông đường", "Road passability class"],
+    road_passability_class: ["Cấp lưu thông đường", "Road passability class"], basin_rainfall: ["Mưa lưu vực", "Basin rainfall"],
+    ensemble_rainfall_forecast: ["Dự báo mưa tổ hợp", "Ensemble rainfall forecast"], tide_stage: ["Mực triều / nước dâng", "Tide / storm-surge stage"],
+    gate_position: ["Vị trí cửa van", "Gate position"],
   };
 
   const ENUM_LABELS = {
