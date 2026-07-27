@@ -62,11 +62,12 @@ Every scalar, series or field exposed across engine boundaries carries these fie
 | `value` | Numeric, categorical, vector or explicit no-data value |
 | `unit` | SI or declared domain unit; dimensionally checked |
 | `timestamp` | Canonical domain timestamp; equals `valid_time` for a current-state projection |
-| `age` | Canonical staleness value derived from `now - valid_time`, under the applicable staleness policy |
+| `age` | Canonical freshness/staleness value: `now - source observation timestamp` for `MEASURED`, or `now - issue_time` for `FORECAST`/`MODELLED`, under the applicable staleness policy |
 | `quality` | Canonical enumeration: `OK`, `SUSPECT`, `STALE`, `MISSING`, or `ESTIMATED` |
 | `uncertainty` | Canonical domain uncertainty value: band, quantiles, class, or permitted null case |
 | `source_ref` | Canonical human-readable/audit reference to a sensor, model, document, or other source |
-| `version` | Canonical envelope schema version for this additive projection |
+| `version` | Canonical domain version of the referenced model, rating curve, threshold set, or equivalent governed artifact |
+| `schema_version` | Additive engineering-envelope schema version |
 | `valid_time` | Time represented by the value |
 | `issue_time` | Time the source or forecast was issued |
 | `source_id` | Stable source identifier and lineage |
@@ -79,7 +80,7 @@ Every scalar, series or field exposed across engine boundaries carries these fie
 | `assumptions` | Identified assumptions affecting interpretation |
 | `limitations` | Unsupported regimes, missing dependencies and known failure conditions |
 
-The mappings are normative: `timestamp = valid_time` for current state; `age` is derived from `now - valid_time`; `source_ref` remains the human/audit reference while `source_id` is the registry key; and `version` identifies the envelope schema while `model_version` identifies the model artifact. `quality_flags` adds detailed QC evidence without replacing the canonical enumerated `quality`. `uncertainty_representation` adds its encoding/type without replacing canonical `uncertainty`.
+The mappings are normative: `timestamp = valid_time` for a current-state projection; `age = now - source observation timestamp` for `MEASURED`, while forecast/model freshness uses `age = now - issue_time`. `valid_time` expresses physical applicability and may be in the future without creating negative freshness. `source_ref` remains the human/audit reference while `source_id` is the registry key. Canonical `version` retains its domain meaning for the referenced model, rating curve or threshold set; `schema_version` identifies the additive envelope schema, and `model_version` identifies the exact computational model artifact. `quality_flags` adds detailed QC evidence without replacing the canonical enumerated `quality`. `uncertainty_representation` adds its encoding/type without replacing canonical `uncertainty`.
 
 Spatial quantities also include CRS, vertical datum, grid/mesh/feature identifier, spatial support, resolution, interpolation method and no-data semantics. These requirements extend the canonical [observation model](../01-domain-model/03-observation-model.md); they do not redefine its entities or persistence authority.
 

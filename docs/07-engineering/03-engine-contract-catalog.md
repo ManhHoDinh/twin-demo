@@ -54,6 +54,7 @@ This table is exhaustive. `READ` consumes an immutable published contract. `FEED
 | Scenario | Decision Support | Alternatives, ensembles and counterfactual results | READ |
 | Scenario | AI Explanation | Scenario identity and comparison evidence | READ |
 | Scenario | Visualization | Scenario results and differences | READ |
+| Decision Support | Scenario | New immutable scenario run request with reviewed objective/context | REQUEST |
 | Decision Support | AI Explanation | Decision package, evidence and limitations | READ |
 | Decision Support | Visualization | Options, constraints and uncertainty for display | READ |
 
