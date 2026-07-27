@@ -21,18 +21,18 @@ async function explainabilityContract(browser, base) {
       const z = window.FT.data.ZONES[0];
       const contract = window.FT.explain.atPoint(z.x, z.y);
       return {
-        schema: contract.schema,
+        contract: contract.contract,
         keys: Object.keys(contract).sort(),
         expected: [
-          'assumptions', 'data_health', 'issue_time', 'limitations', 'policy',
-          'quantities', 'scenario', 'schema', 'selection', 'sources', 'valid_time',
+          'assumptions', 'contract', 'data_health', 'issue_time', 'limitations', 'policy',
+          'quantities', 'scenario', 'selection', 'sources', 'valid_time',
         ].sort(),
         validTime: contract.valid_time,
         issueTime: contract.issue_time,
       };
     });
     d(r);
-    return r.schema === 'floodtwin.explain/v1'
+    return r.contract === 'floodtwin.explain/v1'
       && JSON.stringify(r.keys) === JSON.stringify(r.expected)
       && r.validTime.tH === 8
       && r.issueTime.tH === 0
@@ -45,19 +45,38 @@ async function explainabilityContract(browser, base) {
       const z = window.FT.data.ZONES[0];
       const quantities = window.FT.explain.atPoint(z.x, z.y).quantities;
       const expected = [
-        'confidence_grade', 'interpolation', 'key', 'model_id', 'model_version',
-        'no_data_semantics', 'provenance', 'quality_flags', 'reason', 'source_id',
-        'spatial_support', 'status', 'uncertainty_representation', 'unit', 'value',
+        'age', 'assumptions', 'confidence_grade', 'interpolation', 'issue_time', 'key',
+        'limitations', 'model_id', 'model_version', 'no_data_semantics', 'provenance',
+        'quality', 'quality_flags', 'reason', 'schema_version', 'source_id', 'source_ref',
+        'spatial_support', 'status', 'timestamp', 'uncertainty',
+        'uncertainty_representation', 'unit', 'valid_time', 'value', 'version',
       ].sort();
       return {
         count: quantities.length,
         bad: quantities.filter((q) => JSON.stringify(Object.keys(q).sort()) !== JSON.stringify(expected))
           .map((q) => ({ key: q.key, fields: Object.keys(q).sort() })),
         invalidValue: quantities.filter((q) => q.value !== null && !Number.isFinite(q.value)).map((q) => q.key),
+        invalidCanonical: quantities.filter((q) =>
+          JSON.stringify(q.timestamp) !== JSON.stringify(q.valid_time)
+          || !Number.isFinite(q.age)
+          || !['OK', 'SUSPECT', 'STALE', 'MISSING', 'ESTIMATED'].includes(q.quality)
+          || !q.uncertainty
+          || !q.source_ref
+          || !q.version
+          || q.schema_version !== 'eng-quantity-envelope/1'
+          || !Array.isArray(q.assumptions)
+          || !Array.isArray(q.limitations)).map((q) => q.key),
+        invalidSpatial: quantities.filter((q) => {
+          const s = q.spatial_support || {};
+          return !s.support_type || !s.crs || !s.vertical_datum
+            || !Object.hasOwn(s, 'grid_id') || !Object.hasOwn(s, 'feature_id')
+            || !Object.hasOwn(s, 'resolution_m') || !s.interpolation || !s.no_data_semantics;
+        }).map((q) => q.key),
       };
     });
     d(r);
-    return r.count >= 7 && r.bad.length === 0 && r.invalidValue.length === 0;
+    return r.count >= 7 && r.bad.length === 0 && r.invalidValue.length === 0
+      && r.invalidCanonical.length === 0 && r.invalidSpatial.length === 0;
   });
 
   await check('point depth, flood excess and terrain equal the physical-state samplers', async (d) => {
@@ -122,30 +141,74 @@ async function explainabilityContract(browser, base) {
     return r.same;
   });
 
-  await check('forEntity resolves gauge, reservoir, zone and stable road selectors', async (d) => {
+  await check('forEntity values, units and lineage match gauge, reservoir, zone and road state', async (d) => {
     const r = await page.evaluate(() => {
       const FT = window.FT;
-      const cases = [
-        ['gauge', FT.data.GAUGES[0].id],
-        ['reservoir', FT.data.RESERVOIRS[0].id],
-        ['zone', FT.data.ZONES[0].id],
-        ['road', 'road:0'],
-      ];
-      return cases.map(([kind, id]) => {
-        const c = FT.explain.forEntity(kind, id);
-        return {
-          asked: { kind, id },
-          got: { kind: c.selection.kind, id: c.selection.id },
-          schema: c.schema,
-          quantityKeys: c.quantities.map((q) => q.key),
-        };
-      });
+      const snap = FT.hydro.at(FT.state.timeH);
+      const gauge = FT.data.GAUGES[0];
+      const reservoir = FT.data.RESERVOIRS[0];
+      const zoneDef = FT.data.ZONES[0];
+      const zone = FT.zones.byId(zoneDef.id);
+      const road = FT.world.roads.edges[0];
+      const contracts = {
+        gauge: FT.explain.forEntity('gauge', gauge.id),
+        reservoir: FT.explain.forEntity('reservoir', reservoir.id),
+        zone: FT.explain.forEntity('zone', zoneDef.id),
+        road: FT.explain.forEntity('road', 'road:0'),
+      };
+      const q = (kind, key) => contracts[kind].quantities.find((item) => item.key === key);
+      return {
+        selectors: Object.fromEntries(Object.entries(contracts).map(([kind, c]) =>
+          [kind, { contract: c.contract, kind: c.selection.kind, id: c.selection.id }])),
+        gauge: {
+          stage: q('gauge', 'gauge_stage'), expectedStage: snap.gauges[gauge.id].stage,
+          trend: q('gauge', 'gauge_trend_3h'), expectedTrend: snap.gauges[gauge.id].trend,
+        },
+        reservoir: {
+          stage: q('reservoir', 'reservoir_stage'), expectedStage: snap.reservoirs[reservoir.id].Z,
+          inflow: q('reservoir', 'reservoir_inflow'), expectedInflow: snap.reservoirs[reservoir.id].I,
+          outflow: q('reservoir', 'reservoir_outflow'), expectedOutflow: snap.reservoirs[reservoir.id].O,
+        },
+        zone: {
+          max: q('zone', 'zone_max_flood_excess'), expectedMax: zone.maxD,
+          mean: q('zone', 'zone_mean_flood_excess'), expectedMean: zone.meanD,
+          exposed: q('zone', 'zone_exposed_population'), expectedExposed: zone.exposed,
+        },
+        road: {
+          depth: q('road', 'road_flood_excess'), expectedDepth: road.depth,
+          cls: q('road', 'road_passability_class'), expectedClass: road.cls,
+        },
+      };
     });
     d(r);
-    return r.every((x) => x.schema === 'floodtwin.explain/v1'
-      && x.got.kind === x.asked.kind && x.got.id === x.asked.id
-      && x.quantityKeys.length > 0)
-      && r.find((x) => x.asked.kind === 'road').got.id === 'road:0';
+    const near = (a, b) => Math.abs(a - b) < 1e-6;
+    const selectorsOk = Object.entries(r.selectors).every(([kind, x]) =>
+      x.contract === 'floodtwin.explain/v1' && x.kind === kind)
+      && r.selectors.road.id === 'road:0';
+    const feature = (q, id) => q.spatial_support.support_type === 'FEATURE'
+      && q.spatial_support.feature_id === id;
+    return selectorsOk
+      && near(r.gauge.stage.value, r.gauge.expectedStage) && r.gauge.stage.unit === 'm'
+      && near(r.gauge.trend.value, r.gauge.expectedTrend) && r.gauge.trend.unit === 'm/3h'
+      && r.gauge.stage.source_id.startsWith('hydro-gauge-series:')
+      && r.gauge.stage.model_id === 'hydro-analytic-gauge'
+      && feature(r.gauge.stage, r.selectors.gauge.id)
+      && near(r.reservoir.stage.value, r.reservoir.expectedStage) && r.reservoir.stage.unit === 'm'
+      && near(r.reservoir.inflow.value, r.reservoir.expectedInflow) && r.reservoir.inflow.unit === 'm3/s'
+      && near(r.reservoir.outflow.value, r.reservoir.expectedOutflow) && r.reservoir.outflow.unit === 'm3/s'
+      && r.reservoir.stage.model_id === 'hydro-analytic-reservoir-routing'
+      && feature(r.reservoir.stage, r.selectors.reservoir.id)
+      && near(r.zone.max.value, r.zone.expectedMax) && r.zone.max.unit === 'm'
+      && near(r.zone.mean.value, r.zone.expectedMean) && r.zone.mean.unit === 'm'
+      && near(r.zone.exposed.value, r.zone.expectedExposed) && r.zone.exposed.unit === 'people'
+      && r.zone.max.model_id === 'zones-grid-aggregation'
+      && r.zone.exposed.model_id === 'synthetic-population-exposure'
+      && feature(r.zone.max, r.selectors.zone.id)
+      && near(r.road.depth.value, r.road.expectedDepth) && r.road.depth.unit === 'm'
+      && r.road.cls.value === r.road.expectedClass && r.road.cls.unit === 'class'
+      && r.road.depth.model_id === 'road-depth-sampling'
+      && r.road.cls.model_id === 'road-passability-thresholds'
+      && feature(r.road.depth, 'road:0');
   });
 
   await check('select and clear publish immutable current state on the event bus', async (d) => {
@@ -170,14 +233,14 @@ async function explainabilityContract(browser, base) {
         frozen, mutationBlocked, sameCurrent, cleared,
         current: FT.explain.current,
         eventCount: events.length,
-        firstSchema: events[0] && events[0].schema,
+        firstContract: events[0] && events[0].contract,
         last: events[events.length - 1],
       };
     });
     d(r);
     return r.frozen && r.mutationBlocked && r.sameCurrent && r.cleared === null
       && r.current === null && r.eventCount === 2
-      && r.firstSchema === 'floodtwin.explain/v1' && r.last === null;
+      && r.firstContract === 'floodtwin.explain/v1' && r.last === null;
   });
 
   await setDegradation(page, 2);
