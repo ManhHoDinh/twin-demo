@@ -194,7 +194,7 @@
   function C(id, label, status, margin, unit, binding) {
     return { id, label, status, margin, unit, binding: !!binding };
   }
-  OPS.constraints = function (resId, g) {
+  OPS.constraints = function (resId, g, selection) {
     const Hy = FT.hydro, r = D.RESERVOIRS.find((x) => x.id === resId), out = [];
     const R = Hy.res[resId].mpc;
     let zMax = -1e9, zMin = 1e9, oMax = 0, rampMax = 0, dropMax = 0;
@@ -213,19 +213,72 @@
     out.push(C("C8", L("Tốc độ hạ mực nước hồ", "Dam-side drawdown rate"), dropMax <= CFG.drawdownLimitMh ? "PASS" : "FAIL", CFG.drawdownLimitMh - dropMax, "m/h"));
 
     /* downstream: routed arrival at the control point — NOT at the dam (red-team 1.2) */
-    const sMpc = stageSeries(g, allSel("mpc"));
+    const selectedStage = stageSeries(g, selection || allSel("mpc"));
     let riseMax = 0, fallMax = 0;
-    for (let i = 1; i < sMpc.length; i++) {
-      const d = (sMpc[i] - sMpc[i - 1]) / Hy.DT;
+    for (let i = 1; i < selectedStage.length; i++) {
+      const d = (selectedStage[i] - selectedStage[i - 1]) / Hy.DT;
       riseMax = Math.max(riseMax, d); fallMax = Math.max(fallMax, -d);
     }
-    const pk = peakOf(sMpc);
+    const pk = peakOf(selectedStage);
     out.push(C("C7", L("Tốc độ nước lên hạ du", "Downstream rate of rise"), riseMax <= CFG.riseLimitMh ? "PASS" : "MARGINAL", CFG.riseLimitMh - riseMax, "m/h"));
     out.push(C("C9", L(`Ngưỡng ${g.name} (BĐ3)`, `${g.name} cap (AL3)`), pk.peak <= g.bd[2] ? "PASS" : pk.peak <= g.bd[2] + 0.3 ? "MARGINAL" : "FAIL", g.bd[2] - pk.peak, "m", pk.peak > g.bd[2]));
     const p = Hy.proposal;
     const leadOK = p ? (p.tStart - FT.state.timeH) >= CFG.notificationLeadH : false;
     out.push(C("C10", L("Thời gian thông báo hạ du", "Downstream notification lead"), leadOK ? "PASS" : "FAIL", p ? p.tStart - FT.state.timeH - CFG.notificationLeadH : 0, "h", !leadOK));
     return out;
+  };
+
+  /* Same q05/median estimator as hydro.buildProposal(), extracted for comparison. */
+  function probabilityBelowAtPeak(g, key) {
+    const e = FT.hydro.gauge[g.id][key];
+    let iPk = 0;
+    for (let i = 1; i < e.med.length; i++) if (e.med[i] > e.med[iPk]) iPk = i;
+    const medPk = e.med[iPk];
+    const sigma = Math.max(0.05, (medPk - e.q05[iPk]) / 1.645);
+    return U.clamp(U.normCdf((g.bd[2] - medPk) / sigma), 0.01, 0.99);
+  }
+
+  OPS.compareOption = function (def) {
+    const g = D.GAUGES.find((x) => x.id === def.gaugeId) || D.GAUGES[0];
+    const selection = Object.assign({}, def.selection || allSel(def.kind === "RULE" ? "rule" : "mpc"));
+    const peak = peakOf(stageSeries(g, selection));
+    const selectedReservoirs = Object.keys(selection).filter((id) => selection[id] === "mpc");
+    const constraints = [];
+    for (const resId of selectedReservoirs) {
+      for (const constraint of OPS.constraints(resId, g, selection)) {
+        constraints.push(Object.assign({}, constraint, { reservoirId: resId }));
+      }
+    }
+    const hard = constraints.filter((c) => c.status === "FAIL");
+    const binding = constraints.find((c) => c.binding) || hard[0] || null;
+    const key = def.kind === "RULE" ? "rule" : "mpc";
+    return {
+      id: def.id,
+      kind: def.kind,
+      gaugeId: g.id,
+      peakM: peak.peak,
+      peakTimeH: peak.tPeak,
+      feasible: hard.length === 0,
+      binding,
+      constraints,
+      attribution: {
+        reservoirIds: selectedReservoirs,
+        combinedPeakM: peak.peak,
+        combinedPeakTimeH: peak.tPeak,
+        bindingGaugeId: g.id,
+      },
+      exposure: {
+        value: null,
+        reason: L("Tính khi phương án được vẽ bằng bộ giải hiện hữu.", "Computed when the option is painted by the existing solver."),
+        dependency: "world.floodStats",
+        lastValidTime: null,
+      },
+      residualRisk: { pBelowAl3: probabilityBelowAtPeak(g, key), gaugeId: g.id },
+      confidence: "LOW",
+      versions: Object.assign({}, OPS.versions),
+      validTime: FT.state.timeH,
+      scenarioId: FT.state.scenario,
+    };
   };
 
   /* ================================================================
@@ -284,6 +337,7 @@
       label: L(`Chỉ vận hành ${r.name}`, `Operate ${r.name} only`),
       peak: peakOf(sSingle).peak,
       note: L("Ít phối hợp hơn, hiệu quả cắt đỉnh thấp hơn.", "Less coordination required, smaller peak reduction."),
+      selection: single,
     });
     /* two heaviest-weighted reservoirs for this control point */
     const byW = D.RESERVOIRS.slice().sort((a, b) => (g.resW[b.id] || 0) - (g.resW[a.id] || 0));
@@ -293,6 +347,7 @@
       label: L(`Phối hợp ${byW[0].name} + ${byW[1].name}`, `Coordinate ${byW[0].name} + ${byW[1].name}`),
       peak: peakOf(stageSeries(g, pair)).peak,
       note: L("Chia tải giữa hai hồ trọng số cao nhất tại trạm khống chế.", "Splits the action across the two highest-weight reservoirs at the control point."),
+      selection: pair,
     });
 
     /* regret — both branches, never collapsed into an expected value */

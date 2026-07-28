@@ -624,7 +624,73 @@ async function interaction(page) {
 }
 
 /* ==========================================================================
-   9. Anti-patterns explicitly banned by the standard
+   9. Scenario Comparison — map-first, accessible, never definitive
+   ========================================================================== */
+async function scenarioCompareUX(page) {
+  g('Scenario Comparison (UX-1, SC-4, SC-8)');
+
+  await must('comparison options expose text state, one active selection, and no automatic winner', async (d) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.keyboard.press('c');
+    await page.waitForFunction(() => document.querySelectorAll('[data-panel="compare"] [role="option"]').length >= 2, null, { timeout: 90000 });
+    const r = await page.evaluate(() => {
+      const panel = document.querySelector('[data-panel="compare"]');
+      const options = panel ? [...panel.querySelectorAll('[role="option"]')] : [];
+      return {
+        count: options.length,
+        active: options.filter((option) => option.getAttribute('aria-selected') === 'true').length,
+        labelled: options.every((option) => /đỉnh|peak/i.test(option.textContent) && /tin cậy|confidence/i.test(option.textContent)),
+        definitive: options.filter((option) => /\b(best|optimal|winner)\b|tốt nhất|tối ưu|chiến thắng/i.test(option.textContent)).map((option) => option.textContent.trim()),
+        live: !!(panel && panel.querySelector('[aria-live="polite"]')),
+      };
+    });
+    d(r);
+    return r.count >= 2 && r.count <= 4 && r.active === 1 && r.labelled && !r.definitive.length && r.live;
+  });
+
+  await must('infeasible comparison state is named in text and cannot be exported', async (d) => {
+    const r = await page.evaluate(() => {
+      const option = Object.values(FT.compare.state.options).find((item) => item.status === 'INFEASIBLE');
+      if (!option) return { found: false };
+      FT.compare.selectOption(option.id);
+      const card = document.querySelector(`[data-panel="compare"] [data-option="${option.id}"]`);
+      const button = document.querySelector('[data-panel="compare"] .compareExport');
+      return {
+        found: true,
+        bindingNamed: !!card && !!option.result.binding && card.textContent.includes(option.result.binding.id),
+        gaugeNamed: !!card && !!option.result.gaugeId,
+        disabled: !!button && button.disabled,
+        refused: !FT.compare.exportRecommendation(option.id).ok,
+      };
+    });
+    d(r);
+    return r.found && r.bindingNamed && r.gaugeNamed && r.disabled && r.refused;
+  });
+
+  await must('390 px comparison sheet preserves map safety labels and touch targets', async (d) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.waitForTimeout(250);
+    const r = await page.evaluate(() => {
+      const panel = document.querySelector('[data-panel="compare"]');
+      const box = panel && panel.getBoundingClientRect();
+      const targets = panel ? [...panel.querySelectorAll('button')] : [];
+      const safety = document.querySelector('.geoRibbon');
+      const safetyBox = safety && safety.getBoundingClientRect();
+      return {
+        bounded: !!box && box.left >= -1 && box.right <= innerWidth + 1 && box.top >= -1 && box.bottom <= innerHeight + 1,
+        targets: targets.length > 0 && targets.every((target) => target.getBoundingClientRect().height >= 40),
+        noOverflow: document.documentElement.scrollWidth <= innerWidth + 1,
+        safetyVisible: !!safetyBox && safetyBox.top >= 0 && safetyBox.bottom <= innerHeight && /NOT FOR OPERATIONS/.test(safety.textContent),
+      };
+    });
+    d(r);
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    return r.bounded && r.targets && r.noOverflow && r.safetyVisible;
+  });
+}
+
+/* ==========================================================================
+   10. Anti-patterns explicitly banned by the standard
    ========================================================================== */
 async function antiPatterns(page) {
   g('Anti-patterns (UX §12)');
@@ -676,7 +742,7 @@ async function antiPatterns(page) {
 }
 
 /* ==========================================================================
-   10. Performance budget
+   11. Performance budget
    ========================================================================== */
 async function performance_(page) {
   g('Performance (NFR-02, NFR-15)');
@@ -768,6 +834,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     await charts(page);
     await numbers(page);
     await interaction(page);
+    await scenarioCompareUX(page);
     await antiPatterns(page);
     await performance_(page);
   } finally {

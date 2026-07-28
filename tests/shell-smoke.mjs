@@ -7,20 +7,22 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const PORT = 4319;
-const URL = `http://127.0.0.1:${PORT}/`;
-
-function serve() {
-  const p = spawn('node', [path.join(HERE, 'serve.mjs'), String(PORT)], { stdio: 'ignore' });
-  return p;
-}
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 let fails = 0;
 const ok = (name, cond, extra) => { console.log(`${cond ? '  ✓' : '  ✗'} ${name}${extra ? ' — ' + extra : ''}`); if (!cond) fails++; };
 
-const server = serve();
-await sleep(700);
+const server = spawn('node', [path.join(HERE, 'serve.mjs'), '0'], { stdio: ['ignore', 'pipe', 'pipe'] });
+const port = await new Promise((resolve, reject) => {
+  let output = '';
+  const timer = setTimeout(() => reject(new Error(`server did not start: ${output}`)), 8000);
+  const read = (chunk) => {
+    output += chunk;
+    const match = output.match(/127\.0\.0\.1:(\d+)/);
+    if (match) { clearTimeout(timer); resolve(match[1]); }
+  };
+  server.stdout.on('data', read); server.stderr.on('data', read);
+});
 const browser = await launchGpu({ headless: true });
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 const errors = [];
@@ -28,7 +30,7 @@ page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
 page.on('pageerror', (e) => errors.push('PAGEERR ' + e.message));
 
 try {
-  await page.goto(URL, { waitUntil: 'load', timeout: 30000 });
+  await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: 'load', timeout: 30000 });
   await sleep(2500); // let boot() (300ms delay) + engine init run
 
   const geoshell = await page.evaluate(() => document.body.classList.contains('geoshell'));
@@ -103,7 +105,7 @@ try {
 
   // fullscreen mode hides chrome
   await page.evaluate(() => window.FT.mapMode.set('fullscreen'));
-  await sleep(200);
+  await page.waitForFunction(() => getComputedStyle(document.querySelector('.geoDock')).opacity === '0', null, { timeout: 3000 });
   const fsHides = await page.evaluate(() => getComputedStyle(document.querySelector('.geoDock')).opacity === '0');
   ok('fullscreen mode hides dock', fsHides);
   await page.evaluate(() => window.FT.mapMode.set('fullscreen')); // toggle off

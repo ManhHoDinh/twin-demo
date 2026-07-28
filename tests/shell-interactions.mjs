@@ -4,19 +4,27 @@ import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const PORT = 4331;
-const s = spawn('node', [path.join(HERE, 'serve.mjs'), String(PORT)], { stdio: 'ignore' });
+const s = spawn('node', [path.join(HERE, 'serve.mjs'), '0'], { stdio: ['ignore', 'pipe', 'pipe'] });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const port = await new Promise((resolve, reject) => {
+  let output = '';
+  const timer = setTimeout(() => reject(new Error(`server did not start: ${output}`)), 8000);
+  const read = (chunk) => {
+    output += chunk;
+    const match = output.match(/127\.0\.0\.1:(\d+)/);
+    if (match) { clearTimeout(timer); resolve(match[1]); }
+  };
+  s.stdout.on('data', read); s.stderr.on('data', read);
+});
 let fails = 0;
 const ok = (n, c, x) => { console.log(`${c ? '  ✓' : '  ✗'} ${n}${x ? ' — ' + x : ''}`); if (!c) fails++; };
 
-await sleep(700);
 const b = await launchGpu({ headless: true });
 const p = await b.newPage({ viewport: { width: 1440, height: 900 } });
 const errs = [];
 p.on('pageerror', (e) => errs.push(e.message));
 try {
-  await p.goto(`http://127.0.0.1:${PORT}/`, { waitUntil: 'load', timeout: 30000 });
+  await p.goto(`http://127.0.0.1:${port}/`, { waitUntil: 'load', timeout: 30000 });
   await sleep(2800);
 
   // AI assistant toggles via ⌘J
@@ -58,6 +66,37 @@ try {
   ok('Alert stack holds alarm list', alertsWired);
   const notifyPersistent = await p.evaluate(() => !!document.querySelector('.geoActions #nfRelease') && !!document.querySelector('.geoActions #nfEvac'));
   ok('notify composer lives in persistent toolbar', notifyPersistent);
+
+  // Scenario Compare is a keyboard-opened, view-only simulation surface.
+  await p.keyboard.press('c');
+  await p.waitForFunction(() => document.querySelectorAll('[data-panel="compare"] [role="option"]').length >= 2, null, { timeout: 90000 });
+  const compare = await p.evaluate(() => {
+    const panel = document.querySelector('[data-panel="compare"]');
+    const options = panel ? [...panel.querySelectorAll('[role="option"]')] : [];
+    const ribbon = document.querySelector('.compareDelta');
+    return {
+      visible: !!panel && getComputedStyle(panel).display !== 'none' && !panel.classList.contains('hidden-chrome'),
+      optionCount: options.length,
+      selected: options.filter((option) => option.getAttribute('aria-selected') === 'true').length,
+      live: !!(panel && panel.querySelector('[aria-live="polite"]')),
+      nonOrder: !!ribbon && /không phải lệnh|not an operational order/i.test(ribbon.textContent),
+      definitive: options.some((option) => /\b(best|optimal|winner)\b|tốt nhất|tối ưu|chiến thắng/i.test(option.textContent)),
+    };
+  });
+  ok('Scenario Compare opens on C with 2–4 semantic options', compare.visible && compare.optionCount >= 2 && compare.optionCount <= 4, JSON.stringify(compare));
+  ok('Scenario Compare exposes one selected option and a live status region', compare.selected === 1 && compare.live);
+  ok('Scenario Compare is explicitly non-operational and non-definitive', compare.nonOrder && !compare.definitive);
+
+  const compareExport = await p.evaluate(() => {
+    const C = FT.compare;
+    const infeasible = Object.values(C.state.options).find((option) => option.status === 'INFEASIBLE');
+    if (!infeasible) return { found: false };
+    C.selectOption(infeasible.id);
+    const button = document.querySelector('[data-panel="compare"] .compareExport');
+    return { found: true, disabled: !!button && button.disabled, refused: !C.exportRecommendation(infeasible.id).ok };
+  });
+  ok('infeasible comparison option cannot be exported', compareExport.found && compareExport.disabled && compareExport.refused, JSON.stringify(compareExport));
+  await p.keyboard.press('c'); await sleep(150);
 
   // helper: force a neutral mode state (clear whatever is current)
   const neutral = async () => { await p.evaluate(() => { const m = window.FT.mapMode; if (m.current) m.set(m.current); }); await sleep(120); };

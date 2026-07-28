@@ -550,6 +550,7 @@
     buildActions();
     buildOpsStrip();
     buildDock();
+    buildCompare();
     buildViewControl();
     buildEarthNav();
     buildPlaceSheet();
@@ -812,6 +813,132 @@
     Object.keys(panels).forEach((k) => { if (k.startsWith("fly_") && k !== "fly_" + id && !panels[k].pinned) panels[k].hide(); });
     document.querySelectorAll(".dockBtn").forEach((x) => x.classList.toggle("active", x === btn && opening));
     fp.toggle();
+  }
+
+  /* ---------- Scenario Comparison: one map, one clock, 2–4 alternatives ---------- */
+  function buildCompare() {
+    if (!FT.compare || !FT.dom.dock) return;
+    let seedTimer = null;
+    const fp = new FloatingPanel("compare", {
+      cls: "geoCompare", title: "So sánh kịch bản", role: "region",
+      label: "So sánh kịch bản", pinnable: true,
+      onShow: () => { seedCompare(); renderCompare(); },
+      onHide: () => {
+        if (seedTimer) { clearTimeout(seedTimer); seedTimer = null; }
+        if (FT.compare.viewKey()) FT.compare.reset();
+      },
+    });
+    const live = el("p", "compareStatus");
+    live.setAttribute("aria-live", "polite");
+    const rail = el("div", "compareOptions");
+    rail.setAttribute("role", "listbox");
+    rail.setAttribute("aria-label", "Các phương án mô phỏng");
+    const exportBtn = el("button", "compareExport", "Đưa vào Gói quyết định");
+    exportBtn.type = "button";
+    fp.body.appendChild(live); fp.body.appendChild(rail); fp.body.appendChild(exportBtn);
+
+    const delta = el("section", "compareDelta");
+    delta.setAttribute("role", "status");
+    delta.hidden = true;
+    document.body.appendChild(delta);
+
+    const button = el("button", "dockBtn", '⎘<span class="dockKey">C</span><span class="dockTip">So sánh kịch bản</span>');
+    button.type = "button";
+    button.dataset.fly = "compare";
+    button.setAttribute("role", "tab");
+    button.setAttribute("aria-label", "So sánh kịch bản");
+    button.setAttribute("aria-keyshortcuts", "C");
+    const toggle = () => {
+      const opening = fp.mode === "hidden";
+      Object.keys(panels).forEach((id) => {
+        if (id.startsWith("fly_") && !panels[id].pinned) panels[id].hide();
+      });
+      fp.toggle();
+      button.classList.toggle("active", opening);
+      button.setAttribute("aria-selected", String(opening));
+      if (!opening) delta.hidden = true;
+    };
+    button.addEventListener("click", toggle);
+    const separator = FT.dom.dock.querySelector(".dockSep");
+    FT.dom.dock.insertBefore(button, separator || null);
+    key("c", "So sánh kịch bản", toggle, "Công cụ");
+
+    function seedCompare() {
+      if (FT.compare.state.status !== "STALE" && FT.compare.state.optionOrder.length >= 2) return;
+      const ready = FT.hydro && FT.hydro.ready && FT.hydro.gauge &&
+        FT.data.GAUGES.every((gauge) => FT.hydro.gauge[gauge.id]);
+      if (!ready) {
+        live.textContent = "Đang chuẩn bị kết quả mô phỏng…";
+        if (seedTimer) clearTimeout(seedTimer);
+        seedTimer = setTimeout(() => {
+          seedTimer = null;
+          if (fp.mode !== "hidden") { seedCompare(); renderCompare(); }
+        }, 250);
+        return;
+      }
+      FT.compare.reset();
+      FT.compare.createBaseSnapshot();
+      FT.compare.addOption({ id: "rule", kind: "RULE", label: "A · Rule curve" });
+      FT.compare.addOption({ id: "mpc", kind: "MPC", label: "B · MPC" });
+      const pkg = FT.ops.package(FT.hydro.at(FT.state.timeH));
+      const pair = pkg && pkg.alternatives && pkg.alternatives.find((option) => option.key === "pair");
+      if (pair && pair.selection) FT.compare.addOption({ id: "joint", kind: "JOINT_SCHEDULE", label: `C · ${pair.label}`, selection: pair.selection });
+    }
+
+    function renderCompare() {
+      const state = FT.compare.state;
+      const gauge = FT.data.GAUGES.find((item) => item.id === state.gaugeId);
+      live.textContent = state.status === "STALE"
+        ? `Kết quả đã cũ · ${state.staleReason || "ngữ cảnh đã đổi"}`
+        : `${FT.i18n.t(FT.data.SCENARIOS[state.baseScenarioId]?.key || "scenario.label")} · T${state.validTime == null ? "—" : state.validTime.toFixed(1)}h · ${gauge ? gauge.name : "—"}${state.optionOrder.length === 1 ? " · chưa phải so sánh" : ""}`;
+      rail.replaceChildren();
+      state.optionOrder.forEach((id) => {
+        const option = state.options[id];
+        const card = el("button", `compareOption ${option.status.toLowerCase()}`);
+        card.type = "button";
+        card.dataset.option = id;
+        card.setAttribute("role", "option");
+        card.setAttribute("aria-selected", String(state.selectedOptionId === id));
+        const title = el("strong", "compareOptionTitle"); title.textContent = option.label || id;
+        const peak = el("span", "compareMetric"); peak.textContent = `Đỉnh ${option.result.peakM.toFixed(2)} m · T${option.result.peakTimeH.toFixed(1)}h`;
+        const risk = el("span", "compareMetric"); risk.textContent = `P(dưới BĐ3) ${Math.round(option.result.residualRisk.pBelowAl3 * 100)}% · tin cậy ${option.result.confidence}`;
+        const exposure = el("span", "compareMetric muted"); exposure.textContent = option.result.exposure.value == null ? `Phơi nhiễm: chưa được tính · ${option.result.exposure.reason}` : `Phơi nhiễm ${option.result.exposure.value}`;
+        card.appendChild(title); card.appendChild(peak); card.appendChild(risk); card.appendChild(exposure);
+        if (option.result.binding) {
+          const binding = el("span", "compareBinding");
+          binding.textContent = `${option.result.binding.id} · ${option.result.binding.label} · ${gauge ? gauge.name : option.result.gaugeId}`;
+          card.appendChild(binding);
+        }
+        card.addEventListener("click", () => { FT.compare.selectOption(id); renderCompare(); });
+        rail.appendChild(card);
+      });
+
+      const selected = state.options[state.selectedOptionId];
+      const exportable = !!selected && selected.status === "READY" && selected.result.feasible && state.status !== "STALE";
+      exportBtn.disabled = !exportable;
+      exportBtn.onclick = () => {
+        const result = FT.compare.exportRecommendation(state.selectedOptionId);
+        if (!result.ok) { FT.notify("Phương án chưa đủ điều kiện đưa vào Gói quyết định", "warn"); return; }
+        panels.decision && panels.decision.show("expanded");
+        FT.notify(FT.lifecycle.reviewNotice(result.lifecycleClass), "info");
+      };
+
+      const derived = FT.compare.deriveDelta(state.leftDeltaOptionId, state.rightDeltaOptionId);
+      if (!derived || fp.mode === "hidden") { delta.hidden = true; return; }
+      const left = state.options[derived.leftId], right = state.options[derived.rightId];
+      delta.hidden = false;
+      delta.dataset.gauge = derived.bindingGaugeId;
+      delta.replaceChildren();
+      const label = el("small", "compareDeltaLabel"); label.textContent = `${gauge ? gauge.name : derived.bindingGaugeId} · ${left.label} → ${right.label}`;
+      const value = el("strong", "compareDeltaValue"); value.textContent = `${derived.peakDeltaM >= 0 ? "+" : ""}${derived.peakDeltaM.toFixed(2)} m`;
+      const notice = el("span", "compareDeltaNotice"); notice.textContent = "MÔ PHỎNG · Không phải lệnh vận hành";
+      delta.appendChild(label); delta.appendChild(value); delta.appendChild(notice);
+    }
+
+    FT.compare.open = () => { if (fp.mode === "hidden") toggle(); else renderCompare(); };
+    FT.compare.close = () => { if (fp.mode !== "hidden") toggle(); };
+    FT.bus.on("compareChanged", renderCompare);
+    FT.bus.on("lang", renderCompare);
   }
 
   /* ---------- Floating view control (3D/2D + camera presets) ---------- */

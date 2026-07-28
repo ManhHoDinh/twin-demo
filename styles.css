@@ -848,6 +848,54 @@ canvas { display: block; }
   .toasts > * { font-size: 12px; }
 }
 
+/* ---- Scenario Comparison: one map, shared clock/gauge, option rail ---- */
+.geoCompare {
+  left: 62px; top: 150px; width: min(390px, calc(100vw - 86px)); z-index: 53;
+  max-height: calc(100vh - 150px - 26px - var(--geoTimelineH, 191px) - 10px);
+}
+.geoCompare .gfBody {
+  max-height: calc(100vh - 202px - 26px - var(--geoTimelineH, 191px) - 10px);
+  overflow: auto;
+}
+.compareStatus { margin: 0 0 9px; color: var(--ink-2); font-size: 11px; }
+.compareOptions { display: grid; gap: 8px; }
+.compareOption {
+  display: grid; gap: 4px; width: 100%; min-height: 58px; padding: 9px 10px; text-align: left;
+  border: 1px solid var(--line-strong); border-radius: 10px; background: rgba(7,19,32,.72); color: var(--ink-0);
+}
+.compareOption[aria-selected="true"] { border-color: var(--cyan); box-shadow: 0 0 0 2px rgba(89,227,216,.14); }
+.compareOption.infeasible { border-color: rgba(255,109,94,.75); }
+.compareOptionTitle { font-size: 12px; }
+.compareMetric { font-size: 10.5px; color: var(--ink-1); }
+.compareMetric.muted { color: var(--ink-2); }
+.compareBinding { font-size: 10px; color: var(--danger); }
+.compareExport { width: 100%; min-height: 40px; margin-top: 10px; }
+.compareExport:disabled { opacity: .5; cursor: not-allowed; }
+.compareDelta {
+  position: fixed; left: 464px; top: 150px; z-index: 44; display: grid; gap: 3px; width: min(330px, calc(100vw - 92px));
+  padding: 10px 12px; border: 1px solid var(--line-strong); border-radius: 11px;
+  background: rgba(7,19,32,.9); box-shadow: var(--shadow); backdrop-filter: blur(12px);
+}
+.compareDelta[hidden] { display: none; }
+.compareDeltaLabel { color: var(--ink-2); }
+.compareDeltaValue { color: var(--cyan); font-family: var(--mono); font-size: 23px; }
+.compareDeltaNotice { color: var(--warn); font-size: 10px; text-transform: uppercase; letter-spacing: .5px; }
+@media (max-width: 900px) {
+  .geoCompare {
+    left: 8px !important; right: 8px !important; top: auto !important; bottom: 88px !important;
+    width: auto !important; max-height: 58vh; border-radius: 16px 16px 8px 8px;
+  }
+  .geoCompare .gfBody { max-height: calc(58vh - 50px); overscroll-behavior: contain; }
+  .geoCompare .gfBtn { min-width: 40px; min-height: 40px; }
+  .compareOption { min-height: 48px; }
+  .compareDelta { left: 8px; right: 8px; top: 106px; width: auto; }
+}
+@media (max-width: 600px) {
+  .geoCompare { bottom: 344px !important; max-height: 34vh; }
+  .geoCompare .gfBody { max-height: calc(34vh - 50px); }
+}
+@media (prefers-reduced-motion: reduce) { .geoCompare, .compareDelta { transition: none; animation: none; } }
+
 
 /* SkyLabs links in status bar (added with SURF 2026 site package) */
 .statusbar .footLink { color: var(--ink-1); text-decoration: none; border-bottom: 1px dotted var(--line-strong); }

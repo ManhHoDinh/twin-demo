@@ -32,7 +32,16 @@ Hydrology provides inflow; GIS and governed plant records provide geometry; Hydr
 
 ## Accepted alternatives and recommended method
 
-Accepted forms include level-pool routing, explicit/implicit continuity with tabulated curves, structure-resolved routing and coupled cascade optimization/simulation. Recommend a structure-resolved continuity model with monotone interpolated curves; add optimization only after legal/operational constraints and human authority are governed. No universal symmetric-gate assumption or universal N-1 operability claim is accepted.
+| Method | Advantages | Principal limitations | Computational cost | Implementation complexity | Suitable use cases |
+|---|---|---|---|---|---|
+| Level-pool routing | Transparent storage continuity with few states and straightforward mass-balance verification | Assumes a level pool and aggregates structure behavior unless outlets are added explicitly | Low | Low | Single reservoirs and baseline flood-routing studies with governed storage curves |
+| Structure-resolved continuity routing | Preserves storage balance while representing spillways, gates, turbines and tailwater regimes | Requires verified geometry, rating relationships and regime transitions | Low to medium | Medium to high | Operational simulation where release feasibility and structure attribution matter |
+| Rule-curve simulation | Directly represents approved operating logic and is easy to audit against procedures | Cannot discover better alternatives and is only as valid as the encoded rule version | Low | Medium | Compliance checking, historical replay and counterfactual baselines |
+| Deterministic constrained optimization | Produces feasible schedules against explicit bounds and objectives | Sensitive to forecast error, objective design and nonlinear/nonconvex structure behavior | Medium | High | Advisory planning when one accepted forecast trajectory and governed constraints are available |
+| Robust optimization | Protects against a declared uncertainty set and exposes worst-case trade-offs | Can be conservative; uncertainty-set design requires review | Medium to high | High | Safety-focused cascade planning with bounded but not probabilistically calibrated uncertainty |
+| Stochastic or ensemble optimization | Represents scenario probabilities and consequence distributions explicitly | Scenario count, probability calibration and compute grow quickly | High | Very high | Multi-reservoir advisory planning with calibrated ensembles and sufficient decision time |
+
+Recommend a structure-resolved continuity model with monotone interpolated curves; add optimization only after legal/operational constraints and human authority are governed. No universal symmetric-gate assumption or universal N-1 operability claim is accepted.
 
 ## Governing equations and implementation form
 

@@ -25,6 +25,7 @@ const REQUIRED_FILES = [
   '16-performance-targets.md',
   '17-engineering-risks-and-open-questions.md',
   '18-requirement-traceability.md',
+  '19-survey-grade-twin-feasibility.md',
 ];
 
 const ENGINES = [
@@ -81,6 +82,76 @@ const SPECIALIZED_CONTRACTS = [
   '06-reservoir-model.md',
   '07-river-network-model.md',
   '13-decision-engine.md',
+];
+const METHOD_COMPARISON_DOCS = [
+  '04-hydrology-model.md',
+  '05-hydraulic-model.md',
+  '06-reservoir-model.md',
+  '07-river-network-model.md',
+  '09-gis-architecture.md',
+  '13-decision-engine.md',
+];
+const METHOD_COMPARISON_FIELDS = [
+  'method',
+  'advantages',
+  'principal limitations',
+  'computational cost',
+  'implementation complexity',
+  'suitable use cases',
+];
+const TWIN_OBJECT_FIELDS = [
+  'identity',
+  'geometry',
+  'elevation',
+  'physical properties',
+  'state',
+  'history',
+  'prediction',
+  'relationships',
+  'events',
+];
+const BRIEF_OBJECTS = [
+  'terrain',
+  'river',
+  'reservoir',
+  'dam',
+  'spillway',
+  'gate',
+  'catchment',
+  'rain cell',
+  'forecast',
+  'radar',
+  'satellite',
+  'sensor',
+  'population',
+  'infrastructure',
+  'shelter',
+  'hospital',
+  'bridge',
+  'road',
+  'power station',
+];
+const DATASET_FIELDS = [
+  'source',
+  'owner',
+  'resolution',
+  'temporal frequency',
+  'validation',
+  'confidence',
+  'fallback',
+  'transformation',
+];
+const SOURCE_BRIEF_TRACE_IDS = [
+  'BR-PLATFORM-01',
+  'BR-OBJECT-01',
+  'BR-OBJECT-02',
+  'BR-COMPARE-01',
+  'BR-TERRAIN-01',
+  'BR-WATER-01',
+  'BR-DATASET-01',
+  'BR-LAYER-01',
+  'BR-ASSURE-01',
+  'BR-CONSISTENCY-01',
 ];
 
 const errors = [];
@@ -656,6 +727,26 @@ function verifyDocumentation() {
       if (!new RegExp(`\\b${provenance}\\b`).test(corpus)) report(`missing provenance value ${provenance}`);
     }
 
+    const indexFile = path.join(ENGINEERING_DIR, 'README.md');
+    const indexTargets = new Set(localLinks(documents.get('README.md')).flatMap((target) => {
+      const resolved = resolveLocalLink(indexFile, target);
+      return resolved.error ? [] : [path.basename(resolved.targetFile)];
+    }));
+    for (const name of REQUIRED_FILES.filter((file) => file !== 'README.md')) {
+      if (!indexTargets.has(name)) report(`README.md: missing cross-reference to ${name}`);
+    }
+
+    const docsIndexFile = path.join(ROOT, 'docs', 'README.md');
+    const docsIndexMarkdown = fs.readFileSync(docsIndexFile, 'utf8');
+    const docsIndexTargets = new Set(localLinks(docsIndexMarkdown).flatMap((target) => {
+      const resolved = resolveLocalLink(docsIndexFile, target);
+      return resolved.error ? [] : [path.relative(path.join(ROOT, 'docs'), resolved.targetFile)];
+    }));
+    for (const name of REQUIRED_FILES) {
+      const expected = path.join('07-engineering', name);
+      if (!docsIndexTargets.has(expected)) report(`docs/README.md: missing cross-reference to ${expected}`);
+    }
+
     const catalog = documents.get('03-engine-contract-catalog.md');
     for (let index = 0; index < ENGINES.length; index += 1) {
       const engine = ENGINES[index];
@@ -667,11 +758,44 @@ function verifyDocumentation() {
       }
     }
     for (const name of SPECIALIZED_CONTRACTS) validateContract(documents.get(name), name);
+    for (const name of METHOD_COMPARISON_DOCS) {
+      const hasComparison = parseTable(documents.get(name)).some(({ header }) => {
+        const fields = tableCells(header).map(normalize);
+        return METHOD_COMPARISON_FIELDS.every((field) => fields.includes(field));
+      });
+      if (!hasComparison) {
+        report(`${name}: missing complete method comparison table (${METHOD_COMPARISON_FIELDS.join(', ')})`);
+      }
+    }
+
+    const entityModel = fs.readFileSync(path.join(ROOT, 'docs', '01-domain-model', '01-entity-model.md'), 'utf8');
+    const twinObjectFields = new Set(parseTable(entityModel)
+      .filter(({ header }) => tableCells(header).map(normalize).includes('twin object field'))
+      .flatMap(({ rows }) => rows.map((row) => normalize(tableCells(row)[0] ?? ''))));
+    for (const field of TWIN_OBJECT_FIELDS) {
+      if (!twinObjectFields.has(field)) report(`01-entity-model.md: missing universal twin-object field ${field}`);
+    }
+    const mappedBriefObjects = new Set(parseTable(entityModel)
+      .filter(({ header }) => tableCells(header).map(normalize).includes('brief object'))
+      .flatMap(({ rows }) => rows.map((row) => normalize(tableCells(row)[0] ?? ''))));
+    for (const object of BRIEF_OBJECTS) {
+      if (!mappedBriefObjects.has(object)) report(`01-entity-model.md: missing brief object mapping for ${object}`);
+    }
+    const datasetFields = new Set(parseTable(documents.get('08-data-pipeline.md'))
+      .filter(({ header }) => tableCells(header).map(normalize).includes('dataset field'))
+      .flatMap(({ rows }) => rows.map((row) => normalize(tableCells(row)[0] ?? ''))));
+    for (const field of DATASET_FIELDS) {
+      if (!datasetFields.has(field)) report(`08-data-pipeline.md: missing dataset contract field ${field}`);
+    }
 
     const traceability = documents.get('18-requirement-traceability.md');
     const traceabilityTables = parseTable(traceability).filter(({ header }) => /requirement/i.test(header));
     const traceabilityRows = traceabilityTables.flatMap(({ rows }) => rows).filter((row) => !/^\s*\|?\s*$/.test(row));
     if (!traceabilityRows.length) report('18-requirement-traceability.md: no requirement traceability rows');
+    const traceabilityIds = new Set(traceabilityRows.map((row) => tableCells(row)[0]));
+    for (const id of SOURCE_BRIEF_TRACE_IDS) {
+      if (!traceabilityIds.has(id)) report(`18-requirement-traceability.md: missing source-brief requirement ${id}`);
+    }
     const traceabilityFile = path.join(ENGINEERING_DIR, '18-requirement-traceability.md');
     for (const table of traceabilityTables) {
       for (const row of table.rows) {

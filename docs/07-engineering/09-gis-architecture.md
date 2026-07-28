@@ -32,6 +32,15 @@ Data Pipeline supplies governed source versions; GIS supplies spatial products t
 
 ## Accepted alternatives and recommended method
 
+| Method | Advantages | Principal limitations | Computational cost | Implementation complexity | Suitable use cases |
+|---|---|---|---|---|---|
+| Global/open DEM raster | Broad coverage, low acquisition cost and reproducible basin-scale baseline | Vertical error, vegetation/buildings and absent bathymetry limit local hydraulic use | Low | Low | Basin orientation, catchment screening and low-fidelity terrain context |
+| Airborne LiDAR bare-earth DTM | High point density and defensible local terrain accuracy with independent checkpoints | Acquisition/licensing cost, classification effort and no reliable bed return through turbid water | High preprocessing; moderate query | High | Urban micro-topography, levees and floodplain detail in surveyed windows |
+| Surveyed cross-sections and bathymetry | Directly constrains channel conveyance and submerged geometry | Sparse between sections, field-access cost and survey-date dependence | Low to medium preprocessing | High field and QA complexity | 1D channels, 1D/2D coupling and reservoir/river beds |
+| Photogrammetric DSM/mesh | Rapid surface capture and useful visual/asset geometry | Vegetation/building surface is not a bare-earth DTM; water and occlusion create gaps | High preprocessing | High | Rendering, change detection and exposed terrain where ground classification is supportable |
+| Hydrologically conditioned raster analysis | Efficient slope, aspect, flow direction, accumulation, watershed and network extraction | Results depend on DEM error and conditioning choices; culverts/bridges require explicit treatment | Medium | Medium | Catchment delineation, drainage screening and mesh preparation |
+| Constrained TIN or variable-resolution solver mesh | Preserves breaklines/structures and concentrates cells where decisions need detail | Mesh generation, quality control and reproducibility are more demanding than a uniform raster | Medium to high | High | Hydraulic solvers, complex boundaries and multiresolution terrain delivery |
+
 Use native rasters/vectors for archival authority, COG/tiles for scalable access, spatial databases/indexes for query, and purpose-built solver/render meshes. Recommend explicit per-dataset horizontal CRS plus vertical datum, transformation pipelines with known grid/version, and separate DEM, bathymetry and display-terrain products.
 
 ## Governing equations and implementation form

@@ -1005,6 +1005,89 @@ async function hydrology(browser) {
 }
 
 /* ==========================================================================
+   UX-1 / SC-4 / SC-8 · Scenario Comparison and Recovery
+   ========================================================================== */
+async function scenarioComparison(browser) {
+  step('UX-1 · Scenario Comparison, joint attribution, Recovery');
+  const { ctx, page, errors } = await bootApp(browser, BASE);
+  usePage(page);
+
+  await check('two to four options share one map clock and control gauge', async (d) => {
+    await page.keyboard.press('c');
+    await page.waitForTimeout(180);
+    const r = await page.evaluate(() => {
+      const state = FT.compare.state;
+      const options = state.optionOrder.map((id) => state.options[id]);
+      return {
+        count: options.length,
+        sameClock: options.every((option) => option.result.validTime === state.validTime),
+        sameGauge: options.every((option) => option.result.gaugeId === state.gaugeId),
+        panel: !!document.querySelector('[data-panel="compare"] [role="listbox"]'),
+      };
+    });
+    d(r);
+    return r.count >= 2 && r.count <= 4 && r.sameClock && r.sameGauge && r.panel;
+  });
+
+  await check('joint schedule names the combined peak and binding gauge', async (d) => {
+    const r = await page.evaluate(() => {
+      const joint = Object.values(FT.compare.state.options).find((option) => option.kind === 'JOINT_SCHEDULE');
+      return joint ? joint.result.attribution : null;
+    });
+    d(r);
+    return !!r && r.reservoirIds.length >= 2 && Number.isFinite(r.combinedPeakM) && Number.isFinite(r.combinedPeakTimeH) && !!r.bindingGaugeId;
+  });
+
+  await check('changing the viewed option leaves policy and approval unchanged', async (d) => {
+    const r = await page.evaluate(() => {
+      const before = { policy: FT.state.policy, approved: FT.state.mpcApproved };
+      document.querySelector('[data-panel="compare"] [data-option="mpc"]').click();
+      return { before, policy: FT.state.policy, approved: FT.state.mpcApproved, viewKey: FT.compare.viewKey() };
+    });
+    d(r);
+    return r.viewKey === 'mpc' && r.policy === r.before.policy && r.approved === r.before.approved;
+  });
+
+  await check('an infeasible option stays visible with its binding constraint and cannot export', async (d) => {
+    const r = await page.evaluate(() => {
+      const option = Object.values(FT.compare.state.options).find((item) => item.status === 'INFEASIBLE');
+      return option ? {
+        visible: !!document.querySelector(`[data-panel="compare"] [data-option="${option.id}"]`),
+        binding: option.result.binding && option.result.binding.id,
+        gauge: option.result.gaugeId,
+        exported: FT.compare.exportRecommendation(option.id).ok,
+      } : null;
+    });
+    d(r);
+    return !!r && r.visible && !!r.binding && !!r.gauge && !r.exported;
+  });
+
+  await check('Recovery is directly selectable at a derived descending-limb time', async (d) => {
+    const r = await page.evaluate(() => {
+      const select = document.getElementById('scenarioSelect');
+      select.value = 'recovery'; select.dispatchEvent(new Event('change'));
+      return {
+        scenario: FT.state.scenario,
+        timeH: FT.state.timeH,
+        derived: FT.hydro.recoveryStart('recovery'),
+        playing: FT.state.playing,
+        illegal: FT.domain.illegalTransitions().length,
+      };
+    });
+    d(r);
+    return r.scenario === 'recovery' && Number.isFinite(r.derived) && r.timeH === r.derived && !r.playing && r.illegal === 0;
+  });
+
+  await check('comparison interaction introduces no application errors', (d) => {
+    const app = errors.filter((error) => !/overpass|arcgisonline|elevation-tiles-prod|jsdelivr|unpkg|cdn\./i.test(error));
+    d(app);
+    return app.length === 0;
+  });
+
+  await ctx.close();
+}
+
+/* ==========================================================================
    Cross-cutting: i18n, keyboard, resilience
    ========================================================================== */
 async function crossCutting(browser) {
@@ -1093,7 +1176,7 @@ async function scenarioMatrix(browser) {
   const { ctx, page } = await bootApp(browser, BASE);
   usePage(page);
 
-  for (const scenario of ['oct2020', 'yagi', 'monsoon']) {
+  for (const scenario of ['oct2020', 'yagi', 'monsoon', 'recovery']) {
     for (const policy of ['rule', 'mpc']) {
       await check(`${scenario} × ${policy} runs the full event without error`, async (d) => {
         const r = await page.evaluate(async ({ s, p }) => {
@@ -1151,6 +1234,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     await reports(browser);
     await hydrology(browser);
     await mapAndViews(browser);
+    await scenarioComparison(browser);
     if (!QUICK) {
       await crossCutting(browser);
       await scenarioMatrix(browser);

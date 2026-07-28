@@ -32,7 +32,16 @@ GIS and governed domain records define geometry/identity; Hydrology and Reservoi
 
 ## Accepted alternatives and recommended method
 
-Use pure lag for screened demonstrations, Muskingum/Muskingum-Cunge for reviewed reach routing, hydraulic routing where backwater/stage controls matter, and explicit transfer/control rules for diversions. Recommend a typed directed multigraph with routing chosen per reach and coupled hydraulic treatment for stage-dependent bifurcations. Static percentages are not acceptable where the split is stage/structure dependent.
+| Method | Advantages | Principal limitations | Computational cost | Implementation complexity | Suitable use cases |
+|---|---|---|---|---|---|
+| Pure travel-time lag | Minimal data and compute; easy to inspect and replay | No attenuation, storage, backwater or magnitude-dependent travel time unless added empirically | Very low | Low | Demonstrations and first-pass timing screens |
+| Muskingum routing | Parsimonious attenuation and translation with established event calibration | Parameters can be event-dependent and weakly tied to geometry | Low | Low to medium | Reaches with observed inflow/outflow hydrographs but limited geometry |
+| Muskingum-Cunge routing | Connects routing coefficients to reach geometry, slope and discharge | Limited backwater, complex junction and floodplain behavior | Low | Medium | Reviewed channel networks where geometric routing is adequate |
+| Kinematic or diffusive-wave network routing | Represents spatially varying stage/flow with more physical structure | Omits some inertia or multidimensional effects depending on formulation | Medium | Medium to high | Long river networks without dominant dynamic-wave or floodplain interactions |
+| Full hydraulic network coupling | Resolves backwater, structures, junctions and stage-dependent bifurcations | Requires surveyed geometry, stable boundary treatment and stronger calibration | Medium to high | High | Low-gradient rivers, diversions and confluences where stage controls the split |
+| Explicit controlled-transfer rules | Auditable representation of canals, diversions and operator-controlled links | Rules/capacities are site-specific and cannot substitute for missing hydraulic evidence | Low | Medium | Governed inter-basin transfers and reservoir diversion paths |
+
+Recommend a typed directed multigraph with routing chosen per reach and coupled hydraulic treatment for stage-dependent bifurcations. Static percentages are not acceptable where the split is stage/structure dependent.
 
 ## Governing equations and implementation form
 

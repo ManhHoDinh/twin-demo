@@ -899,6 +899,13 @@
       FT.state.mpcApproved = false;
       el.mpcCard.classList.remove("approved");
       H.rebuild();
+      const recoveryStart = H.recoveryStart(FT.state.scenario);
+      if (Number.isFinite(recoveryStart)) {
+        FT.state.timeH = recoveryStart;
+        FT.state.playing = false;
+        FT.bus.emit("scrubbed");
+      }
+      if (FT.compare) FT.compare.reset();
       refreshMpc();
       FT.notify(`${FT.i18n.t("toast.scenario")}: ${FT.i18n.t(D.SCENARIOS[FT.state.scenario].key)}`, "info");
     });

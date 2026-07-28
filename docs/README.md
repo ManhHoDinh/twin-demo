@@ -108,6 +108,22 @@ This workspace is the single source of truth for *what the product knows*, *what
 | [01-scientific-architecture.md](07-engineering/01-scientific-architecture.md) | One-way scientific state flow, evidence hierarchy, model selection and production claim gates |
 | [02-simulation-architecture.md](07-engineering/02-simulation-architecture.md) | Twelve-engine DAG, clocks, coupling, replay, checkpoints and failure isolation |
 | [03-engine-contract-catalog.md](07-engineering/03-engine-contract-catalog.md) | Uniform contracts and dependency matrix for all twelve engines |
+| [04-hydrology-model.md](07-engineering/04-hydrology-model.md) | Rainfall-runoff alternatives, production recommendation, calibration and verification contract |
+| [05-hydraulic-model.md](07-engineering/05-hydraulic-model.md) | Routing and 1D/2D hydraulic alternatives, numerics, wet/dry behavior and validation contract |
+| [06-reservoir-model.md](07-engineering/06-reservoir-model.md) | Storage, structures, gate constraints, operating authority and cascade exchanges |
+| [07-river-network-model.md](07-engineering/07-river-network-model.md) | Directed reaches, junctions, diversions, routing and release propagation |
+| [08-data-pipeline.md](07-engineering/08-data-pipeline.md) | Source registry, QC, normalization, lineage, versioning and degraded behavior |
+| [09-gis-architecture.md](07-engineering/09-gis-architecture.md) | CRS/datum control, terrain, bathymetry, spatial assets, indexes and mesh products |
+| [10-3d-rendering-pipeline.md](07-engineering/10-3d-rendering-pipeline.md) | Typed physical-state-to-GPU projection and honest missing-value behavior |
+| [11-lod-and-gpu-optimisation.md](07-engineering/11-lod-and-gpu-optimisation.md) | LOD, streaming, resource budgets and scientific-fidelity invariants |
+| [12-visualisation-and-animation-rules.md](07-engineering/12-visualisation-and-animation-rules.md) | Measurable visual mappings, accessibility and non-physical cue restrictions |
+| [13-decision-engine.md](07-engineering/13-decision-engine.md) | Feasible alternatives, uncertainty, human authority, AI boundaries and decision records |
+| [14-calibration-and-validation.md](07-engineering/14-calibration-and-validation.md) | Calibration data, split-sample validation, metrics, thresholds and review gates |
+| [15-verification-strategy.md](07-engineering/15-verification-strategy.md) | Unit, equation, conservation, convergence, integration, UI and independent-review proof |
+| [16-performance-targets.md](07-engineering/16-performance-targets.md) | Measurable cadence, latency, capacity, rendering and safe-degradation targets |
+| [17-engineering-risks-and-open-questions.md](07-engineering/17-engineering-risks-and-open-questions.md) | Ranked claim blockers, evidence needs, owners and domain-review dependencies |
+| [18-requirement-traceability.md](07-engineering/18-requirement-traceability.md) | Atomic brief-to-document/public/app/evidence status ledger |
+| [19-survey-grade-twin-feasibility.md](07-engineering/19-survey-grade-twin-feasibility.md) | Survey-grade data and solver feasibility, evidence boundaries and phased implementation path |
 
 Foundational equations and scientific facts remain authoritative in [00 — Foundations](#00-foundations-domain-expertise). Engineering documents define implementation boundaries and evidence obligations; they do not replace foundation authority.
 
@@ -116,6 +132,7 @@ Foundational equations and scientific facts remain authoritative in [00 — Foun
 |---|---|
 | [demo-gap-analysis.md](99-appendix/demo-gap-analysis.md) | Current `FloodTwin_Q1_Demo` vs this specification |
 | [document-conventions.md](99-appendix/document-conventions.md) | Writing rules, ID schemes, review process |
+| [scientific-platform-source-brief.md](99-appendix/scientific-platform-source-brief.md) | Durable normalization of the user-provided scientific-platform scope and its extra coverage obligations |
 
 ---
 

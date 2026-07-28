@@ -4,8 +4,8 @@
 |---|---|
 | Document ID | ENG-INDEX |
 | Owner | Scientific engineering lead |
-| Status | PLANNED |
-| Current demo | Deterministic browser demonstration with external map rasters and synthetic scientific forcing |
+| Status | IMPLEMENTED |
+| Current demo | Complete cross-referenced engineering handbook for the deterministic browser twin; implemented demo behavior remains synthetic and non-operational unless explicitly evidenced otherwise |
 | Production target | Reviewed, calibrated, validated, versioned scientific digital twin |
 | Domain review | Hydrology, hydraulics, reservoir, meteorology, GIS, dam safety, emergency management |
 | Authoritative dependencies | [Foundations](../00-foundations/01-glossary.md), [domain model](../01-domain-model/01-entity-model.md), [decision support](../04-decision-support/01-decision-engine-spec.md), [demo evidence](../../DATA_AND_METHODS.md) |
@@ -53,6 +53,9 @@ foundations + domain model + decision support
                                |
                                v
                        14..18 assurance/control
+                              |
+                              v
+                       19 feasibility path
 ```
 
 No engineering page may reverse this authority direction. Rendering and interaction are downstream projections of normalized state.
@@ -66,8 +69,9 @@ No engineering page may reverse this authority direction. Rendering and interact
 | Software or data engineer | [Simulation architecture](02-simulation-architecture.md) -> [Engine contracts](03-engine-contract-catalog.md) -> `08-data-pipeline.md` / `09-gis-architecture.md` |
 | Product, UX or visualization engineer | [Scientific architecture](01-scientific-architecture.md#separation-of-state-and-projection) -> [Visualization contract](03-engine-contract-catalog.md#visualization-engine) -> `10-3d-rendering-pipeline.md` / `12-visualisation-and-animation-rules.md` |
 | Assurance reviewer | `14-calibration-and-validation.md` -> `15-verification-strategy.md` -> `17-engineering-risks-and-open-questions.md` -> `18-requirement-traceability.md` |
+| Programme sponsor or survey/data owner | [Engineering risks](17-engineering-risks-and-open-questions.md) -> [Survey-grade feasibility](19-survey-grade-twin-feasibility.md) -> [Calibration and validation](14-calibration-and-validation.md) |
 
-Future documents are shown as inline code until they exist so this index never creates a broken link.
+Every document is linked below so the verifier can prove the handbook has no orphaned engineering page.
 
 ## Twelve-engine map
 
@@ -88,23 +92,23 @@ See the [allowed dependency edges](03-engine-contract-catalog.md#allowed-depende
 | [01](01-scientific-architecture.md) | Scientific architecture | `REFERENCE MODEL` |
 | [02](02-simulation-architecture.md) | Simulation architecture | `REFERENCE MODEL` |
 | [03](03-engine-contract-catalog.md) | Twelve-engine contract catalog | `REFERENCE MODEL` |
-| `04-hydrology-model.md` | Hydrology model | Not yet created |
-| `05-hydraulic-model.md` | Hydraulic model | Not yet created |
-| `06-reservoir-model.md` | Reservoir model | Not yet created |
-| `07-river-network-model.md` | River network model | Not yet created |
-| `08-data-pipeline.md` | Data pipeline | Not yet created |
-| `09-gis-architecture.md` | GIS architecture | Not yet created |
-| `10-3d-rendering-pipeline.md` | 3D rendering pipeline | Not yet created |
-| `11-lod-and-gpu-optimisation.md` | LOD and GPU optimisation | Not yet created |
-| `12-visualisation-and-animation-rules.md` | Visualization and animation rules | Not yet created |
-| `13-decision-engine.md` | Decision engine | Not yet created |
-| `14-calibration-and-validation.md` | Calibration and validation | Not yet created |
-| `15-verification-strategy.md` | Verification strategy | Not yet created |
-| `16-performance-targets.md` | Performance targets | Not yet created |
-| `17-engineering-risks-and-open-questions.md` | Risks and open questions | Not yet created |
-| `18-requirement-traceability.md` | Requirement traceability | Not yet created |
-| `19-survey-grade-twin-feasibility.md` | **Survey-grade twin — feasibility and implementation path.** Answers the "0.1 m terrain / 0.01% water" request with numbers: what each figure means, which is achievable (mass conservation — shipped, measured), which is not (physical extent accuracy at 0.01%), data/compute cost per resolution, reference 2D-SWE architecture, calibration plan and P0–P6 build order. Closing R-01 is exactly this work. | Written |
+| [04](04-hydrology-model.md) | Hydrology model | `REFERENCE MODEL` |
+| [05](05-hydraulic-model.md) | Hydraulic model | `REFERENCE MODEL` |
+| [06](06-reservoir-model.md) | Reservoir model | `REQUIRES DOMAIN REVIEW` |
+| [07](07-river-network-model.md) | River network model | `REQUIRES DOMAIN REVIEW` |
+| [08](08-data-pipeline.md) | Data pipeline | `REFERENCE MODEL` |
+| [09](09-gis-architecture.md) | GIS architecture | `REFERENCE MODEL` |
+| [10](10-3d-rendering-pipeline.md) | 3D rendering pipeline | `REFERENCE MODEL` |
+| [11](11-lod-and-gpu-optimisation.md) | LOD and GPU optimisation | `PLANNED` |
+| [12](12-visualisation-and-animation-rules.md) | Visualization and animation rules | `REQUIRES DOMAIN REVIEW` |
+| [13](13-decision-engine.md) | Decision engine | `REFERENCE MODEL` |
+| [14](14-calibration-and-validation.md) | Calibration and validation | `REFERENCE MODEL` |
+| [15](15-verification-strategy.md) | Verification strategy | `REFERENCE MODEL` |
+| [16](16-performance-targets.md) | Performance targets | `PLANNED` |
+| [17](17-engineering-risks-and-open-questions.md) | Risks and open questions | `REQUIRES DOMAIN REVIEW` |
+| [18](18-requirement-traceability.md) | Requirement traceability | `IMPLEMENTED` |
+| [19](19-survey-grade-twin-feasibility.md) | Survey-grade feasibility and phased implementation path | `REFERENCE MODEL` |
 
 ## Next
 
-Continue with [Scientific architecture](01-scientific-architecture.md), [Simulation architecture](02-simulation-architecture.md), or the [Engine contract catalog](03-engine-contract-catalog.md).
+Continue with [Scientific architecture](01-scientific-architecture.md), [Simulation architecture](02-simulation-architecture.md), the [Engine contract catalog](03-engine-contract-catalog.md), or the [survey-grade implementation path](19-survey-grade-twin-feasibility.md).

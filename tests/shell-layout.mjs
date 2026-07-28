@@ -24,6 +24,7 @@ const SELS = [
   '.cmdBar', '.geoActions', '.geoOpsStrip', '.geoDock', '.geoViewCtl', '.geoModeRail',
   '.geoTimeline', '#waterBadge', '.aiLauncher',
   '[data-panel="decision"]', '[data-panel="inspector"]', '[data-panel="ai"]', '[data-panel="alerts"]',
+  '[data-panel="compare"]', '.compareDelta',
 ];
 const EARTH_SELS = ['.earthNav', '.earthLayerLabel', '#earthCameraStatus', '#earthPlaceSheet'];
 const EARTH_BLOCKERS = ['.cmdBar', '.geoOpsStrip', '.geoTimeline'];
@@ -134,6 +135,37 @@ try {
     ok(`${w}×${h} earth chrome: nothing off-screen`, earth.off.length === 0, earth.off.join(', '));
     ok(`${w}×${h} earth controls: targets ≥40px`, earth.controls.length === 5 && earth.controls.every((c) => c.w >= 40 && c.h >= 40), JSON.stringify(earth.controls));
 
+    // Compare is a bounded floating rail; it and its delta ribbon must stay on-screen.
+    await p.waitForFunction(() => window.FT.hydro && FT.hydro.ready &&
+      FT.data.GAUGES.every((gauge) => FT.hydro.gauge && FT.hydro.gauge[gauge.id]),
+    null, { timeout: 30000 });
+    await p.evaluate(() => window.FT.compare.open());
+    await p.waitForFunction(() => {
+      const ribbon = document.querySelector('.compareDelta');
+      const box = ribbon && ribbon.getBoundingClientRect();
+      return window.FT.compare.state.optionOrder.length >= 2 &&
+        ribbon && !ribbon.hidden && box.width > 0 && box.height > 0;
+    }, null, { timeout: 10000 });
+    const compareLayout = await p.evaluate(() => {
+      const panel = document.querySelector('[data-panel="compare"]');
+      const ribbon = document.querySelector('.compareDelta');
+      const timeline = document.querySelector('.geoTimeline');
+      const boxes = [panel, ribbon].filter(Boolean).map((node) => {
+        const r = node.getBoundingClientRect();
+        return { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
+      });
+      const rect = (node) => { const r = node.getBoundingClientRect(); return { left: r.left, top: r.top, right: r.right, bottom: r.bottom }; };
+      const overlaps = (a, b) => !(a.right <= b.left + 1 || b.right <= a.left + 1 || a.bottom <= b.top + 1 || b.bottom <= a.top + 1);
+      const panelBox = panel && rect(panel), ribbonBox = ribbon && rect(ribbon), timelineBox = timeline && rect(timeline);
+      return {
+        onScreen: boxes.length === 2 && boxes.every((r) => r.left >= -1 && r.top >= -1 && r.right <= innerWidth + 1 && r.bottom <= innerHeight + 1),
+        noOverflow: document.documentElement.scrollWidth <= innerWidth + 1,
+        separated: !!panelBox && !!ribbonBox && !!timelineBox && !overlaps(panelBox, ribbonBox) && !overlaps(panelBox, timelineBox),
+      };
+    });
+    ok(`${w}×${h} compare: panel and delta stay on-screen without covering the timeline`, compareLayout.onScreen && compareLayout.noOverflow && compareLayout.separated, JSON.stringify(compareLayout));
+    await p.evaluate(() => window.FT.compare.close()); await sleep(120);
+
     await p.close();
   }
 
@@ -160,6 +192,29 @@ try {
     ok(`${w}×${h} earth controls: targets ≥44px`, earth.controls.length === 5 && earth.controls.every((c) => c.w >= 44 && c.h >= 44), JSON.stringify(earth.controls));
     await p.close();
   }
+
+  const mobile = await b.newPage({ viewport: { width: 390, height: 844 } });
+  await mobile.goto(`http://127.0.0.1:${port}/`, { waitUntil: 'load' });
+  await sleep(2800);
+  await mobile.evaluate(() => window.FT.compare.open()); await sleep(250);
+  const mobileCompare = await mobile.evaluate(() => {
+    const panel = document.querySelector('[data-panel="compare"]');
+    const box = panel && panel.getBoundingClientRect();
+    const targets = panel ? [...panel.querySelectorAll('button')] : [];
+    const blockers = ['.geoViewCtl', '.geoTimeline'].map((selector) => document.querySelector(selector)).filter(Boolean);
+    const overlaps = box && blockers.some((node) => {
+      const r = node.getBoundingClientRect();
+      return box.left < r.right && box.right > r.left && box.top < r.bottom && box.bottom > r.top;
+    });
+    return {
+      onScreen: !!box && box.left >= -1 && box.top >= -1 && box.right <= innerWidth + 1 && box.bottom <= innerHeight + 1,
+      targets: targets.length > 0 && targets.every((target) => target.getBoundingClientRect().height >= 40),
+      noOverflow: document.documentElement.scrollWidth <= innerWidth + 1,
+      clearOfTimeline: overlaps === false,
+    };
+  });
+  ok('390×844 compare: bottom sheet is bounded, unobscured, with 40 px targets', mobileCompare.onScreen && mobileCompare.targets && mobileCompare.noOverflow && mobileCompare.clearOfTimeline, JSON.stringify(mobileCompare));
+  await mobile.close();
 
   // slop-word scan (placeholder junk, undefined/NaN leaks) at rest
   const p = await b.newPage({ viewport: { width: 1512, height: 945 } });

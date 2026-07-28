@@ -59,6 +59,22 @@
     },
   };
 
+  /* Recovery reuses an existing synthetic forcing. The descending-limb entry time is
+     derived by hydro.recoveryStart(), so this entry adds no operating threshold. */
+  SCENARIOS.recovery = {
+    ...SCENARIOS.oct2020,
+    key: "scenario.recovery",
+    kind: "recovery",
+    sourceScenario: "oct2020",
+    recoveryGaugeId: "aiNghia",
+    inputs: ["Existing synthetic post-peak forcing", "Existing reservoir and gauge state"],
+    assumptions: ["Synthetic planning scenario; not an observed event or issued forecast"],
+    simulation: ["Descending-limb replay using existing domain state machines"],
+    expectedImpacts: ["Falling alert posture", "Road reopening where the existing model supports it", "Persistent sealed decision record"],
+    confidence: ["Trajectory demonstration only; synthetic-build confidence remains LOW"],
+    limitations: ["No debris, restoration logistics, structural clearance, or calibrated damage/loss model"],
+  };
+
   /* ---------- reservoir cascade (REAL dam positions) ----------
      zDesign / zCheck / crest are INDICATIVE (provenance ASSUMED, see
      docs/00-foundations/09-typical-values.md §4 and docs/01-domain-model/01-entity-model.md E-07).

@@ -34,12 +34,13 @@ Weather and Data Pipeline provide forcing; GIS and River Network provide spatial
 
 ## Accepted alternatives and recommended method
 
-| Method | Appropriate use | Principal limitation |
-|---|---|---|
-| Unit hydrograph | Event response with defensible effective rainfall and response kernel | Limited continuous soil-memory representation |
-| Conceptual stores | Interpretable continuous/event balance with modest data | Equifinality and parameter identifiability |
-| HBV/GR4J-class | Production candidate when multi-event discharge and forcing support calibration/validation | Requires bounded calibration and transferability evidence |
-| Distributed/semi-distributed | Spatial decisions where terrain, rainfall and parameter fields justify detail | High data, compute and identifiability burden |
+| Method | Advantages | Principal limitations | Computational cost | Implementation complexity | Suitable use cases |
+|---|---|---|---|---|---|
+| Unit hydrograph | Transparent, causal event transform with modest data and easy volume checks | Limited continuous soil-memory and transferability outside the derived response regime | Low | Low | Event forecasting where effective rainfall and a defensible response kernel exist |
+| Conceptual store model | Interpretable water balance, antecedent state and continuous operation with few states | Equifinality and parameter identifiability; spatial behavior is aggregated | Low to medium | Medium | Operational catchment forecasting with multi-event rainfall and discharge records |
+| HBV/GR4J-class conceptual model | Mature parsimonious structures, established calibration practice and strong baseline value | Requires bounded calibration; regional transfer and nonstationarity need evidence | Low to medium | Medium | Production baseline when continuous forcing and multiple independent events are available |
+| Semi-distributed model | Represents subcatchment forcing and response differences while retaining interpretable routing | More parameters, spatial data and calibration burden; false spatial precision is possible | Medium | Medium to high | Basins where rainfall gradients, tributaries or reservoir inflows require separate response units |
+| Fully distributed model | Resolves spatial runoff generation and supports gridded coupling | High data, compute and identifiability burden; detail can exceed observation support | High | High | Research or operational cases where dense forcing, terrain/soil data and spatial validation justify the resolution |
 
 Recommended production method is conditional: begin with the least complex conceptual or HBV/GR4J-class model that meets predeclared validation needs; adopt distributed structure only when spatial evidence and decisions require it. The current analytic heuristic is not to be relabeled as Nash, HBV or GR4J.
 

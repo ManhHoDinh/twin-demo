@@ -322,8 +322,8 @@
 
   /* ---------- snapshot at time t (interpolated) for renderers/UI ---------- */
   const snap = { rain: 0, gauges: {}, reservoirs: {}, phase: "phase.calm", basinAlert: 0 };
-  H.at = function (t) {
-    const pk = H._activeKey();
+  H.at = function (t, explicitKey) {
+    const pk = explicitKey || H._activeKey();
     snap.rain = sampleArr(H.rain, t);
     let maxAlert = 0, maxRise = 0;
     for (const g of D.GAUGES) {
@@ -365,6 +365,21 @@
   /* series accessor for charts: both policies available for comparison */
   H.series = function (gaugeId) { return H.gauge[gaugeId]; };
   H.reservoirSeries = function (resId) { return H.res[resId]; };
+
+  /* First strictly descending sample after the modeled peak. */
+  H.recoveryStart = function (scenarioId) {
+    const def = D.SCENARIOS[scenarioId];
+    if (!def || def.kind !== "recovery") return null;
+    const gauge = D.GAUGES.find((g) => g.id === (def.recoveryGaugeId || "aiNghia")) || D.GAUGES[0];
+    const series = H.gauge[gauge.id] && H.gauge[gauge.id].rule.med;
+    if (!series || series.length < 2) return null;
+    let peak = 0;
+    for (let i = 1; i < series.length; i++) if (series[i] > series[peak]) peak = i;
+    for (let i = peak + 1; i < series.length; i++) {
+      if (series[i] < series[i - 1] - 0.01) return H.T0 + i * H.DT;
+    }
+    return null;
+  };
 
   /* playback event surfaceing: fire log entries crossed between t0→t1 */
   H.emitEventsBetween = function (t0, t1) {

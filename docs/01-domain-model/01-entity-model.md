@@ -6,6 +6,50 @@ The world the product represents. One definition per entity, referenced everywhe
 
 ---
 
+## Universal twin-object contract
+
+Every domain entity implements this base contract. A field that is not physically applicable is retained as explicit `null`/empty state with a reason; it is not silently omitted. Large geometry, state, history and prediction arrays may be stored by immutable reference, but the object envelope keeps their identifiers, versions and validity.
+
+| Twin object field | Implementation contract |
+|---|---|
+| Identity | Stable `type`, `id`, basin/tenant scope, schema version and object version; aliases never replace the canonical ID |
+| Geometry | Geometry or `geometry_ref`, horizontal CRS, spatial support, accuracy/resolution and no-data semantics |
+| Elevation | Elevation/height support with units, vertical datum, accuracy and source; explicit `NOT_APPLICABLE` where the object has no elevation meaning |
+| Physical properties | Typed, unit-bearing parameters and bounds with source, provenance, effective period and review state |
+| State | Current accepted state plus valid/issue time, quality, provenance, uncertainty, model/source version and permitted use |
+| History | Append-only observation, state-transition and decision references sufficient for replay; corrections create new versions |
+| Prediction | Forecast/scenario state with horizon, issue/valid time, model/run ID, ensemble or uncertainty representation and skill reference |
+| Relationships | Typed references to other stable object IDs, including direction, role, validity period and relationship version |
+| Events | Typed immutable events with event ID, object ID, event/record time, cause/source, payload version and audit lineage |
+
+### Scientific-brief object mapping
+
+The brief uses product-language nouns while the canonical model sometimes uses a more specific entity or value object. This table removes ambiguity without creating duplicate concepts.
+
+| Brief object | Canonical entity or value object |
+|---|---|
+| Terrain | `E-00 TerrainSurface` |
+| River | `E-04 River` plus `E-05 RiverReach` |
+| Reservoir | `E-07 Reservoir` |
+| Dam | `E-08 Dam` |
+| Spillway | `E-09 Spillway` |
+| Gate | `E-10 Gate` |
+| Catchment | `E-01 Catchment` |
+| Rain Cell | Cell support within `E-02 RainfallField`, identified by `grid_ref + cell_id` |
+| Forecast | `E-03 Forecast` |
+| Radar | `E-16 RadarSite` plus versioned radar observations/products |
+| Satellite | `E-17 SatelliteProduct` |
+| Sensor | `E-13 Sensor` and its typed specializations |
+| Population | `E-22 PopulationCell` plus governed census/exposure versions |
+| Infrastructure | `E-27 CriticalInfrastructure` and its typed asset records |
+| Shelter | `E-30 Shelter` |
+| Hospital | `E-28 Hospital` |
+| Bridge | `E-26 Bridge` |
+| Road | `E-25 Road` |
+| Power Station | `E-11 PowerPlant` |
+
+---
+
 ## 0. Model overview
 
 ```
@@ -38,6 +82,10 @@ The world the product represents. One definition per entity, referenced everywhe
 ---
 
 ## 1. Hydrological domain
+
+### E-00 TerrainSurface
+
+`id`, `geometry_ref`, horizontal CRS, `elevation_ref`, vertical datum, resolution, accuracy report, no-data mask, source/provenance, acquisition/effective time, conditioning version, derived slope/aspect/flow-accumulation references, solver-mesh references and display-mesh references. DEM/DTM, bathymetry and render terrain remain separate versioned products; a render mesh cannot become solver authority by reuse.
 
 ### E-01 Catchment (`lưu vực`)
 | Field | Type | Notes |

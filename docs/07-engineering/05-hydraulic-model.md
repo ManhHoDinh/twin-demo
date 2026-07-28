@@ -32,14 +32,15 @@ GIS/Terrain, Hydrology, Reservoir, Weather and River Network feed Hydraulic; Hyd
 
 ## Accepted alternatives and recommended method
 
-| Method | Use | Limitation |
-|---|---|---|
-| Lag/route or virtual pipe | Workflow demonstration or screened travel-time approximation; a separate 2D height field may derive a wet extent | Does not solve validated hydraulic momentum or physical velocity; any derived extent needs independent calibration/validation |
-| Muskingum-Cunge | Reach routing where channel geometry/slope support parameterization | Limited backwater, structures and floodplain detail |
-| 1D diffusive wave | Gradually varied channel flow with modest inertia | Unsupported for regimes needing full momentum |
-| 1D full Saint-Venant | Channels, backwater and structures | Cross-section and numerical burden |
-| 2D shallow water | Floodplain flow, wetting/drying and directional hazards | Mesh, terrain and compute burden |
-| Coupled 1D/2D | Channel efficiency plus floodplain detail | Interface conservation and stability complexity |
+| Method | Advantages | Principal limitations | Computational cost | Implementation complexity | Suitable use cases |
+|---|---|---|---|---|---|
+| Lag/route or virtual pipe | Fast, deterministic and useful for workflow or screened travel-time experiments | Does not solve validated momentum or physical velocity; derived extent still needs calibration and validation | Very low | Low | Browser demonstrations and preliminary sensitivity screening |
+| Muskingum-Cunge routing | Uses reach geometry/slope to obtain mass-conserving channel routing with modest cost | Limited backwater, floodplain exchange and explicit structure representation | Low | Medium | River reaches dominated by downstream translation and attenuation |
+| 1D diffusive wave | Represents stage gradients and backwater more directly than simple routing | Neglects important inertia terms and transverse floodplain variation | Low to medium | Medium | Gradually varied channel flow where full dynamic-wave behavior is not required |
+| 1D full Saint-Venant | Resolves dynamic channel flow, backwater, junctions and structures along surveyed sections | Depends strongly on cross-sections and structure data; numerical setup and calibration are demanding | Medium | High | Engineered river networks and channels with surveyed geometry |
+| 2D SWE finite volume | Conservative flux form, robust shock/wet-front treatment and direct depth-averaged velocity | Mesh, CFL and terrain cost; structure and boundary treatment require care | High | High | Floodplains, dam-break screening and directional hazard where conservative wetting/drying matters |
+| 2D SWE finite element | Fits complex boundaries and supports unstructured local refinement | Conservation/stabilization choices and mesh/tooling are more complex | High | High | Estuaries, irregular coastlines and structure-rich domains needing boundary-conforming meshes |
+| Coupled 1D/2D | Combines efficient channel conveyance with detailed floodplain inundation | Interface conservation, exchange calibration and stability are additional failure modes | High | Very high | Basin operations where main channels and urban/rural floodplains both affect decisions |
 
 Recommended production method is decision- and evidence-dependent; coupled 1D/2D is a candidate where channel/floodplain exchange matters, after simpler methods are shown insufficient.
 

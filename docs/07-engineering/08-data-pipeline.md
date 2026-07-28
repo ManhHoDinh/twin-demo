@@ -48,6 +48,19 @@ Every quantity declares unit/dimension, valid time, issue time, ingest time, spa
 
 `SourceRegistry`, `RawObject`, `IngestEvent`, `QCEvent`, `NormalizedQuantity`, `DatasetVersion`, `LineageEdge`, `GapRecord` and `RunSnapshot` use stable IDs, hashes and schema versions. `NormalizedQuantity` serializes every canonical and additive field named above without renaming or dropping it. Formats may include Parquet/GeoParquet, JSON, COG and Zarr/NetCDF where justified; envelope compatibility is normative, format is not.
 
+Every `DatasetVersion` carries this minimum contract; source-specific extensions cannot remove these fields.
+
+| Dataset field | Implementation contract |
+|---|---|
+| Source | Registry ID, provider, acquisition endpoint or primary record, license/access class, source version and immutable raw-object hashes |
+| Owner | Accountable data custodian, technical steward, escalation contact and authority to approve corrections or retirement |
+| Resolution | Native spatial support/resolution, vertical support where applicable, temporal support, CRS/datum and any resampled product resolution |
+| Temporal frequency | Expected issue/observation cadence, latency allowance, event-time semantics, validity period and staleness threshold |
+| Validation | Schema/unit/datum checks, source reconciliation, domain QC, independent samples where available, acceptance disposition and validator version |
+| Confidence | Provenance, quality status, uncertainty representation, confidence grade with reasons and permitted use; never inferred from availability alone |
+| Fallback | Ordered last-valid/coarser/alternate/manual behavior, maximum age, relabelling rules, disabled consumers and refusal condition |
+| Transformation | Ordered, versioned and reproducible operations with input/output hashes, parameters, software/config versions, lineage edges and loss/no-data behavior |
+
 ## Update cadence and triggering events
 
 Ingest on source arrival/poll schedule. Process by event time and retain issue/ingest times; late/out-of-order records create revisions and downstream invalidation signals. A forecast issue is immutable even when superseded.

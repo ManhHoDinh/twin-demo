@@ -119,7 +119,7 @@
 
   /* rebuild world equilibrium when the timeline is scrubbed or scenario/policy changes */
   FT.bus.on("scrubbed", () => {
-    const snap = H.at(FT.state.timeH);
+    const snap = H.at(FT.state.timeH, FT.compare && FT.compare.viewKey ? FT.compare.viewKey() : null);
     W.resetToTime(snap);
     W.updateRoadDepths();
     FT.traffic.resync();
@@ -127,7 +127,7 @@
   });
   FT.bus.on("hydroRebuilt", () => {
     if (!booted || !W.ready) return;
-    const snap = H.at(FT.state.timeH);
+    const snap = H.at(FT.state.timeH, FT.compare && FT.compare.viewKey ? FT.compare.viewKey() : null);
     W.resetToTime(snap);
     W.updateRoadDepths();
     FT.traffic.resync();
@@ -168,7 +168,8 @@
       FT.notify("🔁 " + (st.lang === "vi" ? "Phát lại kịch bản" : "Replaying scenario"), "info");
     }
 
-    const snap = H.at(st.timeH);
+    const compareKey = FT.compare && FT.compare.viewKey ? FT.compare.viewKey() : null;
+    const snap = H.at(st.timeH, compareKey);
 
     /* physical cap for flood-above-normal metrics: max gauge anomaly + ponding */
     let cap = 0;
@@ -182,7 +183,7 @@
     const simDt = st.playing ? st.speed * dtReal : 0;
     if (simDt > 0) {
       W.step(simDt, snap);
-      H.emitEventsBetween(prevT, st.timeH);
+      if (!compareKey) H.emitEventsBetween(prevT, st.timeH);
     }
     W.updateRoadDepths();
     FT.traffic.step(simDt, dtReal);
@@ -379,6 +380,18 @@
           FT.state.mpcApproved = wasApproved; FT.state.policy = wasPolicy;
         }
 
+        /* 20–21: Scenario Comparison keeps one clock/gauge across alternatives, attributes
+           the joint peak to a control gauge, and Recovery derives a descending-limb entry. */
+        if (FT.compare && OPS.compareOption) {
+          const gaugeId = FT.data.GAUGES[0].id;
+          const rule = OPS.compareOption({ id: "self-rule", kind: "RULE", gaugeId });
+          const mpc = OPS.compareOption({ id: "self-mpc", kind: "MPC", gaugeId });
+          if (rule.gaugeId !== mpc.gaugeId || !Number.isFinite(mpc.attribution.combinedPeakTimeH) || mpc.attribution.bindingGaugeId !== gaugeId) {
+            fails.push("compare attribution");
+          }
+          if (!Number.isFinite(H.recoveryStart("recovery"))) fails.push("recovery descending limb");
+        }
+
         /* 18: the graded depth-exposure function (impact-model §3.1) must be monotonic,
            bounded in [0,1], and carry the documented values at the band boundaries — the
            headline "people exposed" is population × this, so a wrong curve is a wrong count. */
@@ -411,9 +424,9 @@
       FT.notify(`⚠️ Self-test FAIL: ${fails.join("; ")}`.slice(0, 140), "danger");
       FT.log(`Self-test FAIL: ${fails.join("; ")}`, "danger");
     } else {
-      FT.log("Self-test: PASS 20/20 (MPC cắt đỉnh · BĐ3 · quantile · cân bằng khối · phản thực · khả thi · từ chối L4 · tin cậy · bản tin có nguồn · sức chứa trú ẩn · hàm phơi nhiễm · vòng đời quyết định)", "ok");
+      FT.log("Self-test: PASS 22/22 (MPC cắt đỉnh · BĐ3 · quantile · cân bằng khối · phản thực · khả thi · từ chối L4 · tin cậy · bản tin có nguồn · sức chứa trú ẩn · hàm phơi nhiễm · vòng đời quyết định · so sánh kịch bản · phục hồi)", "ok");
     }
-    console.info(`[selftest] ${fails.length ? "FAIL: " + fails.join("; ") : "PASS 20/20"}`);
+    console.info(`[selftest] ${fails.length ? "FAIL: " + fails.join("; ") : "PASS 22/22"}`);
     FT._st = fails.length ? "H✗" : "H✓";
     return fails.length === 0;
   }

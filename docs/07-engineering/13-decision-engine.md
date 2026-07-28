@@ -32,7 +32,16 @@ Digital Twin and Scenario publish accepted state; Reservoir, Hydraulic and Impac
 
 ## Accepted alternatives and recommended method
 
-Accepted approaches include rule-based screening, constrained multi-criteria comparison, robust optimization and stochastic/ensemble optimization. Recommend feasibility filtering before any scoring, then transparent multi-objective comparison across ensemble members with explicit counterfactual and regret. Complexity is added only when inputs and validation support it.
+| Method | Advantages | Principal limitations | Computational cost | Implementation complexity | Suitable use cases |
+|---|---|---|---|---|---|
+| Rule-based screening | Transparent, fast and directly auditable against approved procedures | Brittle outside encoded conditions and cannot quantify trade-offs among feasible alternatives | Very low | Low to medium | Hard safety/legal gates, escalation and baseline operating policies |
+| Multi-criteria decision analysis | Makes competing objectives and stakeholder weights explicit | Scores/weights can hide value judgments and do not guarantee physical feasibility | Low | Medium | Human comparison of already-feasible alternatives with reviewed criteria |
+| Deterministic constrained optimization | Searches a large action space while enforcing explicit bounds | One forecast trajectory can create false precision; nonlinearity and objective design matter | Medium | High | Advisory scheduling with governed constraints and adequate deterministic forecast skill |
+| Robust optimization | Exposes worst-case or bounded-regret choices without requiring precise probabilities | May be conservative and depends on a defensible uncertainty set | Medium to high | High | Dam-safety-oriented planning under bounded structural/forecast uncertainty |
+| Stochastic or ensemble optimization | Represents expected consequences, tails and probability-weighted trade-offs | Requires calibrated scenario probabilities and can be computationally expensive | High | Very high | Reservoir-cascade planning with validated ensembles and enough review time |
+| Model predictive control | Re-optimizes as state and forecasts update, supporting rolling-horizon adaptation | Requires reliable state estimation, stable repeated solves and strict actuation/authority boundaries | High and recurring | Very high | Advisory rolling-horizon operation after telemetry, models and human approval workflow are production-ready |
+
+Recommend feasibility filtering before any scoring, then transparent multi-objective comparison across ensemble members with explicit counterfactual and regret. Complexity is added only when inputs and validation support it.
 
 ## Governing equations and implementation form
 

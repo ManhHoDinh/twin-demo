@@ -1,5 +1,15 @@
 # Survey-Grade Twin — Feasibility and Implementation Path
 
+| Field | Value |
+|---|---|
+| Document ID | ENG-19 |
+| Owner | Scientific engineering lead with hydraulic, GIS and survey discipline owners |
+| Status | REFERENCE MODEL |
+| Current demo | Browser-scale synthetic twin with measured numerical conservation evidence, external terrain rasters and no surveyed bathymetry or independent physical validation |
+| Production target | Phased, evidence-gated 1D/2D hydraulic twin using governed geometry, observations, calibration, independent validation and batch delivery to the browser |
+| Domain review | Hydraulic modelling, hydrology, surveying/geodesy, reservoir operations, compute infrastructure and local data custodians |
+| Authoritative dependencies | [Hydraulic model](05-hydraulic-model.md), [GIS architecture](09-gis-architecture.md), [calibration and validation](14-calibration-and-validation.md), [performance targets](16-performance-targets.md), [engineering risks](17-engineering-risks-and-open-questions.md) |
+
 > **Why this document exists.** A recurring product request is a 3D basin "99% like reality,
 > accurate to **0.1 m**", with water spread simulated to **0.01%** error. This document
 > answers that request with numbers instead of adjectives: what each figure means
@@ -10,7 +20,7 @@
 > replace), [`14-calibration-and-validation.md`](14-calibration-and-validation.md)
 > (acceptance methodology), [`08-data-pipeline.md`](08-data-pipeline.md) (ingestion), and
 > [`16-performance-targets.md`](16-performance-targets.md) (budgets).
-> **Current shipped state** is recorded in `DATA_AND_METHODS.md` §1.1–1.2.
+> **Current shipped state** is recorded in [DATA_AND_METHODS](../../DATA_AND_METHODS.md) §1.1–1.2.
 
 ---
 
@@ -293,3 +303,7 @@ unavailable to this product, and synthetic builds stay capped at LOW confidence.
 > Contract against **CSI ≥ 0.80 and stage RMSE ≤ 0.30 m on withheld events**, with a floor of
 > matching the published NSE ≥ 0.63 at Cầu Lâu, and report mass conservation separately as
 > the solver property it is.
+
+## Next
+
+Use this feasibility sequence to disposition [ENG-RISK-001](17-engineering-risks-and-open-questions.md), then bind each funded phase to the [calibration and validation gates](14-calibration-and-validation.md) and [requirement traceability](18-requirement-traceability.md). No phase changes the current `SYNTHETIC`, non-operational status until its stated evidence and domain reviews exist.
