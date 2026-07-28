@@ -449,6 +449,43 @@ async function earthControls(browser) {
       !/lớp ngập đang tắt/i.test(result.on.text);
   });
 
+  await check('Address lookup normalizes legacy Quang Nam names to the new Da Nang commune', async (d) => {
+    const result = await page.evaluate(async () => {
+      const originalFetch = window.fetch;
+      let requestCount = 0;
+      window.fetch = async () => {
+        requestCount += 1;
+        return {
+          ok: true,
+          json: async () => ({
+            display_name: 'Duy Châu, Duy Xuyên, Quảng Nam, Việt Nam',
+            address: {
+              village: 'Duy Châu',
+              county: 'Duy Xuyên',
+              state: 'Quảng Nam',
+              country: 'Việt Nam',
+            },
+          }),
+        };
+      };
+      try {
+        const first = await window.FT.address.lookup({ longitude: 108.114, latitude: 15.741 });
+        const second = await window.FT.address.lookup({ longitude: 108.1140001, latitude: 15.7410001 });
+        return { first, second, requestCount };
+      } finally {
+        window.fetch = originalFetch;
+        window.FT.address?.clearCache?.();
+      }
+    });
+    d(result);
+    return result.first?.status === 'resolved' &&
+      result.first?.administrativeUnit === 'Xã Thu Bồn' &&
+      /Xã Thu Bồn, Thành phố Đà Nẵng/.test(result.first?.text || '') &&
+      !/Quảng Nam|Duy Xuyên/.test(result.first?.text || '') &&
+      result.second?.text === result.first?.text &&
+      result.requestCount === 1;
+  });
+
   await check('Earth place sheet separates observed and simulated truth for gauges and arbitrary terrain points', async (d) => {
     const result = await page.evaluate(async () => {
       const FT = window.FT;
