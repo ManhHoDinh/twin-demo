@@ -500,14 +500,35 @@
     const currentSelection = () => {
       const current = FT.explain && FT.explain.current && FT.explain.current.selection;
       if (current) return current;
-      return { kind: "point", xKm: FT.data.DOMAIN.sizeKm / 2, yKm: FT.data.DOMAIN.sizeKm / 2 };
+      return null;
+    };
+    const basinOverview = () => ({
+      kind: "point",
+      xKm: FT.data.DOMAIN.sizeKm / 2,
+      yKm: FT.data.DOMAIN.sizeKm / 2,
+    });
+    const locate = () => {
+      const s3 = FT.scene3d || {};
+      if (!s3.flyToSelection) {
+        say("Camera 3D chưa sẵn sàng");
+        return;
+      }
+      let ok = false;
+      const selection = currentSelection();
+      if (selection) ok = s3.flyToSelection(selection, { intent: "asset" });
+      if (ok) {
+        say("Định vị mục tiêu trên bản đồ");
+        return;
+      }
+      if (s3.flyToSelection(basinOverview(), { intent: "overview" })) say("Đang về toàn cảnh lưu vực");
+      else say("Camera 3D chưa sẵn sàng");
     };
     const defs = [
       { action: "zoom-in", label: "Phóng to", icon: "+", run: () => run3d("zoom-in", "Phóng to camera 3D", (s3) => s3.zoomStep && s3.zoomStep("in")) },
       { action: "zoom-out", label: "Thu nhỏ", icon: "−", run: () => run3d("zoom-out", "Thu nhỏ camera 3D", (s3) => s3.zoomStep && s3.zoomStep("out")) },
       { action: "north", label: "Đặt hướng Bắc", icon: "N", run: () => run3d("north", "Đưa bản đồ về hướng Bắc", (s3) => s3.resetNorth && s3.resetNorth()) },
       { action: "tilt", label: "Nghiêng camera", icon: "◒", run: () => run3d("tilt", "Nghiêng camera 3D", (s3) => s3.toggleTilt && s3.toggleTilt()) },
-      { action: "locate", label: "Định vị", icon: "⌖", run: () => run3d("locate", "Định vị mục tiêu trên bản đồ", (s3) => s3.flyToSelection && s3.flyToSelection(currentSelection(), { intent: "asset" })) },
+      { action: "locate", label: "Định vị", icon: "⌖", run: locate },
     ];
     defs.forEach((def) => {
       const b = el("button", "earthNavBtn", def.icon);
@@ -522,8 +543,11 @@
     document.body.appendChild(status);
     FT.dom.earthNav = wrap;
     FT.dom.earthCameraStatus = status;
-    FT.bus.on("camera.fly.start", (ev) => say(ev && ev.intent === "asset" ? "Đang bay tới vị trí đã chọn" : "Đang di chuyển camera 3D"));
-    FT.bus.on("camera.fly.settled", (ev) => say(ev && ev.status === "cancelled" ? "Đã hủy di chuyển camera" : "Camera 3D đã ổn định"));
+    FT.bus.on("camera.fly.start", (ev) => say(ev && ev.intent === "overview" ? "Đang về toàn cảnh lưu vực" : "Đang bay tới vị trí đã chọn"));
+    FT.bus.on("camera.fly.settled", (ev) => {
+      if (ev && ev.status === "cancelled") say("Đã hủy di chuyển camera");
+      else say(ev && ev.intent === "overview" ? "Toàn cảnh lưu vực đã sẵn sàng" : "Camera 3D đã ổn định");
+    });
   }
 
   /* ---------- Mode rail ---------- */

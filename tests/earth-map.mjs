@@ -29,6 +29,10 @@ function changed(a, b, key, epsilon = 0.01) {
   return a && b && Number.isFinite(a[key]) && Number.isFinite(b[key]) && Math.abs(a[key] - b[key]) > epsilon;
 }
 
+async function waitForCamera(page, predicate, arg, timeout = 5000) {
+  await page.waitForFunction(predicate, arg, { timeout });
+}
+
 async function earthControls(browser) {
   step('Earth map contract · camera controls and status');
   const { ctx, page } = await bootApp(browser, BASE, { viewport: { width: 1440, height: 900 } });
@@ -95,7 +99,7 @@ async function earthControls(browser) {
         const deadline = window.setTimeout(() => reject(new Error('camera.fly.settled timeout')), 3000);
         FT.bus.on('camera.fly.settled', () => {
           window.clearTimeout(deadline);
-          requestAnimationFrame(resolve);
+          window.setTimeout(resolve, 250);
         });
       });
       return { events, state: FT.scene3d.cameraState() };
@@ -112,6 +116,7 @@ async function earthControls(browser) {
       settled[0].payload?.status === 'settled' &&
       result.state &&
       result.state.distance > 0 &&
+      Number.isFinite(result.state.distance) &&
       Number.isFinite(result.state.bearing) &&
       Number.isFinite(result.state.tilt);
   });
@@ -159,7 +164,7 @@ async function earthControls(browser) {
       window.FT.scene3d.setCamera('overview');
       window.FT.explain?.select?.({ kind: 'point', xKm: 58, yKm: 63 });
     });
-    await page.waitForFunction(() => {
+    await waitForCamera(page, () => {
       const state = window.FT?.scene3d?.cameraState?.();
       return state && Math.hypot(state.target.x - 55, state.target.y - 40) < 0.5;
     });
@@ -175,6 +180,42 @@ async function earthControls(browser) {
     return before && after &&
       (Math.hypot(after.target.x - before.target.x, after.target.y - before.target.y) > 0.5 || after.distance < before.distance) &&
       /Vị trí|Định vị/i.test(status || '');
+  });
+
+  await check('Earth locate falls back to basin overview when selection is missing or unsupported', async (d) => {
+    const outcomes = [];
+    for (const mode of ['missing', 'unsupported']) {
+      await page.evaluate((kind) => {
+        const FT = window.FT;
+        FT.scene3d.flyToSelection({ kind: 'point', xKm: 58, yKm: 63 }, { intent: 'asset' });
+        if (kind === 'missing') FT.explain?.clear?.();
+        else {
+          const edge = FT.world?.roads?.edges?.[0];
+          FT.explain?.select?.({ kind: 'road', id: `road:${edge.idx}` });
+        }
+      }, mode);
+      await waitForCamera(page, () => {
+        const state = window.FT?.scene3d?.cameraState?.();
+        return state && state.distance < 25 && Math.hypot(state.target.x - 58, state.target.y - 63) < 0.5;
+      });
+      const before = await cameraState(page);
+      await page.getByRole('button', { name: /Vị trí|Định vị/i }).click();
+      await waitForCamera(page, () => {
+        const state = window.FT?.scene3d?.cameraState?.();
+        return state && state.distance > 80;
+      });
+      const after = await cameraState(page);
+      const status = await page.locator('#earthCameraStatus').textContent();
+      outcomes.push({ mode, before, after, status });
+    }
+    d(outcomes);
+    return outcomes.every(({ before, after, status }) => (
+      before && after &&
+      before.distance < 25 &&
+      after.distance > 80 &&
+      /toàn cảnh|lưu vực/i.test(status || '') &&
+      !/chưa sẵn sàng/i.test(status || '')
+    ));
   });
 
   await ctx.close();
