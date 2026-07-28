@@ -593,7 +593,8 @@ async function explainabilityContract(browser, base) {
       await page.waitForTimeout(80);
       selected[kind] = await page.evaluate(() => ({
         selection: window.FT.explain.current && window.FT.explain.current.selection,
-        visible: !document.getElementById('explainInspector').hidden,
+        placeVisible: !document.getElementById('earthPlaceSheet').hidden,
+        inspectorHidden: document.getElementById('explainInspector').hidden,
       }));
       if (kind === 'zone') {
         await page.evaluate(() => document.getElementById('modalClose').click());
@@ -603,7 +604,7 @@ async function explainabilityContract(browser, base) {
     }
     const legacy = await page.evaluate(() => window.__legacySelections);
     d({ selected, legacy });
-    return selected.point.selection.kind === 'point' && selected.point.visible
+    return selected.point.selection.kind === 'point' && selected.point.placeVisible && selected.point.inspectorHidden
       && selected.gauge.selection.kind === 'gauge' && legacy.gauge.includes(selected.gauge.selection.id)
       && selected.reservoir.selection.kind === 'reservoir' && legacy.reservoir.includes(selected.reservoir.selection.id)
       && selected.zone.selection.kind === 'zone' && legacy.zone.includes(selected.zone.selection.id);
@@ -733,8 +734,12 @@ async function explainabilityContract(browser, base) {
   });
 
   await check('close button clears selection and returns focus to the selecting canvas', async (d) => {
-    const p = await mapPoint(page, 'point');
-    await page.mouse.click(p.x, p.y);
+    await page.evaluate(() => {
+      const canvas = document.getElementById('canvas2d');
+      canvas.focus({ preventScroll: true });
+      window.FT.bus.emit('explainOrigin', { element: canvas, moveFocus: true });
+      window.FT.explain.select({ kind: 'point', xKm: 48, yKm: 54 });
+    });
     await page.waitForTimeout(60);
     await page.click('#explainClose');
     const r = await page.evaluate(() => ({
@@ -749,8 +754,12 @@ async function explainabilityContract(browser, base) {
   await check('Escape anywhere inside the inspector closes it and restores the selecting canvas', async (d) => {
     const results = [];
     for (const target of ['explainDocsLink', 'explainClose']) {
-      const p = await mapPoint(page, 'point');
-      await page.mouse.click(p.x, p.y);
+      await page.evaluate(() => {
+        const canvas = document.getElementById('canvas2d');
+        canvas.focus({ preventScroll: true });
+        window.FT.bus.emit('explainOrigin', { element: canvas, moveFocus: true });
+        window.FT.explain.select({ kind: 'point', xKm: 48, yKm: 54 });
+      });
       await page.focus(`#${target}`);
       await page.keyboard.press('Escape');
       results.push(await page.evaluate(() => ({

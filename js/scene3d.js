@@ -899,6 +899,7 @@
         el.dataset.explainId = selection.id;
         el.addEventListener("click", (ev) => {
           ev.stopPropagation();
+          FT.bus.emit("explainOrigin", { element: el, moveFocus: false });
           FT.explain.select(selection);
         });
         el.addEventListener("keydown", (ev) => {
@@ -990,6 +991,7 @@
     const selection = resolveRay(clientX, clientY);
     if (!selection) return;
     canvas.dataset.lastExplainPointer = pointerType || "mouse";
+    FT.bus.emit("explainOrigin", { element: canvas, moveFocus: false });
     FT.explain.select(selection);
   }
 

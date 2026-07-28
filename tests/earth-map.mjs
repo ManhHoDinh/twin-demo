@@ -471,6 +471,7 @@ async function earthControls(browser) {
         const rect = sheet?.getBoundingClientRect();
         return {
           visible: visible(sheet),
+          legacyInspectorVisible: visible(document.getElementById('explainInspector')),
           heading: text('#earthPlaceSheet h2'),
           name: text('[data-place-field="name"]'),
           type: text('[data-place-field="type"]'),
@@ -545,6 +546,7 @@ async function earthControls(browser) {
     const pointActions = Object.fromEntries(result.pointSheet.actions.map((item) => [item.action, item]));
     const point2dActions = Object.fromEntries(result.point2d.actions.map((item) => [item.action, item]));
     return result.gaugeSheet.visible &&
+      result.gaugeSheet.legacyInspectorVisible === false &&
       /Thông tin|địa điểm|place/i.test(result.gaugeSheet.heading) &&
       result.gaugeSheet.name.trim().length > 0 &&
       /trạm|gauge/i.test(result.gaugeSheet.type) &&
@@ -639,12 +641,16 @@ async function earthControls(browser) {
         };
       };
       const outputs = {};
+      const origin = document.getElementById('canvas3d');
+      FT.bus.emit('explainOrigin', { element: origin, moveFocus: false });
       FT.explain.select({ kind: 'gauge', id: FT.data.GAUGES[0].id });
       await waitFrame();
       outputs.gauge = read();
+      FT.bus.emit('explainOrigin', { element: origin, moveFocus: false });
       FT.explain.select({ kind: 'point', xKm: 16.2, yKm: 72.8 });
       await waitFrame();
       outputs.point = read();
+      FT.bus.emit('explainOrigin', { element: origin, moveFocus: false });
       FT.explain.select({ kind: 'road', id: 'road:0' });
       await waitFrame();
       outputs.road = read();
@@ -920,6 +926,7 @@ async function earthControls(browser) {
       document.querySelector('#viewTabs button[data-view="3d"]').click();
       await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
       const selection = { kind: 'gauge', id: FT.data.GAUGES[0].id };
+      FT.bus.emit('explainOrigin', { element: document.getElementById('canvas3d'), moveFocus: false });
       FT.explain.select(selection);
       FT.scene3d.flyToSelection(selection, { intent: 'asset' });
       await waitSettled('3d');

@@ -20,7 +20,7 @@
   const persist = () => { try { localStorage.setItem(LSKEY, JSON.stringify(saved)); } catch (e) {} };
 
   const reduceMotion = () => window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  let placeSheet = null, placeReturnFocus = null, activePlaceSelection = null;
+  let placeSheet = null, placeReturnFocus = null, activePlaceSelection = null, usePlaceSurface = false;
 
   /* ======================================================================
      FloatingPanel — the universal state machine
@@ -267,7 +267,13 @@
   }
 
   function focusSelection(selection, options) {
-    if (selection && FT.explain && FT.explain.select) FT.explain.select(selection);
+    if (selection && FT.explain && FT.explain.select) {
+      const active = document.activeElement;
+      const view = FT.state && FT.state.view === "2d" ? "2d" : "3d";
+      const origin = active && document.contains(active) ? active : document.getElementById(`canvas${view}`);
+      if (origin) FT.bus.emit("explainOrigin", { element: origin, moveFocus: false });
+      FT.explain.select(selection);
+    }
     emitSelectionFocus(selection);
     return FT.navigation && FT.navigation.flyToSelection &&
       FT.navigation.flyToSelection(selection, options || {});
@@ -305,6 +311,12 @@
     placeSheet.hidden = true;
     document.body.classList.remove("place-sheet-open");
     restorePlaceFocus();
+  }
+
+  function suppressLegacyInspector() {
+    const inspector = document.getElementById("explainInspector");
+    if (inspector) inspector.hidden = true;
+    document.body.classList.remove("explain-open");
   }
 
   function renderPlaceSheet(moveFocus) {
@@ -424,19 +436,34 @@
     FT.bus.on("explainOrigin", (origin) => {
       if (!origin || !origin.element || !document.contains(origin.element)) return;
       placeReturnFocus = origin.element;
+      usePlaceSurface = origin.moveFocus === false;
     });
     FT.bus.on("explainSelection", (contract) => {
       if (!contract) {
+        activePlaceSelection = null;
+        usePlaceSurface = false;
+        closePlaceSheet();
+        return;
+      }
+      const showPlaceSheet = usePlaceSurface;
+      usePlaceSurface = false;
+      if (!showPlaceSheet) {
         activePlaceSelection = null;
         closePlaceSheet();
         return;
       }
       activePlaceSelection = contract.selection;
       if (!placeReturnFocus && document.activeElement && !sheet.contains(document.activeElement)) placeReturnFocus = document.activeElement;
+      suppressLegacyInspector();
       renderPlaceSheet(false);
+      window.queueMicrotask(suppressLegacyInspector);
     });
     ["scrubbed", "hydroRebuilt", "lang", "viewChanged"].forEach((eventName) => FT.bus.on(eventName, () => {
-      if (activePlaceSelection && !sheet.hidden) renderPlaceSheet(false);
+      if (activePlaceSelection && !sheet.hidden) {
+        suppressLegacyInspector();
+        renderPlaceSheet(false);
+        window.queueMicrotask(suppressLegacyInspector);
+      }
     }));
     document.addEventListener("keydown", (ev) => {
       if (ev.key !== "Escape" || sheet.hidden) return;

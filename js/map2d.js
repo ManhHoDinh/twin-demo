@@ -621,6 +621,7 @@
     else if (hit.kind === "zone") selection = { kind: "zone", id: hit.obj.def.id };
     else selection = { kind: "road", id: `road:${hit.obj.idx}` };
     canvas.dataset.lastExplainPointer = pointerType || "mouse";
+    FT.bus.emit("explainOrigin", { element: canvas, moveFocus: false });
     FT.explain.select(selection);
   }
 
