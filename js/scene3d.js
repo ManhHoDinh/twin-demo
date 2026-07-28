@@ -1401,8 +1401,8 @@
         kind: selection.kind,
         id,
       };
+      if (selection.kind === "point" && target.x >= rect.left && target.x <= rect.right && target.y >= rect.top && target.y <= rect.bottom) return target;
       if (document.elementFromPoint(target.x, target.y) !== canvas) continue;
-      if (selection.kind === "point") return target;
       const resolved = resolveRay(target.x, target.y);
       if (resolved && resolved.kind === selection.kind && resolved.id === selection.id) return target;
     }
@@ -1560,5 +1560,11 @@
     updateSelectionPulse();
     renderer.render(scene, camera);
   };
-  Object.defineProperty(S3, "selectionPresentation", { enumerable: true, get() { return selectionPulse ? { ...selectionPulse.selection } : null; } });
+  Object.defineProperty(S3, "selectionPresentation", { enumerable: true, get() {
+    return selectionPulse ? {
+      selection: { ...selectionPulse.selection },
+      duration: selectionPulse.duration,
+      repeating: selectionPulse.duration > 0,
+    } : null;
+  } });
 })();

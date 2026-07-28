@@ -683,6 +683,9 @@ async function earthControls(browser) {
 
       const reduced = await page.evaluate(async () => {
         const started = performance.now();
+        const firstPulse = window.FT.scene3d.selectionPresentation;
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        const secondPulse = window.FT.scene3d.selectionPresentation;
         window.FT.scene3d.flyToSelection({ kind: 'point', xKm: 58, yKm: 63 }, { intent: 'asset' });
         await new Promise((resolve, reject) => {
           const deadline = window.setTimeout(() => reject(new Error('reduced motion settle timeout')), 700);
@@ -702,9 +705,40 @@ async function earthControls(browser) {
         return {
           settleMs: Math.round(performance.now() - started),
           animated,
+          firstPulse,
+          secondPulse,
         };
       });
 
+      await page.evaluate(() => {
+        const FT = window.FT;
+        window.__earthKeyCounts = { 'zoom-in': 0, 'zoom-out': 0, north: 0, tilt: 0, locate: 0 };
+        window.__earthKeyCurrentAction = null;
+        if (window.__earthKeyProbeInstalled) return;
+        window.__earthKeyProbeInstalled = true;
+        const zoomStep = FT.scene3d.zoomStep.bind(FT.scene3d);
+        FT.scene3d.zoomStep = (direction) => {
+          if (window.__earthKeyCurrentAction === 'zoom-in' || window.__earthKeyCurrentAction === 'zoom-out') {
+            window.__earthKeyCounts[window.__earthKeyCurrentAction] += 1;
+          }
+          return zoomStep(direction);
+        };
+        const resetNorth = FT.scene3d.resetNorth.bind(FT.scene3d);
+        FT.scene3d.resetNorth = () => {
+          if (window.__earthKeyCurrentAction === 'north') window.__earthKeyCounts.north += 1;
+          return resetNorth();
+        };
+        const toggleTilt = FT.scene3d.toggleTilt.bind(FT.scene3d);
+        FT.scene3d.toggleTilt = () => {
+          if (window.__earthKeyCurrentAction === 'tilt') window.__earthKeyCounts.tilt += 1;
+          return toggleTilt();
+        };
+        const flyToSelection = FT.navigation.flyToSelection.bind(FT.navigation);
+        FT.navigation.flyToSelection = (selection, options) => {
+          if (window.__earthKeyCurrentAction === 'locate') window.__earthKeyCounts.locate += 1;
+          return flyToSelection(selection, options);
+        };
+      });
       const before3d = await cameraState(page);
       const keyboard3d = [];
       for (const action of ['zoom-in', 'zoom-out', 'north', 'tilt', 'locate']) {
@@ -712,11 +746,14 @@ async function earthControls(browser) {
         const activeAction = await tabToEarthAction(page, action);
         const before = await cameraState(page);
         if (activeAction === action) {
+          await page.evaluate((current) => { window.__earthKeyCurrentAction = current; }, action);
           await page.locator(`[data-earth-action="${action}"]`).press(action === 'zoom-out' || action === 'tilt' ? 'Space' : 'Enter');
           await waitFrame(page);
+          await page.evaluate(() => { window.__earthKeyCurrentAction = null; });
         }
         const after = await cameraState(page);
-        keyboard3d.push({ action, before, after, active: await page.evaluate(() => document.activeElement?.dataset?.earthAction || null) });
+        const count = await page.evaluate((current) => window.__earthKeyCounts?.[current] ?? null, action);
+        keyboard3d.push({ action, before, after, active: await page.evaluate(() => document.activeElement?.dataset?.earthAction || null), count });
       }
       const after3d = await cameraState(page);
 
@@ -746,12 +783,19 @@ async function earthControls(browser) {
         });
         const target = window.FT.scene3d.selectionTarget?.({ kind: 'point', xKm: 58, yKm: 63 }) || null;
         const blockers = ['.cmdBar', '.geoOpsStrip', '.geoTimeline'].map((selector) => ({ selector, box: rect(selector) }));
+        const targetOverSheet = !!target && !!sheet &&
+          target.x >= sheet.left - 1 &&
+          target.x <= sheet.right + 1 &&
+          target.y >= sheet.top - 1 &&
+          target.y <= sheet.bottom + 1;
         return {
           viewport: { width, height },
           sheet,
           nav,
           controls,
           target,
+          targetOverSheet,
+          targetInViewport: !!target && target.x >= 0 && target.y >= 0 && target.x <= width && target.y <= height,
           collisions: blockers.filter((item) => overlaps(sheet, item.box)).map((item) => item.selector),
           sheetNavOverlap: overlaps(sheet, nav),
           mapContextHeight: sheet ? Math.max(0, sheet.top - 150) : 0,
@@ -825,6 +869,14 @@ async function earthControls(browser) {
         if (action === 'locate') return Math.hypot(after.target.x - 58, after.target.y - 63) < 1.2;
         return false;
       });
+      const keyboardExactlyOnce = outcome.keyboard3d.every(({ count }) => count === 1);
+      const pulseStatic = outcome.reduced.firstPulse &&
+        outcome.reduced.secondPulse &&
+        outcome.reduced.firstPulse.duration === 0 &&
+        outcome.reduced.secondPulse.duration === 0 &&
+        outcome.reduced.firstPulse.repeating === false &&
+        outcome.reduced.secondPulse.repeating === false &&
+        JSON.stringify(outcome.reduced.firstPulse.selection) === JSON.stringify(outcome.reduced.secondPulse.selection);
       const arrowOk = outcome.cursorAfter.visible &&
         (outcome.cursorAfter.xKm !== outcome.cursorBefore.xKm || outcome.cursorAfter.yKm !== outcome.cursorBefore.yKm) &&
         outcome.after2d &&
@@ -832,6 +884,9 @@ async function earthControls(browser) {
         Number.isFinite(outcome.after2d.scale);
       return controlsOk &&
         sheetFits &&
+        outcome.layout.target &&
+        outcome.layout.targetInViewport === true &&
+        outcome.layout.targetOverSheet === false &&
         outcome.layout.collisions.length === 0 &&
         outcome.layout.sheetNavOverlap === false &&
         mapContextOk &&
@@ -840,7 +895,9 @@ async function earthControls(browser) {
         outcome.escape2d.hidden === true &&
         outcome.escape2d.activeId === 'canvas2d' &&
         navKeyboardOk &&
+        keyboardExactlyOnce &&
         arrowOk &&
+        pulseStatic &&
         outcome.reduced.settleMs <= 220 &&
         outcome.reduced.animated.every((item) => item.animation === 'none' && /^0(?:s|ms)(?:,\s*0(?:s|ms))*$/.test(item.transition));
     });

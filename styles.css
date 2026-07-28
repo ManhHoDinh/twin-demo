@@ -1888,9 +1888,9 @@ body.mode-split #labels3d { width: 50%; }
   .earthLayerLabel small { font-size: 11px; }
   .earthPlaceSheet {
     left: max(8px, env(safe-area-inset-left));
-    right: 76px;
+    right: auto;
     bottom: calc(40px + env(safe-area-inset-bottom) + var(--geoTimelineH, 236px) + 84px);
-    width: auto;
+    width: min(45vw, 176px);
     max-height: min(40vh, 174px);
     transform: none;
   }
