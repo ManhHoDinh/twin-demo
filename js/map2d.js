@@ -37,6 +37,14 @@
     cam.x = U.clamp(cam.x, half - m, half + m);
     cam.y = U.clamp(cam.y, half - m, half + m);
   }
+  function cameraState() {
+    return {
+      xKm: cam.x,
+      yKm: cam.y,
+      scale: cam.scale,
+      metresPerPixel: 1000 / cam.scale,
+    };
+  }
   function fitAll() {
     const s = Math.min(cw, ch) / dpr / (SZ * 1.04);
     cam.scale = s; minScale = s * 0.9; cam.x = SZ / 2; cam.y = SZ / 2;
@@ -310,18 +318,84 @@
 
   /* ---------- fly-to animation ---------- */
   let flyAnim = null;
-  M.flyTo = function (xKm, yKm, scaleMul) {
-    userPanned = true;
-    flyAnim = { fx: cam.x, fy: cam.y, fs: cam.scale, tx: xKm, ty: yKm, ts: Math.min(minScale * 8, minScale * (scaleMul || 3.4)), t: 0 };
-  };
-  function stepFly(dtReal) {
+  const FLY_SCALES = { overview: 0, district: 45, asset: 180, street: 1800 };
+  function settleFly(status) {
     if (!flyAnim) return;
-    flyAnim.t = Math.min(1, flyAnim.t + dtReal / 0.7);
-    const e = flyAnim.t * flyAnim.t * (3 - 2 * flyAnim.t);
+    const meta = flyAnim.meta || {};
+    flyAnim = null;
+    if (FT.bus && meta.emit !== false) {
+      FT.bus.emit("camera.fly.settled", {
+        selection: meta.selection || null,
+        intent: meta.intent || "overview",
+        view: "2d",
+        status: status || "settled",
+        camera: cameraState(),
+      });
+    }
+  }
+  function cancelFly() {
+    if (!flyAnim) return;
+    settleFly("cancelled");
+  }
+  function startFly(xKm, yKm, scale, meta) {
+    if (!Number.isFinite(xKm) || !Number.isFinite(yKm) || !Number.isFinite(scale)) return false;
+    cancelFly();
+    userPanned = true;
+    flyAnim = {
+      fx: cam.x,
+      fy: cam.y,
+      fs: cam.scale,
+      tx: U.clamp(xKm, 0, SZ),
+      ty: U.clamp(yKm, 0, SZ),
+      ts: U.clamp(scale, minScale, 7000),
+      start: performance.now(),
+      duration: 700,
+      meta: meta || {},
+    };
+    if (FT.bus && flyAnim.meta.emit !== false) {
+      FT.bus.emit("camera.fly.start", {
+        selection: flyAnim.meta.selection || null,
+        intent: flyAnim.meta.intent || "overview",
+        view: "2d",
+        camera: cameraState(),
+      });
+    }
+    return true;
+  }
+  M.flyTo = function (xKm, yKm, scaleMul) {
+    return startFly(xKm, yKm, Math.min(minScale * 8, minScale * (scaleMul || 3.4)), { emit: false, intent: "asset" });
+  };
+  function stepFly() {
+    if (!flyAnim) return;
+    const t = Math.min(1, (performance.now() - flyAnim.start) / flyAnim.duration);
+    const e = t * t * (3 - 2 * t);
     cam.x = U.lerp(flyAnim.fx, flyAnim.tx, e);
     cam.y = U.lerp(flyAnim.fy, flyAnim.ty, e);
     cam.scale = U.lerp(flyAnim.fs, flyAnim.ts, e);
-    if (flyAnim.t >= 1) flyAnim = null;
+    clampCam();
+    if (t >= 1) settleFly("settled");
+  }
+
+  function pointFromSelection(selection) {
+    if (!selection || typeof selection !== "object") return null;
+    if (selection.kind === "point") {
+      const x = +selection.xKm, y = +selection.yKm;
+      if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || y < 0 || x > SZ || y > SZ) return null;
+      return { x, y };
+    }
+    if (selection.kind === "reservoir") {
+      const r = D.RESERVOIRS.find((item) => item.id === selection.id);
+      return r ? { x: r.x, y: r.y } : null;
+    }
+    if (selection.kind === "gauge") {
+      const g = D.GAUGES.find((item) => item.id === selection.id);
+      return g ? { x: g.x, y: g.y } : null;
+    }
+    if (selection.kind === "zone") {
+      const z = D.ZONES.find((item) => item.id === selection.id);
+      return z ? { x: z.x, y: z.y } : null;
+    }
+    return null;
   }
 
   /* ---------- zones ---------- */
@@ -498,6 +572,7 @@
   function bindEvents() {
     canvas.addEventListener("wheel", (ev) => {
       ev.preventDefault();
+      cancelFly();
       userPanned = true;
       const mx = ev.offsetX * dpr, my = ev.offsetY * dpr;
       const wx = invX(mx), wy = invY(my);
@@ -510,6 +585,7 @@
     }, { passive: false });
     canvas.addEventListener("pointerdown", (ev) => {
       canvas.focus({ preventScroll: true });
+      cancelFly();
       dragging = true; moved = 0; lastPX = ev.clientX; lastPY = ev.clientY; canvas.setPointerCapture(ev.pointerId);
     });
     canvas.addEventListener("pointermove", (ev) => {
@@ -564,6 +640,7 @@
     });
     canvas.addEventListener("pointerleave", () => { tooltip.hidden = true; });
     canvas.addEventListener("dblclick", (ev) => {
+      cancelFly();
       userPanned = true;
       const mx = ev.offsetX * dpr, my = ev.offsetY * dpr;
       cam.x = invX(mx); cam.y = invY(my); cam.scale *= 2; clampCam();
@@ -965,7 +1042,7 @@
     if (!base || !cw) return;
     clock += dtReal;
     if (!userPanned && !flyAnim) fitAll();          // stay perfectly framed until the user takes over
-    stepFly(dtReal);
+    stepFly();
     ctx.clearRect(0, 0, cw, ch);
     ctx.imageSmoothingEnabled = true;
 
@@ -1025,6 +1102,39 @@
   };
 
   Object.defineProperty(M, "keyboardCursor", { enumerable: true, get() { return { ...keyboardCursor }; } });
+
+  M.cameraState = cameraState;
+
+  M.zoomStep = function (direction) {
+    if (!cw || !ch) return false;
+    cancelFly();
+    userPanned = true;
+    const mx = cw / 2, my = ch / 2;
+    const wx = invX(mx), wy = invY(my);
+    const factor = direction === "out" || direction < 0 ? 1 / 1.45 : 1.45;
+    cam.scale = U.clamp(cam.scale * factor, minScale, 7000);
+    cam.x = wx - (mx - cw / 2) / (cam.scale * dpr);
+    cam.y = wy - (my - ch / 2) / (cam.scale * dpr);
+    clampCam();
+    return true;
+  };
+
+  M.resetNorth = function () {
+    return true;
+  };
+
+  M.toggleTilt = function () {
+    return false;
+  };
+
+  M.flyToSelection = function (selection, options) {
+    const point = pointFromSelection(selection);
+    if (!point) return false;
+    const intent = options && options.intent || (selection.kind === "point" ? "asset" : "district");
+    const requested = FLY_SCALES[intent] || FLY_SCALES.asset;
+    const scale = intent === "overview" ? minScale : requested;
+    return startFly(point.x, point.y, U.clamp(scale, minScale, 7000), { selection, intent });
+  };
 
   M.renderPip = function (snap, mode) {
     const now = performance.now();

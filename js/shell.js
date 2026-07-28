@@ -169,6 +169,80 @@
   };
   FT.mapMode = MapMode;
 
+  const PRESET_TARGETS = {
+    overview: () => ({ kind: "point", xKm: FT.data.DOMAIN.sizeKm / 2, yKm: FT.data.DOMAIN.sizeKm / 2 }),
+    delta: () => ({ kind: "point", xKm: 74, yKm: 33 }),
+    dams: () => ({ kind: "point", xKm: 30, yKm: 42 }),
+    hoian: () => ({ kind: "point", xKm: 86, yKm: 40 }),
+  };
+
+  function activeRenderer() {
+    return FT.state && FT.state.view === "2d" ? FT.map2d : FT.scene3d;
+  }
+
+  function currentSelection() {
+    const current = FT.explain && FT.explain.current && FT.explain.current.selection;
+    return current || null;
+  }
+
+  function basinOverview() {
+    return { kind: "point", xKm: FT.data.DOMAIN.sizeKm / 2, yKm: FT.data.DOMAIN.sizeKm / 2 };
+  }
+
+  function resolveSelection(selection) {
+    if (!selection || typeof selection !== "object") return null;
+    if (selection.kind === "point") {
+      const x = +selection.xKm, y = +selection.yKm;
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+      return { kind: "point", xKm: x, yKm: y };
+    }
+    if (selection.kind === "reservoir") {
+      const r = (FT.data.RESERVOIRS || []).find((item) => item.id === selection.id);
+      return r ? { kind: "reservoir", id: r.id, xKm: r.x, yKm: r.y } : null;
+    }
+    if (selection.kind === "gauge") {
+      const g = (FT.data.GAUGES || []).find((item) => item.id === selection.id);
+      return g ? { kind: "gauge", id: g.id, xKm: g.x, yKm: g.y } : null;
+    }
+    if (selection.kind === "zone") {
+      const z = (FT.data.ZONES || []).find((item) => item.id === selection.id);
+      return z ? { kind: "zone", id: z.id, xKm: z.x, yKm: z.y } : null;
+    }
+    return null;
+  }
+
+  const Navigation = {
+    activeRenderer,
+    currentSelection,
+    resolveSelection,
+    flyToSelection(selection, options) {
+      const resolved = resolveSelection(selection);
+      const target = resolved ? {
+        kind: resolved.kind,
+        id: resolved.id,
+        xKm: resolved.xKm,
+        yKm: resolved.yKm,
+      } : selection;
+      const renderer = activeRenderer();
+      if (!renderer || !renderer.flyToSelection) return false;
+      return !!renderer.flyToSelection(target, options || {});
+    },
+    locateSelection() {
+      const selection = currentSelection();
+      if (selection && Navigation.flyToSelection(selection, { intent: "asset" })) return true;
+      return Navigation.flyToSelection(basinOverview(), { intent: "overview" });
+    },
+    flyToPreset(preset) {
+      if (FT.state && FT.state.view === "3d" && FT.scene3d && FT.scene3d.setCamera) {
+        FT.scene3d.setCamera(preset);
+        return true;
+      }
+      const make = PRESET_TARGETS[preset];
+      return make ? Navigation.flyToSelection(make(), { intent: preset }) : false;
+    },
+  };
+  FT.navigation = Navigation;
+
   /* ======================================================================
      Auto-hide chrome while manipulating the map
      ====================================================================== */
@@ -380,9 +454,16 @@
       [["Toàn cảnh", "overview", "O"], ["Hạ lưu", "delta", "D"], ["Bậc thang hồ", "dams", "A"], ["Hội An", "hoian", "H"]]
         .forEach(([n, c, k]) => cmds.push({ g: "Camera", ico: "◎", label: n, key: k, run: () => camPreset(c) }));
       // gauges
-      (FT.data && FT.data.GAUGES || []).forEach((g) => cmds.push({ g: "Trạm", ico: "◈", label: g.name || g.id, run: () => { FT.state.selectedGauge = g.id; FT.bus.emit("gaugeSelected", g.id); } }));
+      (FT.data && FT.data.GAUGES || []).forEach((g) => cmds.push({ g: "Trạm", ico: "◈", label: g.name || g.id, run: () => {
+        FT.state.selectedGauge = g.id;
+        FT.bus.emit("gaugeSelected", g.id);
+        FT.navigation && FT.navigation.flyToSelection({ kind: "gauge", id: g.id }, { intent: "asset" });
+      } }));
       // reservoirs
-      (FT.data && FT.data.RESERVOIRS || []).forEach((r) => cmds.push({ g: "Hồ chứa", ico: "▨", label: r.name || r.id, run: () => FT.bus.emit("reservoirFocus", r.id) }));
+      (FT.data && FT.data.RESERVOIRS || []).forEach((r) => cmds.push({ g: "Hồ chứa", ico: "▨", label: r.name || r.id, run: () => {
+        FT.bus.emit("reservoirFocus", r.id);
+        FT.navigation && FT.navigation.flyToSelection({ kind: "reservoir", id: r.id }, { intent: "asset" });
+      } }));
       // actions
       cmds.push({ g: "Lệnh", ico: "▶", label: "Phát / Dừng mô phỏng", key: "Space", run: () => $("btnPlay") && $("btnPlay").click() });
       cmds.push({ g: "Lệnh", ico: "🎬", label: "Trình diễn tự động", run: () => $("btnTour") && $("btnTour").click() });
@@ -420,6 +501,7 @@
   function camPreset(c) {
     const b = document.querySelector(`#camPresets button[data-cam="${c}"]`);
     if (b) b.click();
+    else if (FT.navigation && FT.navigation.flyToPreset) FT.navigation.flyToPreset(c);
     else if (FT.scene3d && FT.scene3d.setCamera) FT.scene3d.setCamera(c);
   }
 
@@ -488,25 +570,16 @@
     status.setAttribute("aria-live", "polite");
 
     const say = (msg) => { status.textContent = msg; };
-    const run3d = (action, msg, fn) => {
+    const runActive = (action, msg, fn) => {
       try {
-        const ok = fn(FT.scene3d || {});
-        say(ok ? msg : "Camera 3D chưa sẵn sàng");
+        const renderer = FT.navigation && FT.navigation.activeRenderer ? FT.navigation.activeRenderer() : (FT.scene3d || {});
+        const ok = fn(renderer || {});
+        say(ok ? msg : "Camera chưa sẵn sàng");
       } catch (e) {
         console.warn("[earthNav]", action, e);
-        say("Camera 3D chưa sẵn sàng");
+        say("Camera chưa sẵn sàng");
       }
     };
-    const currentSelection = () => {
-      const current = FT.explain && FT.explain.current && FT.explain.current.selection;
-      if (current) return current;
-      return null;
-    };
-    const basinOverview = () => ({
-      kind: "point",
-      xKm: FT.data.DOMAIN.sizeKm / 2,
-      yKm: FT.data.DOMAIN.sizeKm / 2,
-    });
     const cameraIntentName = (intent) => ({
       overview: "toàn cảnh lưu vực",
       delta: "hạ lưu",
@@ -515,28 +588,32 @@
       asset: "vị trí đã chọn",
       district: "khu vực đã chọn",
       street: "vị trí đường phố",
-    })[intent] || "camera 3D";
+    })[intent] || (FT.state && FT.state.view === "2d" ? "camera 2D" : "camera 3D");
     const locate = () => {
-      const s3 = FT.scene3d || {};
-      if (!s3.flyToSelection) {
-        say("Camera 3D chưa sẵn sàng");
+      if (!FT.navigation || !FT.navigation.locateSelection) {
+        say("Camera chưa sẵn sàng");
         return;
       }
-      let ok = false;
-      const selection = currentSelection();
-      if (selection) ok = s3.flyToSelection(selection, { intent: "asset" });
-      if (ok) {
+      const selection = FT.navigation.currentSelection && FT.navigation.currentSelection();
+      if (selection && FT.navigation.flyToSelection(selection, { intent: "asset" })) {
         say("Định vị mục tiêu trên bản đồ");
         return;
       }
-      if (s3.flyToSelection(basinOverview(), { intent: "overview" })) say("Đang về toàn cảnh lưu vực");
-      else say("Camera 3D chưa sẵn sàng");
+      if (FT.navigation.flyToSelection(basinOverview(), { intent: "overview" })) say("Đang về toàn cảnh lưu vực");
+      else say("Camera chưa sẵn sàng");
     };
     const defs = [
-      { action: "zoom-in", label: "Phóng to", icon: "+", run: () => run3d("zoom-in", "Phóng to camera 3D", (s3) => s3.zoomStep && s3.zoomStep("in")) },
-      { action: "zoom-out", label: "Thu nhỏ", icon: "−", run: () => run3d("zoom-out", "Thu nhỏ camera 3D", (s3) => s3.zoomStep && s3.zoomStep("out")) },
-      { action: "north", label: "Đặt hướng Bắc", icon: "N", run: () => run3d("north", "Đưa bản đồ về hướng Bắc", (s3) => s3.resetNorth && s3.resetNorth()) },
-      { action: "tilt", label: "Nghiêng camera", icon: "◒", run: () => run3d("tilt", "Nghiêng camera 3D", (s3) => s3.toggleTilt && s3.toggleTilt()) },
+      { action: "zoom-in", label: "Phóng to", icon: "+", run: () => runActive("zoom-in", "Phóng to camera", (r) => r.zoomStep && r.zoomStep("in")) },
+      { action: "zoom-out", label: "Thu nhỏ", icon: "−", run: () => runActive("zoom-out", "Thu nhỏ camera", (r) => r.zoomStep && r.zoomStep("out")) },
+      { action: "north", label: "Đặt hướng Bắc", icon: "N", run: () => runActive("north", "Đưa bản đồ về hướng Bắc", (r) => r.resetNorth && r.resetNorth()) },
+      { action: "tilt", label: "Nghiêng camera", icon: "◒", run: () => {
+        if (FT.state && FT.state.view === "2d") {
+          FT.map2d && FT.map2d.toggleTilt && FT.map2d.toggleTilt();
+          say("Bản đồ 2D luôn hướng Bắc và nhìn từ trên xuống");
+          return;
+        }
+        runActive("tilt", "Nghiêng camera 3D", (r) => r.toggleTilt && r.toggleTilt());
+      } },
       { action: "locate", label: "Định vị", icon: "⌖", run: locate },
     ];
     defs.forEach((def) => {

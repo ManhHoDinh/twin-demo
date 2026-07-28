@@ -25,6 +25,10 @@ async function cameraState(page) {
   return page.evaluate(() => window.FT?.scene3d?.cameraState?.() || null);
 }
 
+async function map2dCameraState(page) {
+  return page.evaluate(() => window.FT?.map2d?.cameraState?.() || null);
+}
+
 function changed(a, b, key, epsilon = 0.01) {
   return a && b && Number.isFinite(a[key]) && Number.isFinite(b[key]) && Math.abs(a[key] - b[key]) > epsilon;
 }
@@ -251,6 +255,94 @@ async function earthControls(browser) {
       /toàn cảnh|lưu vực/i.test(status || '') &&
       !/chưa sẵn sàng/i.test(status || '')
     ));
+  });
+
+  await check('Earth controls and shared fly API operate on the active 2D renderer', async (d) => {
+    await page.click('#viewTabs button[data-view="2d"]');
+    await page.waitForFunction(() => window.FT?.state?.view === '2d' && window.FT?.map2d?.cameraState);
+    const beforeZoom = await map2dCameraState(page);
+    await page.getByRole('button', { name: /Phóng to/i }).click();
+    await page.waitForFunction((prior) => {
+      const state = window.FT?.map2d?.cameraState?.();
+      return state && state.scale > prior.scale;
+    }, beforeZoom);
+    const afterZoom = await map2dCameraState(page);
+    const fly = await page.evaluate(async () => {
+      const FT = window.FT;
+      const events = [];
+      const capture = (type) => (payload) => events.push({ type, payload });
+      FT.bus.on('camera.fly.start', capture('start'));
+      FT.bus.on('camera.fly.settled', capture('settled'));
+      const ok = FT.navigation.flyToSelection({ kind: 'point', xKm: 58, yKm: 63 }, { intent: 'asset' });
+      await new Promise((resolve, reject) => {
+        const deadline = window.setTimeout(() => reject(new Error('2D camera.fly.settled timeout')), 3000);
+        FT.bus.on('camera.fly.settled', (ev) => {
+          if (ev && ev.view === '2d') {
+            window.clearTimeout(deadline);
+            window.setTimeout(resolve, 120);
+          }
+        });
+      });
+      return { ok, events, state: FT.map2d.cameraState() };
+    });
+    d({ beforeZoom, afterZoom, fly });
+    const start = fly.events.filter((event) => event.type === 'start' && event.payload?.view === '2d');
+    const settled = fly.events.filter((event) => event.type === 'settled' && event.payload?.view === '2d');
+    return beforeZoom && afterZoom &&
+      afterZoom.scale > beforeZoom.scale &&
+      fly.ok === true &&
+      start.length === 1 &&
+      settled.length === 1 &&
+      start[0].payload?.intent === 'asset' &&
+      settled[0].payload?.intent === 'asset' &&
+      settled[0].payload?.status === 'settled' &&
+      Number.isFinite(fly.state?.scale) &&
+      Number.isFinite(fly.state?.metresPerPixel) &&
+      Math.hypot(fly.state.xKm - 58, fly.state.yKm - 63) < 0.8;
+  });
+
+  await check('2D fly cancels on real map input without snapping back', async (d) => {
+    await page.click('#viewTabs button[data-view="2d"]');
+    await page.waitForFunction(() => window.FT?.state?.view === '2d' && window.FT?.map2d?.cameraState);
+    await page.evaluate(async () => {
+      const FT = window.FT;
+      const events = [];
+      const capture = (type) => (payload) => events.push({ type, payload, state: FT.map2d.cameraState() });
+      window.__earth2dCancelEvents = events;
+      FT.bus.on('camera.fly.start', capture('start'));
+      FT.bus.on('camera.fly.settled', capture('settled'));
+      FT.navigation.flyToSelection({ kind: 'point', xKm: 15, yKm: 20 }, { intent: 'street' });
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      window.__earth2dCancelDuring = FT.map2d.cameraState();
+    });
+    const box = await page.locator('#canvas2d').boundingBox();
+    const x = box.x + box.width * 0.52;
+    const y = box.y + box.height * 0.48;
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x + 44, y + 12, { steps: 3 });
+    await page.mouse.up();
+    await page.mouse.wheel(0, -180);
+    const result = await page.evaluate(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 450));
+      return {
+        events: window.__earth2dCancelEvents,
+        during: window.__earth2dCancelDuring,
+        after: window.FT.map2d.cameraState(),
+      };
+    });
+    d(result);
+    const starts = result.events.filter((event) => event.type === 'start' && event.payload?.view === '2d');
+    const cancelled = result.events.filter((event) => event.type === 'settled' && event.payload?.view === '2d' && event.payload?.status === 'cancelled');
+    const settled = result.events.filter((event) => event.type === 'settled' && event.payload?.view === '2d' && event.payload?.status === 'settled');
+    return starts.length === 1 &&
+      cancelled.length === 1 &&
+      settled.length === 0 &&
+      result.after &&
+      result.during &&
+      Math.hypot(result.after.xKm - 15, result.after.yKm - 20) > 0.8 &&
+      Number.isFinite(result.after.scale) &&
+      result.after.scale !== result.during.scale;
   });
 
   await ctx.close();

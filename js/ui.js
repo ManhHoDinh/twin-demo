@@ -712,7 +712,8 @@
     el.pipSwap.title = "2D ⇄ 3D";
     el.camPresets.querySelectorAll("button").forEach((b) =>
       b.addEventListener("click", () => {
-        FT.scene3d && FT.scene3d.setCamera && FT.scene3d.setCamera(b.dataset.cam);
+        if (FT.navigation && FT.navigation.flyToPreset) FT.navigation.flyToPreset(b.dataset.cam);
+        else FT.scene3d && FT.scene3d.setCamera && FT.scene3d.setCamera(b.dataset.cam);
         el.camPresets.querySelectorAll("button").forEach((x) => x.classList.toggle("isActive", x === b));
       })
     );
@@ -768,6 +769,8 @@
     el.gaugeSelect.addEventListener("change", () => {
       FT.state.selectedGauge = el.gaugeSelect.value;
       FT.bus.emit("gaugeSelected", FT.state.selectedGauge);
+      FT.navigation && FT.navigation.flyToSelection &&
+        FT.navigation.flyToSelection({ kind: "gauge", id: FT.state.selectedGauge }, { intent: "asset" });
     });
     FT.bus.on("gaugeSelected", (id) => { el.gaugeSelect.value = id; });
 
@@ -1117,6 +1120,10 @@
   let zoneRefs = new Map(), zoneSparkTimer = null;
 
   function flyToZone(zs) {
+    if (FT.navigation && FT.navigation.flyToSelection) {
+      FT.navigation.flyToSelection({ kind: "zone", id: zs.def.id }, { intent: "district" });
+      return;
+    }
     if (FT.state.view === "2d") FT.map2d.flyTo && FT.map2d.flyTo(zs.def.x, zs.def.y, 3.6);
     else if (FT.scene3d.flyToPoint) FT.scene3d.flyToPoint(zs.def.x, zs.def.y);
   }
@@ -1280,7 +1287,11 @@
         zm: root.querySelector(".zm"),
         pr: root.querySelector(".pr"),
       });
-      root.addEventListener("click", () => FT.bus.emit("reservoirFocus", r.id));
+      root.addEventListener("click", () => {
+        FT.bus.emit("reservoirFocus", r.id);
+        FT.navigation && FT.navigation.flyToSelection &&
+          FT.navigation.flyToSelection({ kind: "reservoir", id: r.id }, { intent: "asset" });
+      });
     }
   }
 
