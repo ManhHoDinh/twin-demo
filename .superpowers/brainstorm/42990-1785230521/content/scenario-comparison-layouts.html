@@ -1,0 +1,60 @@
+<style>
+  .layout-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;margin-top:24px}
+  .layout-card{border:1px solid rgba(111,160,195,.28);border-radius:16px;background:#091a29;overflow:hidden;cursor:pointer;transition:.18s transform,.18s border-color}
+  .layout-card:hover{transform:translateY(-3px);border-color:#37b6ff}
+  .layout-card.selected{border-color:#59e3d8;box-shadow:0 0 0 2px rgba(89,227,216,.2)}
+  .screen{height:320px;position:relative;background:linear-gradient(145deg,#0b2733,#123e44 45%,#183c55);overflow:hidden}
+  .river{position:absolute;inset:20% -15% auto -15%;height:54%;transform:rotate(-9deg);border-radius:48%;background:linear-gradient(90deg,rgba(55,182,255,.15),rgba(55,182,255,.52),rgba(89,227,216,.2))}
+  .flood{position:absolute;left:28%;top:32%;width:46%;height:42%;background:rgba(55,182,255,.28);clip-path:polygon(5% 35%,35% 5%,82% 18%,100% 62%,61% 100%,18% 78%)}
+  .top{position:absolute;left:9px;right:9px;top:9px;height:34px;border:1px solid #35536a;border-radius:9px;background:rgba(7,19,32,.9);display:flex;align-items:center;padding:0 10px;gap:8px;color:#dcecf7;font-size:10px}
+  .pill{padding:4px 7px;border-radius:7px;background:#17354a;color:#c6d8e5}.pill.on{background:#37b6ff;color:#03111a;font-weight:700}
+  .timeline{position:absolute;left:10px;right:10px;bottom:10px;height:42px;border:1px solid #35536a;border-radius:10px;background:rgba(7,19,32,.92)}
+  .timeline:after{content:"";position:absolute;left:9px;right:9px;top:20px;height:5px;border-radius:5px;background:linear-gradient(90deg,#59e3d8 0 36%,#ffc14d 36% 62%,#ff6d5e 62% 76%,#37b6ff 76%)}
+  .panel{position:absolute;border:1px solid #45657b;border-radius:12px;background:rgba(8,24,37,.94);color:#dcecf7;font-size:10px;padding:9px}
+  .panel b{display:block;color:#fff;font-size:11px;margin-bottom:5px}.metric{display:flex;justify-content:space-between;padding:3px 0;color:#9fbbce}.metric strong{color:#59e3d8}
+  .splitmap{position:absolute;inset:48px 8px 58px;display:grid;grid-template-columns:1fr 1fr;gap:5px}
+  .pane{border:1px solid #476a80;border-radius:9px;background:linear-gradient(145deg,#0c2632,#194b58);position:relative}.pane:after{content:"";position:absolute;inset:22% 18%;background:rgba(55,182,255,.3);clip-path:polygon(0 40%,38% 0,100% 35%,70% 100%,15% 82%)}
+  .pane label{position:absolute;left:7px;top:6px;z-index:2;background:#0b1e2c;padding:3px 6px;border-radius:5px;color:#dcecf7;font-size:9px}
+  .rail{right:10px;top:52px;width:42%;bottom:60px}.rail .row{border:1px solid #2f4e64;border-radius:8px;padding:6px;margin-bottom:6px}.rail .row.active{border-color:#59e3d8;background:rgba(89,227,216,.08)}
+  .delta{left:10px;top:52px;width:49%;}.delta .big{font-size:18px;color:#59e3d8;font-weight:800}.marker{position:absolute;width:10px;height:10px;border-radius:50%;background:#ffc14d;box-shadow:0 0 0 5px rgba(255,193,77,.18)}
+  .wipe{position:absolute;inset:48px 8px 58px;border:1px solid #476a80;border-radius:10px;overflow:hidden}.wipe .half{position:absolute;inset:0 50% 0 0;background:rgba(55,182,255,.25);border-right:2px solid #fff}.wipe .handle{position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);width:28px;height:28px;border-radius:50%;background:#fff;color:#092033;display:grid;place-items:center;font-weight:900}.wipe-label{position:absolute;top:7px;padding:4px 7px;border-radius:6px;background:#081927;color:#dcecf7;font-size:9px}.wipe-label.a{left:7px}.wipe-label.b{right:7px}
+  .card-body{padding:14px 15px 16px}.card-body h3{margin:0 0 7px;color:#eff7fc;font-size:17px}.card-body p{margin:0;color:#9fbbce;font-size:13px;line-height:1.5}.tag{display:inline-block;margin-top:10px;padding:4px 8px;border-radius:999px;background:#17354a;color:#9fc6df;font-size:11px}.tag.rec{background:rgba(89,227,216,.12);color:#59e3d8}
+  @media(max-width:900px){.layout-grid{grid-template-columns:1fr}.screen{height:290px}}
+</style>
+
+<h2>Scenario Comparison nên sống trên bản đồ như thế nào?</h2>
+<p class="subtitle">Cả ba giữ một timeline chung, không biến sản phẩm thành dashboard. Hãy chọn hướng giúp người điều phối hiểu khác biệt giữa Rule, MPC và Recovery nhanh nhất.</p>
+
+<div class="layout-grid">
+  <div class="layout-card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="screen">
+      <div class="top"><span>FloodTwin</span><span class="pill on">Rule vs MPC</span><span class="pill">T+12h</span></div>
+      <div class="splitmap"><div class="pane"><label>A · Rule curve</label></div><div class="pane"><label>B · MPC</label></div></div>
+      <div class="timeline"></div>
+    </div>
+    <div class="card-body"><h3>A · Hai bản đồ song song</h3><p>Hai viewport đồng bộ camera và thời gian. So sánh trực tiếp nhưng chia đôi diện tích bản đồ, tốn GPU và rất yếu trên mobile.</p><span class="tag">Rõ ràng nhưng nặng</span></div>
+  </div>
+
+  <div class="layout-card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="screen">
+      <div class="river"></div><div class="flood"></div>
+      <div class="top"><span>FloodTwin</span><span class="pill">Scenario Compare</span><span class="pill on">B · MPC</span><span class="pill">T+12h</span></div>
+      <div class="panel delta"><b>Chênh lệch tại gauge chi phối</b><span class="big">−0,4 m</span><div class="metric"><span>Phơi nhiễm</span><strong>−53.200</strong></div><div class="metric"><span>Rủi ro tồn dư</span><strong>18–26%</strong></div></div>
+      <div class="panel rail"><b>Phương án</b><div class="row">A · Rule curve</div><div class="row active">B · MPC · đang vẽ</div><div class="row">C · Recovery drawdown</div><div class="metric"><span>Đỉnh do lịch liên hồ</span><strong>Ái Nghĩa</strong></div></div>
+      <span class="marker" style="left:44%;top:61%"></span><div class="timeline"></div>
+    </div>
+    <div class="card-body"><h3>B · Một bản đồ + rail phương án</h3><p>Một bản đồ toàn phần; rail 2–4 phương án đổi lớp đang vẽ. Delta ribbon luôn nói “khác ở đâu, bao nhiêu, vì lịch xả nào”.</p><span class="tag rec">Khuyến nghị · map-first</span></div>
+  </div>
+
+  <div class="layout-card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="screen">
+      <div class="river"></div><div class="flood"></div>
+      <div class="top"><span>FloodTwin</span><span class="pill on">A/B spatial wipe</span><span class="pill">T+12h</span></div>
+      <div class="wipe"><div class="half"></div><span class="wipe-label a">Rule</span><span class="wipe-label b">MPC</span><div class="handle">↔</div></div>
+      <div class="timeline"></div>
+    </div>
+    <div class="card-body"><h3>C · Thanh kéo A/B trên bản đồ</h3><p>Rất mạnh để thấy khác biệt không gian, nhưng khó đọc số, khó so hơn hai phương án và cần một chế độ accessibility thay thế.</p><span class="tag">Trực quan nhưng chuyên gia</span></div>
+  </div>
+</div>
+
+<p style="margin-top:22px;color:#9fbbce">Khuyến nghị: <b style="color:#59e3d8">B</b>. Nó giữ bản đồ là sản phẩm, dùng lại FloatingPanel hiện có, hoạt động trên mobile và chứa được timing attribution + Recovery mà không tạo viewport thứ hai.</p>

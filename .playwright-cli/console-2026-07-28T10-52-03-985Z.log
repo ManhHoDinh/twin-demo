@@ -1,0 +1,9 @@
+[     143ms] [INFO] [ops] decision layer active @ http://127.0.0.1:4199/js/opsui.js?v=127:728
+[    7885ms] [INFO] [geo] DEM OK · imagery OK @ http://127.0.0.1:4199/js/geo.js?v=127:509
+[    8446ms] [INFO] [selftest] PASS 22/22 @ http://127.0.0.1:4199/js/main.js?v=127:428
+[    8966ms] [INFO] [domain] timeline 108 events in 6 ms @ http://127.0.0.1:4199/js/opsui.js?v=127:353
+[   14557ms] [INFO] [geo] OSM roads OK — 3856 segments @ http://127.0.0.1:4199/js/geo.js?v=127:371
+[   20978ms] [ERROR] Failed to load resource: the server responded with a status of 504 (Gateway Timeout) @ https://overpass-api.de/api/interpreter?data=%5Bout%3Ajson%5D%5Btimeout%3A25%5D%3B(way%5B%22building%22%5D(16.0000%2C108.1550%2C16.1100%2C108.2650)%3Bway%5B%22building%22%5D(15.8400%2C108.2900%2C15.9160%2C108.3660)%3Bway%5B%22building%22%5D(15.8550%2C108.0700%2C15.9150%2C108.1300)%3Bway%5B%22building%22%5D(15.8880%2C108.2160%2C15.9520%2C108.2800)%3Bway%5B%22building%22%5D(15.8200%2C108.2300%2C15.8800%2C108.2900)%3B)%3Bout%20geom%209000%3B:0
+[   21204ms] [INFO] [domain] timeline 116 events in 17 ms @ http://127.0.0.1:4199/js/opsui.js?v=127:353
+[   76704ms] [INFO] [geo] OSM minor roads OK — 12000 đoạn (đường nhỏ + hẻm) @ http://127.0.0.1:4199/js/geo.js?v=127:466
+[   76724ms] [INFO] [3d] OSM minor — 17461 đoạn đường nhỏ/hẻm @ http://127.0.0.1:4199/js/scene3d.js?v=127:358

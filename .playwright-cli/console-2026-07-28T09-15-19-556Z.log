@@ -1,0 +1,8 @@
+[      88ms] [INFO] [ops] decision layer active @ http://127.0.0.1:4310/js/opsui.js?v=127:728
+[   10799ms] [INFO] [geo] DEM OK · imagery OK @ http://127.0.0.1:4310/js/geo.js?v=127:509
+[   11352ms] [INFO] [selftest] PASS 20/20 @ http://127.0.0.1:4310/js/main.js?v=127:415
+[   12136ms] [INFO] [domain] timeline 108 events in 6 ms @ http://127.0.0.1:4310/js/opsui.js?v=127:353
+[   18710ms] [ERROR] Failed to load resource: the server responded with a status of 504 (Gateway Timeout) @ https://overpass-api.de/api/interpreter?data=%5Bout%3Ajson%5D%5Btimeout%3A25%5D%3Bway%5B%22highway%22~%22%5E(motorway%7Cmotorway_link%7Ctrunk%7Ctrunk_link%7Cprimary%7Csecondary)%24%22%5D(15.3%2C107.55%2C16.16%2C108.45)%3Bout%20geom%3B:0
+[   61136ms] [INFO] [geo] OSM buildings OK — 7000 footprints @ http://127.0.0.1:4310/js/geo.js?v=127:418
+[   61165ms] [INFO] [3d] OSM buildings — 7000 nhà thật @ http://127.0.0.1:4310/js/scene3d.js?v=127:633
+[   67883ms] [ERROR] Failed to load resource: the server responded with a status of 504 (Gateway Timeout) @ https://overpass-api.de/api/interpreter?data=%5Bout%3Ajson%5D%5Btimeout%3A30%5D%3B(way%5B%22highway%22%5D(16.0000%2C108.1550%2C16.1100%2C108.2650)%3Bway%5B%22highway%22%5D(15.8400%2C108.2900%2C15.9160%2C108.3660)%3Bway%5B%22highway%22%5D(15.8550%2C108.0700%2C15.9150%2C108.1300)%3Bway%5B%22highway%22%5D(15.8880%2C108.2160%2C15.9520%2C108.2800)%3Bway%5B%22highway%22%5D(15.8200%2C108.2300%2C15.8800%2C108.2900)%3B)%3Bout%20geom%2014000%3B:0

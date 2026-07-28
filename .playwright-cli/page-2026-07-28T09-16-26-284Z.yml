@@ -1,0 +1,151 @@
+- generic [ref=e1]:
+  - main [ref=e219]:
+    - generic [ref=e232]:
+      - generic "3D flood digital twin"
+      - generic "2D operational flood map" [active] [ref=e422]
+      - button "Swap 2D/3D view" [ref=e233] [cursor=pointer]:
+        - generic [ref=e235]: 3D
+      - paragraph [ref=e238]: Dùng phím mũi tên để di chuyển con trỏ kiểm tra, Enter để chọn, Escape để đóng.
+      - generic [ref=e239]:
+        - generic [ref=e240]: Diện ngập
+        - strong [ref=e241]: 1.340,9 km²
+        - generic [ref=e242]: Dân cư phơi nhiễm
+        - strong [ref=e243]: 6.252.900 người
+        - generic [ref=e244]: Nhà ngập
+        - strong [ref=e245]: ~30.402
+  - toolbar "Command bar" [ref=e368]:
+    - generic [ref=e369]:
+      - generic [ref=e370]: FT
+      - generic [ref=e372]: FloodTwin
+      - generic [ref=e373]: VGTB
+    - generic [ref=e374]:
+      - generic: ⌕
+      - searchbox "Tìm kiếm" [ref=e375]
+    - combobox "Scenario" [ref=e32]:
+      - option "Lũ tháng 10/2020 (lịch sử)" [selected]
+      - option "Siêu bão kiểu Yagi (cực đoan)"
+      - option "Gió mùa trung bình"
+    - group "Operating policy" [ref=e33]:
+      - button "Rule curve tĩnh" [ref=e34] [cursor=pointer]
+      - button "FloodTwin MPC" [ref=e35] [cursor=pointer]
+    - button "ESC L4" [ref=e652] [cursor=pointer]:
+      - generic [ref=e379]: ESC
+      - generic [ref=e380]: L4
+    - generic [ref=e381] [cursor=pointer]:
+      - text: ⚑
+      - generic [ref=e382]: 13/13
+    - button "🎬 Trình diễn" [ref=e36] [cursor=pointer]
+    - button "Language" [ref=e37] [cursor=pointer]: VI / EN
+  - toolbar "Hành động nhanh" [ref=e383]:
+    - generic [ref=e384]:
+      - generic [ref=e385]: Thông báo
+      - button "Soạn bản tin mực nước" [ref=e310] [cursor=pointer]
+      - button "Thông báo xả" [ref=e311] [cursor=pointer]
+      - button "Lệnh sơ tán" [ref=e312] [cursor=pointer]
+    - generic [ref=e386]:
+      - generic [ref=e387]: Báo cáo
+      - button "🖨 Xuất báo cáo" [ref=e349] [cursor=pointer]
+      - button "📄 Hồ sơ vận hành" [ref=e350] [cursor=pointer]
+      - button "🗂 Báo cáo sau lũ" [ref=e351] [cursor=pointer]
+  - status "Tín hiệu vận hành" [ref=e388]:
+    - generic [ref=e39]: DỮ LIỆU TỔNG HỢP · KHÔNG DÙNG VẬN HÀNH
+    - generic "A Vương trên MNDBT" [ref=e653]:
+      - generic [ref=e41]: Escalation
+      - generic [ref=e42]: L4
+    - button "Data L0 · 12/12" [ref=e425] [cursor=pointer]:
+      - generic [ref=e44]: Data
+      - generic [ref=e45]: L0 · 12/12
+    - generic "Tác động một phần — cần làm song song cảnh báo và sơ tán." [ref=e625]:
+      - generic [ref=e47]: κ điều tiết
+      - generic [ref=e48]: 0,31
+    - 'generic "Trạm cao nhất: Ái Nghĩa (BĐ3 9 m). Ngưỡng hành động theo cây quyết định: 30%." [ref=e626]':
+      - generic [ref=e50]: P(vượt BĐ3, 12h)
+      - generic [ref=e51]: 100%
+    - 'generic "Quá hạn: không còn đủ thời gian thông báo hạ du trước khi tăng xả theo phương án này." [ref=e457]':
+      - generic [ref=e53]: Hạn quyết định
+      - generic [ref=e54]: ĐÃ QUÁ HẠN
+  - tablist "Công cụ" [ref=e389]:
+    - tab "Lớp hiển thị" [ref=e390] [cursor=pointer]:
+      - text: ◱
+      - generic [ref=e391]: L
+    - tab "Cưỡng bức khí tượng" [ref=e392] [cursor=pointer]:
+      - text: ☁
+      - generic [ref=e393]: F
+    - tab "Khu vực giám sát" [ref=e394] [cursor=pointer]:
+      - text: ▦
+      - generic [ref=e395]: Z
+    - tab "Sơ tán · điểm trú" [ref=e396] [cursor=pointer]:
+      - text: ⛑
+      - generic [ref=e397]: E
+    - tab "Mưa tiểu lưu vực" [ref=e398] [cursor=pointer]:
+      - text: ☂
+      - generic [ref=e399]: R
+    - tab "Ngưỡng mục tiêu" [ref=e401] [cursor=pointer]:
+      - text: ▤
+      - generic [ref=e402]: M
+    - tab "Chú giải" [ref=e403] [cursor=pointer]:
+      - text: ◈
+      - generic [ref=e404]: G
+  - group "Điều khiển bản đồ" [ref=e405]:
+    - tablist [ref=e221]:
+      - tab "Song sinh số 3D" [ref=e222] [cursor=pointer]
+      - tab "Bản đồ vận hành 2D" [selected] [ref=e223] [cursor=pointer]
+  - group "Chế độ bản đồ" [ref=e406]:
+    - button "Toàn màn hình (F)" [ref=e407] [cursor=pointer]: ⛶
+    - button "Focus (⌥F)" [ref=e408] [cursor=pointer]: ◱
+    - button "Immersive (I)" [ref=e409] [cursor=pointer]: ◉
+    - button "Chia đôi 2D|3D (\\)" [ref=e410] [cursor=pointer]: ▥
+    - button "Trình chiếu (⇧P)" [ref=e411] [cursor=pointer]: ⎋
+  - region "Timeline" [ref=e412]:
+    - generic [ref=e413]:
+      - generic [ref=e414]: Dòng thời gian mô phỏng
+      - button "Thu gọn / mở" [ref=e416] [cursor=pointer]: –
+    - generic [ref=e247]:
+      - generic [ref=e248]:
+        - button "Play/Pause" [ref=e249] [cursor=pointer]: ⏸
+        - group [ref=e250]:
+          - button "6 m/s" [ref=e251] [cursor=pointer]
+          - button "30 m/s" [ref=e252] [cursor=pointer]
+          - button "90 m/s" [ref=e253] [cursor=pointer]
+        - generic [ref=e254]:
+          - strong [ref=e255]: 04:32 · 12/10
+          - generic [ref=e256]: T+21h32
+          - emphasis [ref=e257]: Đỉnh lũ
+      - generic [ref=e258]:
+        - slider "Simulation time (hours)" [ref=e260]: "21.55"
+        - generic "Domain event stream" [ref=e261]:
+          - button "🏚 03:00 Nhà thi đấu Tiên Sơn không còn dùng được" [ref=e654] [cursor=pointer]:
+            - generic [ref=e655]: 🏚
+            - generic [ref=e656]: 03:00
+            - generic [ref=e657]: Nhà thi đấu Tiên Sơn không còn dùng được
+          - 'button "🛢 04:30 A Vương: XẢ KHẨN CẤP" [ref=e658] [cursor=pointer]':
+            - generic [ref=e659]: 🛢
+            - generic [ref=e660]: 04:30
+            - generic [ref=e661]: "A Vương: XẢ KHẨN CẤP"
+          - generic [ref=e662]: HIỆN TẠI
+          - 'button "🛢 05:00 Sông Bung 4: Xả ngang lũ về" [ref=e663] [cursor=pointer]':
+            - generic [ref=e664]: 🛢
+            - generic [ref=e665]: 05:00
+            - generic [ref=e666]: "Sông Bung 4: Xả ngang lũ về"
+          - button "⚠ 05:00 Sông Bung 4 hết dung tích cắt lũ" [ref=e667] [cursor=pointer]:
+            - generic [ref=e668]: ⚠
+            - generic [ref=e669]: 05:00
+            - generic [ref=e670]: Sông Bung 4 hết dung tích cắt lũ
+          - 'button "🛢 13:00 A Vương: Xả điều tiết" [ref=e671] [cursor=pointer]':
+            - generic [ref=e672]: 🛢
+            - generic [ref=e673]: 13:00
+            - generic [ref=e674]: "A Vương: Xả điều tiết"
+          - 'button "🛢 14:15 Sông Bung 4: Xả điều tiết" [ref=e675] [cursor=pointer]':
+            - generic [ref=e676]: 🛢
+            - generic [ref=e677]: 14:15
+            - generic [ref=e678]: "Sông Bung 4: Xả điều tiết"
+        - generic [ref=e262]:
+          - generic [ref=e263]: T−24h
+          - generic [ref=e264]: quan trắc
+          - generic [ref=e265]: HIỆN TẠI
+          - generic [ref=e266]: dự báo ensemble
+          - generic [ref=e267]: T+48h
+  - button "Trợ lý AI" [ref=e418] [cursor=pointer]: ✦
+  - status [ref=e419]:
+    - generic [ref=e420]: SYNTHETIC DATA · NOT FOR OPERATIONS
+    - generic [ref=e421]: 60 fps · H✓

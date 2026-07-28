@@ -1,0 +1,72 @@
+<style>
+  .map-grid{display:grid;grid-template-columns:repeat(3,minmax(240px,1fr));gap:18px;margin-top:22px}
+  .map-card{border:1px solid #d9dee5;border-radius:18px;overflow:hidden;background:#fff;cursor:pointer;box-shadow:0 8px 28px rgba(15,23,42,.08);transition:.18s ease}
+  .map-card:hover{transform:translateY(-3px);box-shadow:0 15px 38px rgba(15,23,42,.14)}
+  .map-card.selected{outline:4px solid #1a73e8;outline-offset:2px}
+  .map{height:320px;position:relative;overflow:hidden;background:
+    linear-gradient(29deg,transparent 46%,rgba(228,214,168,.72) 47%,rgba(228,214,168,.72) 51%,transparent 52%),
+    radial-gradient(ellipse at 18% 25%,#315f37 0 16%,transparent 17%),
+    radial-gradient(ellipse at 76% 25%,#507348 0 19%,transparent 20%),
+    radial-gradient(ellipse at 55% 75%,#b2a06a 0 24%,transparent 25%),
+    linear-gradient(135deg,#476c42,#8e965f 42%,#9b8e66 67%,#55734b)}
+  .map:before{content:"";position:absolute;inset:-20%;background:repeating-linear-gradient(72deg,transparent 0 28px,rgba(255,255,255,.13) 29px 31px);transform:rotate(-8deg)}
+  .river{position:absolute;width:125%;height:64px;left:-12%;top:48%;background:#174e70;transform:rotate(-13deg);border:2px solid rgba(255,255,255,.75);box-shadow:0 0 0 4px rgba(12,54,77,.45)}
+  .flood{position:absolute;left:19%;right:8%;bottom:9%;height:44%;border-radius:54% 18% 48% 25%;background:linear-gradient(135deg,rgba(0,168,232,.2),rgba(0,105,190,.62));border:3px solid #7de2ff;box-shadow:inset 0 0 0 1px rgba(0,42,92,.8),0 0 18px rgba(0,174,239,.35)}
+  .flow{position:absolute;left:34%;bottom:28%;color:#fff;font-size:28px;font-weight:900;filter:drop-shadow(0 1px 2px #06466d);transform:rotate(-10deg);letter-spacing:13px}
+  .pin{position:absolute;width:18px;height:18px;border-radius:50%;background:#fff;border:5px solid #d93025;box-shadow:0 2px 7px rgba(0,0,0,.55)}
+  .pin:after{content:"";position:absolute;inset:4px;border-radius:50%;background:#d93025}
+  .p1{left:25%;top:25%}.p2{right:24%;top:33%}.p3{left:48%;bottom:20%;border-color:#f9ab00}.p3:after{background:#f9ab00}
+  .mode{position:absolute;top:12px;left:12px;display:flex;padding:3px;background:white;border-radius:9px;box-shadow:0 2px 9px rgba(0,0,0,.28);font:700 11px sans-serif}
+  .mode span{padding:7px 10px;border-radius:7px}.mode .on{background:#e8f0fe;color:#185abc}
+  .zoom{position:absolute;right:12px;bottom:14px;display:grid;background:#fff;border-radius:10px;box-shadow:0 2px 9px rgba(0,0,0,.3);overflow:hidden}
+  .zoom b{width:38px;height:36px;display:grid;place-items:center;font:600 22px sans-serif;border-bottom:1px solid #ddd;color:#3c4043}.zoom b:last-child{border:0;font-size:17px}
+  .legend{position:absolute;left:12px;bottom:12px;padding:8px 10px;border-radius:8px;background:rgba(255,255,255,.94);box-shadow:0 2px 8px rgba(0,0,0,.24);font:600 10px sans-serif;color:#263238}
+  .legend i{display:inline-block;width:25px;height:7px;margin-right:5px;background:#168bd2;border:2px solid #7de2ff;vertical-align:middle}
+  .map-card[data-choice="b"] .map{filter:saturate(.55) brightness(.67) contrast(1.08)}
+  .map-card[data-choice="b"] .mode,.map-card[data-choice="b"] .zoom,.map-card[data-choice="b"] .legend{filter:none}
+  .map-card[data-choice="b"] .flood{background:linear-gradient(135deg,rgba(0,225,255,.35),rgba(18,107,255,.82));border-color:#fff}
+  .splitline{display:none;position:absolute;left:50%;top:0;bottom:0;width:4px;background:#fff;box-shadow:0 0 10px #000}
+  .splitline:before{content:"↔";position:absolute;top:46%;left:-17px;width:38px;height:38px;display:grid;place-items:center;border-radius:50%;background:#fff;color:#1a73e8;font-weight:900;box-shadow:0 2px 8px #333}
+  .map-card[data-choice="c"] .splitline{display:block}.map-card[data-choice="c"] .flood{clip-path:inset(0 0 0 40%)}
+  .card-copy{padding:16px 17px 18px}.card-copy h3{margin:0 0 6px;font-size:17px}.card-copy p{margin:0;color:#59636f;font-size:13px;line-height:1.45}
+  .tag{display:inline-block;margin-top:11px;padding:5px 8px;border-radius:99px;background:#e8f0fe;color:#185abc;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px}
+  @media(max-width:900px){.map-grid{grid-template-columns:1fr}.map{height:250px}}
+</style>
+
+<h2>Chọn cách làm rõ hiện trạng và mô phỏng trên nền vệ tinh</h2>
+<p class="subtitle">Cả ba phương án đều có pan bằng kéo, zoom theo con trỏ, nút +/−, nút định vị và phản hồi “đang zoom tới”. Khác nhau ở cách tách dữ liệu thật khỏi lớp nước mô phỏng.</p>
+
+<div class="map-grid">
+  <div class="map-card option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="map">
+      <div class="river"></div><div class="flood"></div><div class="flow">› › ›</div>
+      <i class="pin p1"></i><i class="pin p2"></i><i class="pin p3"></i>
+      <div class="mode"><span class="on">Vệ tinh + lũ</span><span>Chỉ hiện trạng</span></div>
+      <div class="legend"><i></i> MÔ PHỎNG NGẬP · T+18h</div>
+      <div class="zoom"><b>+</b><b>−</b><b>⌖</b></div>
+    </div>
+    <div class="card-copy"><h3>A · Operational Satellite</h3><p>Giữ ảnh vệ tinh sáng và tự nhiên. Nước mô phỏng dùng màu xanh trong, viền sáng, nhãn thời gian; sông hiện trạng dùng xanh đậm. Dễ đọc mà vẫn giữ địa vật.</p><span class="tag">Khuyến nghị</span></div>
+  </div>
+
+  <div class="map-card option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="map">
+      <div class="river"></div><div class="flood"></div><div class="flow">› › ›</div>
+      <i class="pin p1"></i><i class="pin p2"></i><i class="pin p3"></i>
+      <div class="mode"><span class="on">Phân tích lũ</span><span>Vệ tinh</span></div>
+      <div class="legend"><i></i> ĐỘ SÂU MÔ PHỎNG</div>
+      <div class="zoom"><b>+</b><b>−</b><b>⌖</b></div>
+    </div>
+    <div class="card-copy"><h3>B · Analysis Focus</h3><p>Làm tối và giảm màu ảnh vệ tinh khi bật mô phỏng, để độ sâu và dòng chảy nổi bật nhất. Rất rõ khi vận hành nhưng khó nhận dạng mái nhà/ruộng hơn.</p><span class="tag">Tương phản cao</span></div>
+  </div>
+
+  <div class="map-card option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="map">
+      <div class="river"></div><div class="flood"></div><div class="flow">› › ›</div><div class="splitline"></div>
+      <i class="pin p1"></i><i class="pin p2"></i><i class="pin p3"></i>
+      <div class="mode"><span class="on">So sánh</span><span>Tách đôi</span></div>
+      <div class="legend"><i></i> TRÁI: HIỆN TRẠNG · PHẢI: MÔ PHỎNG</div>
+      <div class="zoom"><b>+</b><b>−</b><b>⌖</b></div>
+    </div>
+    <div class="card-copy"><h3>C · Before / After Slider</h3><p>Thanh kéo tách ảnh vệ tinh nguyên bản và kết quả mô phỏng. Phân biệt tuyệt đối, phù hợp trình bày; thêm một thao tác nên chậm hơn trong tình huống khẩn cấp.</p><span class="tag">So sánh trực quan</span></div>
+  </div>
+</div>

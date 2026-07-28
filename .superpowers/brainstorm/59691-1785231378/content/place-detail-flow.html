@@ -1,0 +1,56 @@
+<style>
+  .demo{position:relative;height:650px;border-radius:22px;overflow:hidden;background:
+    linear-gradient(27deg,transparent 45%,rgba(222,207,159,.85) 46%,rgba(222,207,159,.85) 49%,transparent 50%),
+    radial-gradient(ellipse at 13% 20%,#355f35 0 15%,transparent 16%),radial-gradient(ellipse at 70% 24%,#4f7948 0 20%,transparent 21%),
+    radial-gradient(ellipse at 48% 80%,#ad9c67 0 27%,transparent 28%),linear-gradient(135deg,#4a7143,#93965f 42%,#a08d63 67%,#53734d);box-shadow:0 18px 55px rgba(15,23,42,.16)}
+  .demo:before{content:"";position:absolute;inset:-20%;background:repeating-linear-gradient(72deg,transparent 0 34px,rgba(255,255,255,.15) 35px 37px);transform:rotate(-7deg)}
+  .river{position:absolute;width:120%;height:90px;left:-10%;top:43%;background:#164c70;transform:rotate(-12deg);border:3px solid rgba(255,255,255,.62)}
+  .flood{position:absolute;left:9%;right:20%;bottom:4%;height:42%;border-radius:60% 20% 43% 25%;background:linear-gradient(135deg,rgba(0,188,232,.18),rgba(0,105,190,.58));border:3px solid #82e5ff;box-shadow:inset 0 0 0 1px rgba(0,35,92,.75)}
+  .flow{position:absolute;left:25%;bottom:29%;color:#fff;font:900 31px sans-serif;letter-spacing:24px;filter:drop-shadow(0 1px 3px #00466c);transform:rotate(-11deg)}
+  .topbar{position:absolute;left:16px;top:16px;width:min(560px,calc(100% - 105px));height:48px;border-radius:13px;background:#fff;box-shadow:0 3px 14px rgba(0,0,0,.32);display:flex;align-items:center;padding:0 15px;gap:11px;color:#5f6368;font:500 14px sans-serif}
+  .topbar b{color:#202124}.topbar span:last-child{margin-left:auto;color:#1a73e8;font-weight:700}
+  .layers{position:absolute;left:16px;bottom:17px;padding:10px 12px;border-radius:11px;background:rgba(255,255,255,.96);box-shadow:0 2px 10px rgba(0,0,0,.28);font:700 11px sans-serif;color:#263238}
+  .layers i{display:inline-block;width:27px;height:8px;margin-right:6px;background:#168bd2;border:2px solid #82e5ff;vertical-align:middle}
+  .zoom{position:absolute;right:18px;bottom:18px;display:grid;background:#fff;border-radius:12px;box-shadow:0 2px 10px rgba(0,0,0,.3);overflow:hidden}
+  .zoom b{width:44px;height:40px;display:grid;place-items:center;font:600 23px sans-serif;border-bottom:1px solid #ddd;color:#3c4043}.zoom b:last-child{border:0;font-size:18px}
+  .marker{position:absolute;left:52%;top:37%;width:25px;height:25px;border-radius:50% 50% 50% 0;background:#d93025;border:4px solid #fff;box-shadow:0 3px 10px rgba(0,0,0,.55);transform:rotate(-45deg)}
+  .marker:after{content:"";position:absolute;width:7px;height:7px;border-radius:50%;background:#fff;left:9px;top:9px}
+  .pulse{position:absolute;left:calc(52% - 25px);top:calc(37% - 25px);width:75px;height:75px;border:3px solid rgba(26,115,232,.78);border-radius:50%;box-shadow:0 0 0 12px rgba(26,115,232,.13)}
+  .card{position:absolute;right:76px;top:84px;width:330px;background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 12px 38px rgba(0,0,0,.35);font-family:Arial,sans-serif}
+  .photo{height:126px;background:linear-gradient(150deg,rgba(0,0,0,.02),rgba(0,0,0,.16)),radial-gradient(ellipse at 30% 30%,#517c49 0 23%,transparent 24%),linear-gradient(25deg,#244f67 0 26%,#b5a574 27% 55%,#597849 56%);position:relative}
+  .photo span{position:absolute;left:12px;bottom:10px;padding:5px 8px;border-radius:7px;background:rgba(255,255,255,.93);font-size:10px;font-weight:700;color:#3c4043}
+  .body{padding:15px 17px}.body h3{margin:0;font-size:20px;color:#202124}.meta{margin:4px 0 13px;color:#5f6368;font-size:12px}.tabs{display:flex;border-bottom:1px solid #e5e7eb;margin:0 -17px;padding:0 17px;gap:20px}.tabs b{padding:9px 0;font-size:11px;color:#5f6368}.tabs .on{color:#1a73e8;border-bottom:3px solid #1a73e8}
+  .row{display:grid;grid-template-columns:1fr auto;gap:8px;padding:10px 0;border-bottom:1px solid #eef0f2;font-size:12px;color:#4b5563}.row strong{color:#202124}.truth{display:inline-flex;align-items:center;gap:5px;color:#137333;font-size:10px;font-weight:800}.truth:before{content:"";width:7px;height:7px;border-radius:50%;background:#34a853}.sim{color:#185abc;background:#e8f0fe;padding:4px 6px;border-radius:5px;font-size:9px;font-weight:800}
+  .actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:13px}.actions button{border:1px solid #dadce0;border-radius:9px;padding:10px;background:#fff;color:#1a73e8;font-weight:700}.actions .primary{background:#1a73e8;color:#fff;border-color:#1a73e8}
+  .caption{margin-top:17px;display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.cap{padding:14px;border:1px solid #dde2e8;border-radius:12px;background:#fff}.cap b{display:block;margin-bottom:5px}.cap span{font-size:12px;color:#5f6873;line-height:1.45}
+  @media(max-width:780px){.demo{height:720px}.card{left:12px;right:12px;top:auto;bottom:74px;width:auto}.photo{height:96px}.caption{grid-template-columns:1fr}.layers{display:none}}
+</style>
+
+<h2>Chi tiết từng địa điểm theo luồng Google Maps</h2>
+<p class="subtitle">Bấm marker, vùng, đường, cầu, hồ hoặc bất kỳ ô bản đồ nào để mở thẻ thông tin. Hiện trạng và kết quả mô phỏng luôn nằm ở hai dòng khác nhau, có nhãn nguồn và thời điểm.</p>
+
+<div class="demo">
+  <div class="river"></div><div class="flood"></div><div class="flow">› › › ›</div>
+  <div class="topbar">⌕ <b>Tìm địa điểm, hồ, trạm, đường…</b><span>Vệ tinh ▾</span></div>
+  <div class="pulse"></div><div class="marker"></div>
+  <div class="layers"><i></i> MÔ PHỎNG NGẬP · T+18h · 16:00</div>
+  <div class="zoom"><b>+</b><b>−</b><b>⌖</b></div>
+  <section class="card">
+    <div class="photo"><span>Ảnh vệ tinh · Esri</span></div>
+    <div class="body">
+      <h3>Cầu Câu Lâu</h3><div class="meta">QL1A · 15.8776, 108.2601 · Cầu giao thông</div>
+      <div class="tabs"><b class="on">Tổng quan</b><b>Hiện trạng</b><b>Mô phỏng</b></div>
+      <div class="row"><span>Trạng thái quan sát</span><span class="truth">Đang lưu thông</span></div>
+      <div class="row"><span>Mực nước gần nhất</span><strong>1,82 m · 15:40</strong></div>
+      <div class="row"><span>Độ sâu mặt đường tại T+18h</span><span class="sim">MÔ PHỎNG 0,34–0,48 m</span></div>
+      <div class="row"><span>Khả năng lưu thông dự kiến</span><strong style="color:#b3261e">Đóng sau 17:20</strong></div>
+      <div class="actions"><button class="primary">Zoom tới</button><button>Xem lộ trình</button></div>
+    </div>
+  </section>
+</div>
+
+<div class="caption">
+  <div class="cap"><b>1 · Chọn đối tượng</b><span>Marker có halo trắng và vùng chạm lớn; click một lần mở thẻ, double-click zoom sâu.</span></div>
+  <div class="cap"><b>2 · Đọc đúng nguồn</b><span>Màu xanh lá = quan sát/hiện trạng; xanh dương = mô phỏng, luôn kèm T+ và khoảng giá trị.</span></div>
+  <div class="cap"><b>3 · Zoom có phản hồi</b><span>Camera bay tới, marker phát vòng định vị, breadcrumb và tỷ lệ mét/pixel cập nhật rõ ràng.</span></div>
+</div>

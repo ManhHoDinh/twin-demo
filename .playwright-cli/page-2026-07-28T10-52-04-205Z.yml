@@ -1,0 +1,360 @@
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e5]: FT
+      - generic [ref=e7]:
+        - heading "FloodTwin Vu Gia – Thu Bồn" [level=1] [ref=e8]
+        - paragraph [ref=e9]: Bản sao số lũ & liên hồ chứa · nhận thức bất định · nền tảng pháp quy
+    - status [ref=e10]:
+      - generic [ref=e11]:
+        - generic [ref=e12]: Cảnh báo lưu vực
+        - strong [ref=e13]: —
+      - generic [ref=e14]:
+        - generic [ref=e15]: Mưa lưu vực
+        - strong [ref=e16]: — mm/h
+      - generic [ref=e17]:
+        - generic [ref=e18]: Ái Nghĩa
+        - strong [ref=e19]: — m
+      - generic [ref=e20]:
+        - generic [ref=e21]: Mạng đường thông
+        - strong [ref=e22]: —%
+      - generic [ref=e23]:
+        - generic [ref=e24]: KV nguy cơ/khẩn cấp
+        - strong [ref=e25]: 0 / 0
+      - generic [ref=e26]:
+        - generic [ref=e27]: Lead time hiệu dụng
+        - strong [ref=e28]: +48 h
+    - generic [ref=e29]:
+      - generic [ref=e30]:
+        - generic [ref=e31]: Kịch bản
+        - combobox "Scenario" [ref=e32]:
+          - option "Lũ tháng 10/2020 (lịch sử)" [selected]
+          - option "Siêu bão kiểu Yagi (cực đoan)"
+          - option "Gió mùa trung bình"
+          - option "Phục hồi sau đỉnh"
+      - group "Operating policy" [ref=e33]:
+        - button "Rule curve tĩnh" [ref=e34] [cursor=pointer]
+        - button "FloodTwin MPC" [ref=e35] [cursor=pointer]
+      - button "🎬 Trình diễn" [ref=e36] [cursor=pointer]
+      - button "Language" [ref=e37] [cursor=pointer]: VI / EN
+  - generic [ref=e38]:
+    - generic [ref=e39]: DỮ LIỆU TỔNG HỢP · KHÔNG DÙNG VẬN HÀNH
+    - generic [ref=e40]:
+      - generic [ref=e41]: Escalation
+      - generic [ref=e42]: L0
+    - button "Data L0 · —" [ref=e43] [cursor=pointer]:
+      - generic [ref=e44]: Data
+      - generic [ref=e45]: L0 · —
+    - generic [ref=e46]:
+      - generic [ref=e47]: κ điều tiết
+      - generic [ref=e48]: —
+    - generic [ref=e49]:
+      - generic [ref=e50]: P(vượt BĐ3, 12h)
+      - generic [ref=e51]: —
+    - generic [ref=e52]:
+      - generic [ref=e53]: Hạn quyết định
+      - generic [ref=e54]: —
+    - generic [ref=e55]:
+      - generic [ref=e56]: Trực ban
+      - combobox "Trực ban" [ref=e57]:
+        - option "— chưa định danh —" [selected]
+        - option "Nguyễn V.A. · KS vận hành hồ"
+        - option "Trần T.B. · Trưởng ca"
+        - option "Lê Q.C. · Giám đốc NM"
+        - option "Phạm M.D. · Ban Chỉ huy PCTT"
+        - option "Vũ H.E. · KS an toàn đập"
+        - option "Đỗ K.F. · Chỉ huy ứng phó"
+    - generic [ref=e58]:
+      - generic [ref=e59]: Suy giảm dữ liệu
+      - combobox "Suy giảm dữ liệu" [ref=e60]:
+        - option "L0 đầy đủ" [selected]
+        - option "L1 giảm nhẹ"
+        - option "L2 thiếu nguồn then chốt"
+        - option "L3 mất kết nối"
+        - option "L4 không quan trắc"
+  - complementary [ref=e61]:
+    - generic [ref=e62]:
+      - generic [ref=e63]:
+        - generic [ref=e64]: Cưỡng bức khí tượng
+        - strong [ref=e65]: Kịch bản tổng hợp
+      - generic [ref=e66]:
+        - generic [ref=e67]: Hệ số mưa (× ensemble)
+        - slider "Hệ số mưa (× ensemble) 1.00×" [ref=e68]: "100"
+        - emphasis [ref=e69]: 1.00×
+      - generic [ref=e70]:
+        - generic [ref=e71]: Độ mở ensemble
+        - slider "Độ mở ensemble 1.00×" [ref=e72]: "100"
+        - emphasis [ref=e73]: 1.00×
+      - generic [ref=e74]: Chuỗi GraphCast/GenCast + IMERG hiệu chỉnh — dữ liệu tổng hợp minh hoạ.
+    - generic [ref=e75]:
+      - generic [ref=e76]:
+        - generic [ref=e77]: Mưa theo tiểu lưu vực · độ ẩm trước lũ
+        - strong [ref=e78]: —
+      - paragraph [ref=e79]: Mưa thượng nguồn thành dòng vào hồ và điều tiết được; mưa khu giữa/đồng bằng thì không. Đây là cơ sở của hệ số κ.
+      - paragraph
+    - generic [ref=e81]:
+      - generic [ref=e82]: Khu vực giám sát
+      - strong [ref=e83]: —
+    - generic [ref=e84]:
+      - generic [ref=e85]:
+        - generic [ref=e86]: Sơ tán · điểm trú · tuyến
+        - strong [ref=e87]: —
+      - paragraph [ref=e88]: "Tuyến được đánh giá theo trạng thái ngập tại thời điểm sử dụng, không phải hiện tại. “Đóng lúc” là giờ dự kiến mất tuyến. Giới hạn mô hình: chỉ tính trên mạng — tuyến chính đã mô hình hoá — “cô lập” nghĩa là mất kết nối trên mạng này, chưa xét đường nhỏ/ngõ."
+    - generic [ref=e89]:
+      - generic [ref=e90]:
+        - generic [ref=e91]: Lớp hiển thị
+        - strong [ref=e92]: 3D
+      - generic [ref=e93]:
+        - generic [ref=e94] [cursor=pointer]:
+          - checkbox "Mặt nước / ngập" [checked] [ref=e95]
+          - generic [ref=e96]: Mặt nước / ngập
+        - generic [ref=e97] [cursor=pointer]:
+          - checkbox "Hạt dòng chảy" [checked] [ref=e98]
+          - generic [ref=e99]: Hạt dòng chảy
+        - generic [ref=e100] [cursor=pointer]:
+          - checkbox "Giao thông" [checked] [ref=e101]
+          - generic [ref=e102]: Giao thông
+        - generic [ref=e103] [cursor=pointer]:
+          - checkbox "Trạng thái đường" [checked] [ref=e104]
+          - generic [ref=e105]: Trạng thái đường
+        - generic [ref=e106] [cursor=pointer]:
+          - checkbox "Trạm thủy văn" [checked] [ref=e107]
+          - generic [ref=e108]: Trạm thủy văn
+        - generic [ref=e109] [cursor=pointer]:
+          - checkbox "Hồ chứa / đập" [checked] [ref=e110]
+          - generic [ref=e111]: Hồ chứa / đập
+        - generic [ref=e112] [cursor=pointer]:
+          - checkbox "Mưa" [checked] [ref=e113]
+          - generic [ref=e114]: Mưa
+        - generic [ref=e115] [cursor=pointer]:
+          - checkbox "Nhãn địa danh" [checked] [ref=e116]
+          - generic [ref=e117]: Nhãn địa danh
+        - generic [ref=e118] [cursor=pointer]:
+          - checkbox "Vòng khu vực" [checked] [ref=e119]
+          - generic [ref=e120]: Vòng khu vực
+        - generic [ref=e121] [cursor=pointer]:
+          - checkbox "Điểm sơ tán" [checked] [ref=e122]
+          - generic [ref=e123]: Điểm sơ tán
+        - generic [ref=e124] [cursor=pointer]:
+          - checkbox "Tòa nhà" [checked] [ref=e125]
+          - generic [ref=e126]: Tòa nhà
+        - generic [ref=e127] [cursor=pointer]:
+          - checkbox "Tác động dân cư" [checked] [ref=e128]
+          - generic [ref=e129]: Tác động dân cư
+    - generic [ref=e130]:
+      - generic [ref=e131]:
+        - generic [ref=e132]: Chú giải
+        - strong [ref=e133]: 0–4 m
+      - generic [ref=e134]:
+        - generic [ref=e135]: Độ sâu ngập (m)
+        - generic [ref=e137]:
+          - generic [ref=e138]: "0.15"
+          - generic [ref=e139]: "0.5"
+          - generic [ref=e140]: "1"
+          - generic [ref=e141]: "2"
+          - generic [ref=e142]: 2+ m
+      - generic [ref=e143]:
+        - generic [ref=e144]: Khả năng lưu thông
+        - generic [ref=e145]:
+          - generic [ref=e146]: Thông suốt
+          - generic [ref=e149]: Chú ý (<15 cm)
+          - generic [ref=e152]: Hạn chế (15–30 cm)
+          - generic [ref=e155]: Đóng (≥30 cm)
+      - generic [ref=e158]:
+        - generic [ref=e159]: Tác động dân cư
+        - generic [ref=e160]:
+          - generic [ref=e161]: Nhiệt đồ dân × ngập
+          - generic [ref=e164]: Nhà ngập ≥15 cm
+          - generic [ref=e167]: Nhà ngập ≥50 cm
+      - generic [ref=e170]:
+        - generic [ref=e171]: Mức báo động trạm
+        - generic [ref=e172]:
+          - generic [ref=e173]: Bình thường
+          - generic [ref=e176]: BĐ1
+          - generic [ref=e179]: BĐ2
+          - generic [ref=e182]: BĐ3 +
+    - generic [ref=e185]:
+      - generic [ref=e186]:
+        - generic [ref=e187]: Ngưỡng đạt mục tiêu · đề cương §8
+        - button "ℹ️" [ref=e188] [cursor=pointer]
+      - paragraph [ref=e189]: Đây là ngưỡng đặt ra, chưa phải số đo. Độ chính xác chỉ chứng minh được bằng đối chứng lùi trên trận lũ thật.
+      - generic [ref=e190]:
+        - generic [ref=e191]:
+          - generic [ref=e192]:
+            - text: CSI
+            - emphasis [ref=e193]: (diện ngập)
+          - strong [ref=e194]:
+            - text: ≥0.80
+            - emphasis [ref=e195]: · chưa đo
+        - generic [ref=e196]:
+          - generic [ref=e197]: NSE
+          - strong [ref=e198]:
+            - text: ≥0.80
+            - emphasis [ref=e199]: · chưa đo
+        - generic [ref=e200]:
+          - generic [ref=e201]: KGE
+          - strong [ref=e202]:
+            - text: ≥0.75
+            - emphasis [ref=e203]: · chưa đo
+        - generic [ref=e204]:
+          - generic [ref=e205]: Tự kiểm định vật lý
+          - strong [ref=e206]:
+            - text: 4/4
+            - emphasis [ref=e207]: · đã đo mỗi lần khởi động
+        - generic [ref=e208]:
+          - generic [ref=e209]: Độ phân giải DEM
+          - strong [ref=e210]:
+            - text: —
+            - emphasis [ref=e211]: · đo thật
+        - generic [ref=e212]:
+          - generic [ref=e213]: Bảo toàn khối (SWE)
+          - strong [ref=e214]:
+            - text: —
+            - emphasis [ref=e215]: · đo thật
+      - generic [ref=e216]:
+        - generic [ref=e217]: Surrogate FNO/DeepONet
+        - strong [ref=e218]: kế hoạch — chưa huấn luyện
+  - main [ref=e219]:
+    - generic [ref=e220]:
+      - tablist [ref=e221]:
+        - tab "Song sinh số 3D" [selected] [ref=e222] [cursor=pointer]
+        - tab "Bản đồ vận hành 2D" [ref=e223] [cursor=pointer]
+      - generic [ref=e224]:
+        - button "Toàn cảnh" [ref=e225] [cursor=pointer]
+        - button "Hạ lưu" [ref=e226] [cursor=pointer]
+        - button "Bậc thang hồ" [ref=e227] [cursor=pointer]
+        - button "Hội An" [ref=e228] [cursor=pointer]
+      - generic [ref=e229]:
+        - generic [ref=e230]: 60 fps
+        - generic [ref=e231]: SWE 144² · Manning n
+    - generic [ref=e232]:
+      - generic "3D flood digital twin"
+      - generic "2D operational flood map"
+      - button "Swap 2D/3D view" [ref=e233] [cursor=pointer]:
+        - generic [ref=e235]: 2D
+      - strong [ref=e237]: Kéo xoay · lăn thu phóng · phải rê dịch
+      - paragraph [ref=e238]: Dùng phím mũi tên để di chuyển con trỏ kiểm tra, Enter để chọn, Escape để đóng.
+      - generic [ref=e239]:
+        - generic [ref=e240]: Diện ngập
+        - strong [ref=e241]: — km²
+        - generic [ref=e242]: Dân cư phơi nhiễm
+        - strong [ref=e243]: —
+        - generic [ref=e244]: Nhà ngập
+        - strong [ref=e245]: —
+      - button "⛶" [ref=e246] [cursor=pointer]
+    - generic [ref=e247]:
+      - generic [ref=e248]:
+        - button "Play/Pause" [ref=e249] [cursor=pointer]: ▶
+        - group [ref=e250]:
+          - button "6 m/s" [ref=e251] [cursor=pointer]
+          - button "30 m/s" [ref=e252] [cursor=pointer]
+          - button "90 m/s" [ref=e253] [cursor=pointer]
+        - generic [ref=e254]:
+          - strong [ref=e255]: —
+          - generic [ref=e256]: T+0h
+          - emphasis [ref=e257]: —
+      - generic [ref=e258]:
+        - slider "Simulation time (hours)" [ref=e260]: "-6"
+        - generic "Domain event stream" [ref=e261]
+        - generic [ref=e262]:
+          - generic [ref=e263]: T−24h
+          - generic [ref=e264]: quan trắc
+          - generic [ref=e265]: HIỆN TẠI
+          - generic [ref=e266]: dự báo ensemble
+          - generic [ref=e267]: T+48h
+  - complementary [ref=e268]:
+    - generic [ref=e269]:
+      - generic [ref=e270]:
+        - generic [ref=e271]: Trạm thủy văn · dự báo xác suất
+        - combobox "Gauge station" [ref=e272]
+      - generic [ref=e273]:
+        - generic [ref=e274]:
+          - generic [ref=e275]: Mực nước
+          - strong [ref=e276]: — m
+        - generic [ref=e277]:
+          - generic [ref=e278]: Xu thế 3h
+          - strong [ref=e279]: —
+        - generic [ref=e280]:
+          - generic [ref=e281]: Báo động
+          - strong [ref=e282]: —
+        - generic [ref=e283]:
+          - generic [ref=e284]: CRPS
+          - strong [ref=e285]: —
+      - generic "Stage hydrograph with ensemble fan" [ref=e286]
+      - generic [ref=e287]:
+        - generic [ref=e288]: Quan trắc
+        - generic [ref=e291]: Trung vị
+        - generic [ref=e294]: 25–75%
+        - generic [ref=e296]: 5–95%
+    - generic [ref=e299]:
+      - generic [ref=e300]: Bậc thang liên hồ · QĐ 1865/QĐ-TTg
+      - strong [ref=e301]: Rule curve
+    - generic [ref=e302]:
+      - generic [ref=e303]:
+        - generic [ref=e304]: Cảnh báo · thông báo hạ du
+        - strong [ref=e305]: 0/0
+      - generic [ref=e307]:
+        - generic [ref=e308]: Không có cảnh báo cần xử lý
+        - emphasis
+      - generic [ref=e309]:
+        - button "Soạn bản tin mực nước" [ref=e310] [cursor=pointer]
+        - button "Thông báo xả" [ref=e311] [cursor=pointer]
+        - button "Lệnh sơ tán" [ref=e312] [cursor=pointer]
+      - paragraph [ref=e313]: Mọi kênh (điện thoại · SMS · loa xã · Zalo · CAP) được sinh từ một bản ghi quyết định nên không thể mâu thuẫn nhau. Bản demo chỉ ghi nhận, không gửi thật.
+    - generic [ref=e314]:
+      - generic [ref=e315]:
+        - generic [ref=e316]: Nhật ký kiểm toán · chỉ ghi thêm
+        - button "Xuất" [ref=e317] [cursor=pointer]
+      - list [ref=e318]:
+        - listitem [ref=e319]:
+          - generic [ref=e320]: "#1"
+          - generic [ref=e321]:
+            - text: session.start · 10:52:04 · T-6,00h
+            - emphasis [ref=e322]: unattributed · snap 1a5d0c64
+    - generic [ref=e323]:
+      - generic [ref=e324]:
+        - generic [ref=e325]: Giao thông thời gian thực
+        - strong [ref=e326]: — xe
+      - generic [ref=e327]:
+        - generic [ref=e328]:
+          - generic [ref=e329]: Mạng thông
+          - strong [ref=e330]: —%
+        - generic [ref=e331]:
+          - generic [ref=e332]: Đoạn đóng
+          - strong [ref=e333]: —
+        - generic [ref=e334]:
+          - generic [ref=e335]: Xe đổi lộ trình
+          - strong [ref=e336]: —
+        - generic [ref=e337]:
+          - generic [ref=e338]: ETA ĐN→Hội An
+          - strong [ref=e339]: — ph
+    - generic [ref=e340]:
+      - generic [ref=e341]:
+        - generic [ref=e342]: Lớp LLM có kiểm soát · RAG
+        - strong [ref=e343]: 100% trích nguồn
+      - paragraph [ref=e345]: Nhấn tạo bản tin để tổng hợp tình huống — mọi con số lấy từ solver/optimizer, mọi mệnh đề kèm trích dẫn.
+      - generic [ref=e346]:
+        - button "Tạo bản tin tình huống" [ref=e347] [cursor=pointer]
+        - button "Hỏi đáp cư dân Hội An" [ref=e348] [cursor=pointer]
+        - button "🖨 Xuất báo cáo" [ref=e349] [cursor=pointer]
+        - button "📄 Hồ sơ vận hành" [ref=e350] [cursor=pointer]
+        - button "🗂 Báo cáo sau lũ" [ref=e351] [cursor=pointer]
+    - generic [ref=e352]:
+      - generic [ref=e353]:
+        - generic [ref=e354]: Nhật ký sự kiện
+        - strong [ref=e355]: "0"
+      - list
+  - contentinfo [ref=e356]:
+    - generic [ref=e357]: Dữ liệu tổng hợp minh hoạ phương pháp — không dùng cho vận hành thật
+    - generic [ref=e358]: ·
+    - generic [ref=e359]: "Ảnh & đường: Esri World Imagery/Transportation · DEM: AWS Terrain Tiles · © OSM contributors"
+    - generic [ref=e360]: ·
+    - generic [ref=e361]: Decision 1865/QĐ-TTg · 740/QĐ-TTg
+    - generic [ref=e362]: ·
+    - generic [ref=e363]:
+      - link "SkyLabs" [ref=e364] [cursor=pointer]:
+        - /url: https://skylabs.vn/
+      - text: ·
+      - link "Tài liệu kỹ thuật" [ref=e365] [cursor=pointer]:
+        - /url: https://info.skylabs.vn/
+    - generic [ref=e366]: FloodTwin Q1 Demo

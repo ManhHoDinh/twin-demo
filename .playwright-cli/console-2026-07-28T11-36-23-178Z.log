@@ -1,0 +1,5 @@
+[     106ms] [INFO] [ops] decision layer active @ http://127.0.0.1:61805/js/opsui.js?v=127:728
+[   10114ms] [INFO] [geo] DEM OK · imagery OK @ http://127.0.0.1:61805/js/geo.js?v=127:509
+[   10671ms] [INFO] [selftest] PASS 22/22 @ http://127.0.0.1:61805/js/main.js?v=127:428
+[   11207ms] [INFO] [domain] timeline 108 events in 6 ms @ http://127.0.0.1:61805/js/opsui.js?v=127:353
+[   17341ms] [ERROR] Failed to load resource: the server responded with a status of 429 (Too Many Requests) @ https://overpass-api.de/api/interpreter?data=%5Bout%3Ajson%5D%5Btimeout%3A25%5D%3Bway%5B%22highway%22~%22%5E(motorway%7Cmotorway_link%7Ctrunk%7Ctrunk_link%7Cprimary%7Csecondary)%24%22%5D(15.3%2C107.55%2C16.16%2C108.45)%3Bout%20geom%3B:0

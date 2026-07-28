@@ -1,0 +1,51 @@
+<style>
+  .earth{position:relative;height:690px;border-radius:22px;overflow:hidden;background:linear-gradient(#85a4b4 0 13%,#45675f 13% 28%,#263f35 28%);box-shadow:0 20px 60px rgba(5,15,28,.25);perspective:780px}
+  .terrain{position:absolute;left:-16%;right:-16%;top:2%;height:95%;transform:rotateX(57deg) rotateZ(-9deg) scale(1.24);transform-origin:center 55%;background:
+    linear-gradient(18deg,transparent 45%,rgba(221,207,158,.88) 46%,rgba(221,207,158,.88) 49%,transparent 50%),
+    radial-gradient(ellipse at 15% 14%,#315934 0 13%,transparent 14%),radial-gradient(ellipse at 73% 20%,#4d7644 0 19%,transparent 20%),
+    radial-gradient(ellipse at 44% 76%,#b1a16e 0 25%,transparent 26%),linear-gradient(135deg,#476e42,#92965e 43%,#a18e62 67%,#54774d);box-shadow:inset 0 40px 80px rgba(10,24,20,.35)}
+  .terrain:before{content:"";position:absolute;inset:0;background:repeating-linear-gradient(72deg,transparent 0 31px,rgba(255,255,255,.12) 32px 34px)}
+  .river{position:absolute;width:120%;height:78px;left:-9%;top:42%;background:#154b6d;transform:rotate(-14deg);border:2px solid rgba(255,255,255,.55);box-shadow:0 5px 14px rgba(0,25,42,.4)}
+  .water{position:absolute;left:12%;right:13%;bottom:5%;height:41%;border-radius:60% 22% 46% 20%;background:linear-gradient(135deg,rgba(0,203,232,.17),rgba(0,96,190,.6));border:3px solid #8be9ff;box-shadow:inset 0 0 0 1px rgba(0,39,92,.8),0 0 22px rgba(0,178,255,.35)}
+  .water:after{content:"›  ›  ›  ›  ›";position:absolute;left:23%;top:39%;color:#fff;font:900 29px sans-serif;letter-spacing:16px;filter:drop-shadow(0 1px 3px #014c72);transform:rotate(-5deg)}
+  .road{position:absolute;left:8%;right:7%;top:64%;height:8px;background:#f2e6bc;border:2px solid #5a5547;transform:rotate(6deg);box-shadow:0 2px 3px rgba(0,0,0,.38)}
+  .selected{position:absolute;left:48%;top:44%;width:31px;height:31px;border-radius:50% 50% 50% 0;background:#e53935;border:5px solid #fff;box-shadow:0 4px 14px rgba(0,0,0,.6);transform:rotate(-45deg)}
+  .selected:after{content:"";position:absolute;inset:9px;border-radius:50%;background:#fff}.ring{position:absolute;left:calc(48% - 31px);top:calc(44% - 31px);width:95px;height:95px;border:3px solid rgba(89,205,255,.9);border-radius:50%;box-shadow:0 0 0 13px rgba(34,154,235,.16)}
+  .search{position:absolute;left:16px;top:16px;width:min(480px,calc(100% - 120px));height:48px;border-radius:13px;background:rgba(255,255,255,.97);box-shadow:0 3px 15px rgba(0,0,0,.36);display:flex;align-items:center;gap:10px;padding:0 15px;color:#5f6368;font:500 14px sans-serif}.search b{color:#202124}.search span:last-child{margin-left:auto;color:#1a73e8;font-weight:800}
+  .north{position:absolute;right:20px;top:18px;width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,.95);box-shadow:0 2px 12px rgba(0,0,0,.35);display:grid;place-items:center;font:900 13px sans-serif;color:#3c4043}.north:before{content:"▲";position:absolute;top:4px;color:#d93025}.north span{margin-top:11px}
+  .nav{position:absolute;right:22px;top:84px;width:45px;border-radius:22px;background:rgba(255,255,255,.95);box-shadow:0 2px 12px rgba(0,0,0,.35);overflow:hidden;text-align:center}.nav b{height:41px;display:grid;place-items:center;border-bottom:1px solid #ddd;color:#3c4043;font:600 22px sans-serif}.nav b:nth-child(3){font-size:17px}.nav b:last-child{border:0;font-size:16px}
+  .layer-pill{position:absolute;left:17px;top:78px;padding:8px 11px;border-radius:9px;background:rgba(14,27,36,.78);backdrop-filter:blur(8px);color:#fff;font:700 10px sans-serif;letter-spacing:.35px}.layer-pill i{display:inline-block;width:26px;height:7px;margin-right:6px;background:#168bd2;border:2px solid #8be9ff;vertical-align:middle}
+  .scale{position:absolute;right:80px;bottom:17px;color:#fff;text-shadow:0 1px 3px #000;font:700 10px sans-serif;border-bottom:2px solid #fff;padding:0 22px 3px}
+  .sheet{position:absolute;left:18px;right:18px;bottom:18px;min-height:132px;border-radius:18px;background:rgba(255,255,255,.96);box-shadow:0 9px 32px rgba(0,0,0,.38);display:grid;grid-template-columns:190px 1.2fr 1fr auto;align-items:center;gap:18px;padding:13px 16px;font-family:Arial,sans-serif}
+  .thumb{height:104px;border-radius:13px;background:radial-gradient(ellipse at 26% 30%,#466f42 0 20%,transparent 21%),linear-gradient(25deg,#214c66 0 29%,#ad9c68 30% 57%,#577849 58%);position:relative}.thumb span{position:absolute;left:8px;bottom:7px;padding:4px 6px;border-radius:5px;background:rgba(255,255,255,.9);font-size:9px;font-weight:800}
+  .place h3{margin:0 0 4px;font-size:20px;color:#202124}.place p{margin:0 0 10px;font-size:12px;color:#5f6368}.badge{display:inline-flex;align-items:center;gap:5px;padding:5px 8px;border-radius:7px;background:#e6f4ea;color:#137333;font-size:10px;font-weight:800}.badge:before{content:"";width:7px;height:7px;border-radius:50%;background:#34a853}
+  .facts{display:grid;gap:8px}.fact{display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid #e8eaed;padding-bottom:6px;font-size:11px;color:#5f6368}.fact b{color:#202124}.fact .sim{color:#185abc;background:#e8f0fe;border-radius:5px;padding:3px 5px;font-size:9px}
+  .actions{display:grid;gap:8px}.actions button{min-width:110px;border:1px solid #dadce0;border-radius:9px;padding:10px 12px;background:#fff;color:#1a73e8;font-weight:800}.actions .primary{background:#1a73e8;color:#fff;border-color:#1a73e8}
+  .notes{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:17px}.note{padding:14px;border:1px solid #dde2e8;border-radius:12px;background:#fff}.note b{display:block;margin-bottom:5px}.note span{font-size:12px;color:#5f6873;line-height:1.45}
+  @media(max-width:900px){.earth{height:760px}.sheet{grid-template-columns:90px 1fr;bottom:12px}.thumb{height:90px}.facts{grid-column:1/-1}.actions{grid-column:1/-1;grid-template-columns:1fr 1fr}.notes{grid-template-columns:1fr 1fr}.scale{display:none}}
+</style>
+
+<h2>Hướng Google Earth · địa hình 3D vệ tinh</h2>
+<p class="subtitle">Thay cảm giác “dashboard phủ lên bản đồ” bằng một quả địa cầu vận hành: cảnh 3D chiếm toàn màn hình, điều khiển không gian nằm bên phải và thông tin địa điểm neo ở cạnh dưới.</p>
+
+<div class="earth">
+  <div class="terrain"><div class="river"></div><div class="water"></div><div class="road"></div><div class="ring"></div><div class="selected"></div></div>
+  <div class="search">⌕ <b>Tìm địa điểm, hồ, trạm, đường…</b><span>3D ▾</span></div>
+  <div class="layer-pill"><i></i> MÔ PHỎNG NGẬP · T+18h · XUYÊN THẤU</div>
+  <div class="north"><span>N</span></div>
+  <div class="nav"><b>⌃</b><b>+</b><b>−</b><b>⌖</b></div>
+  <div class="scale">500 m</div>
+  <section class="sheet">
+    <div class="thumb"><span>Ảnh vệ tinh nghiêng</span></div>
+    <div class="place"><h3>Cầu Câu Lâu</h3><p>QL1A · 15.8776, 108.2601 · Cầu giao thông</p><span class="badge">HIỆN TRẠNG · đang lưu thông · 15:40</span></div>
+    <div class="facts"><div class="fact"><span>Mực nước gần nhất</span><b>1,82 m</b></div><div class="fact"><span>Độ sâu mặt đường T+18h</span><b class="sim">MÔ PHỎNG 0,34–0,48 m</b></div><div class="fact"><span>Dự kiến</span><b style="color:#b3261e">Đóng sau 17:20</b></div></div>
+    <div class="actions"><button class="primary">Bay tới</button><button>Orbit quanh điểm</button></div>
+  </section>
+</div>
+
+<div class="notes">
+  <div class="note"><b>Orbit tự nhiên</b><span>Kéo trái xoay/quỹ đạo, kéo phải pan, wheel/pinch zoom về đúng vị trí con trỏ.</span></div>
+  <div class="note"><b>Bay tới có ngữ cảnh</b><span>Camera hạ góc trong 0,85 giây, marker phát vòng định vị và giữ địa vật mục tiêu ở trung tâm.</span></div>
+  <div class="note"><b>Nước không che địa hình</b><span>Cận cảnh tự giảm opacity; viền độ sâu và hạt dòng chảy vẫn giữ được hướng và phạm vi.</span></div>
+  <div class="note"><b>Hiện trạng ≠ mô phỏng</b><span>Quan sát dùng badge xanh lá; mô phỏng xanh dương, luôn kèm T+ và khoảng bất định.</span></div>
+</div>

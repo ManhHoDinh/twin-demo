@@ -1,0 +1,121 @@
+- generic [active] [ref=f1e1]:
+  - main [ref=f1e3]:
+    - generic [ref=f1e4]:
+      - generic "3D flood digital twin" [ref=f1e5]
+      - generic "2D operational flood map"
+      - paragraph [ref=f1e6]: Dùng phím mũi tên để di chuyển con trỏ kiểm tra, Enter để chọn, Escape để đóng.
+      - generic [ref=f1e7]:
+        - generic [ref=f1e8]: Diện ngập
+        - strong [ref=f1e9]: — km²
+        - generic [ref=f1e10]: Dân cư phơi nhiễm
+        - strong [ref=f1e11]: —
+        - generic [ref=f1e12]: Nhà ngập
+        - strong [ref=f1e13]: —
+  - toolbar "Command bar" [ref=f1e14]:
+    - generic [ref=f1e15]: FT
+    - combobox "Scenario" [ref=f1e19]:
+      - option "Lũ tháng 10/2020 (lịch sử)" [selected]
+      - option "Siêu bão kiểu Yagi (cực đoan)"
+      - option "Gió mùa trung bình"
+      - option "Phục hồi sau đỉnh"
+    - group "Operating policy" [ref=f1e20]:
+      - button "Rule curve tĩnh" [ref=f1e21] [cursor=pointer]
+      - button "FloodTwin MPC" [ref=f1e22] [cursor=pointer]
+    - button "ESC L0" [ref=f1e23] [cursor=pointer]:
+      - generic [ref=f1e24]: ESC
+      - generic [ref=f1e25]: L0
+    - generic [ref=f1e26] [cursor=pointer]:
+      - text: ⚑
+      - generic [ref=f1e27]: 0/0
+    - button "🎬 Trình diễn" [ref=f1e28] [cursor=pointer]
+    - button "Language" [ref=f1e29] [cursor=pointer]: VI / EN
+  - toolbar "Hành động nhanh" [ref=f1e30]:
+    - generic [ref=f1e31]:
+      - generic [ref=f1e32]: Thông báo
+      - button "Soạn bản tin mực nước" [ref=f1e33] [cursor=pointer]
+      - button "Thông báo xả" [ref=f1e34] [cursor=pointer]
+      - button "Lệnh sơ tán" [ref=f1e35] [cursor=pointer]
+    - generic [ref=f1e36]:
+      - generic [ref=f1e37]: Báo cáo
+      - button "🖨 Xuất báo cáo" [ref=f1e38] [cursor=pointer]
+      - button "📄 Hồ sơ vận hành" [ref=f1e39] [cursor=pointer]
+      - button "🗂 Báo cáo sau lũ" [ref=f1e40] [cursor=pointer]
+  - status "Tín hiệu vận hành" [ref=f1e41]:
+    - generic [ref=f1e42]: DỮ LIỆU TỔNG HỢP · KHÔNG DÙNG VẬN HÀNH
+    - generic [ref=f1e43]:
+      - generic [ref=f1e44]: Escalation
+      - generic [ref=f1e45]: L0
+    - button "Data L0 · —" [ref=f1e46] [cursor=pointer]:
+      - generic [ref=f1e47]: Data
+      - generic [ref=f1e48]: L0 · —
+    - generic [ref=f1e49]:
+      - generic [ref=f1e50]: κ điều tiết
+      - generic [ref=f1e51]: —
+    - generic [ref=f1e52]:
+      - generic [ref=f1e53]: P(vượt BĐ3, 12h)
+      - generic [ref=f1e54]: —
+    - generic [ref=f1e55]:
+      - generic [ref=f1e56]: Hạn quyết định
+      - generic [ref=f1e57]: —
+  - tablist "Công cụ" [ref=f1e58]:
+    - tab "Lớp hiển thị" [ref=f1e59] [cursor=pointer]:
+      - text: ◱
+      - generic [ref=f1e60]: L
+    - tab "Cưỡng bức khí tượng" [ref=f1e61] [cursor=pointer]:
+      - text: ☁
+      - generic [ref=f1e62]: F
+    - tab "Khu vực giám sát" [ref=f1e63] [cursor=pointer]:
+      - text: ▦
+      - generic [ref=f1e64]: Z
+    - tab "Sơ tán · điểm trú" [ref=f1e65] [cursor=pointer]:
+      - text: ⛑
+      - generic [ref=f1e66]: E
+    - tab "Mưa tiểu lưu vực" [ref=f1e67] [cursor=pointer]:
+      - text: ☂
+      - generic [ref=f1e68]: R
+    - tab "So sánh kịch bản" [ref=f1e69] [cursor=pointer]:
+      - text: ⎘
+      - generic [ref=f1e70]: C
+    - tab "Ngưỡng mục tiêu" [ref=f1e71] [cursor=pointer]:
+      - text: ▤
+      - generic [ref=f1e72]: M
+    - tab "Chú giải" [ref=f1e73] [cursor=pointer]:
+      - text: ◈
+      - generic [ref=f1e74]: G
+  - group "Điều khiển bản đồ" [ref=f1e75]:
+    - tablist [ref=f1e76]:
+      - tab "Song sinh số 3D" [selected] [ref=f1e77] [cursor=pointer]
+      - tab "Bản đồ vận hành 2D" [ref=f1e78] [cursor=pointer]
+    - generic [ref=f1e79]:
+      - button "Toàn cảnh" [ref=f1e80] [cursor=pointer]
+      - button "Hạ lưu" [ref=f1e81] [cursor=pointer]
+      - button "Bậc thang hồ" [ref=f1e82] [cursor=pointer]
+      - button "Hội An" [ref=f1e83] [cursor=pointer]
+  - region "Timeline" [ref=f1e84]:
+    - generic [ref=f1e85]:
+      - generic [ref=f1e86]: Dòng thời gian mô phỏng
+      - button "Thu gọn / mở" [ref=f1e88] [cursor=pointer]: –
+    - generic [ref=f1e90]:
+      - generic [ref=f1e91]:
+        - button "Play/Pause" [ref=f1e92] [cursor=pointer]: ▶
+        - group [ref=f1e93]:
+          - button "6 m/s" [ref=f1e94] [cursor=pointer]
+          - button "30 m/s" [ref=f1e95] [cursor=pointer]
+          - button "90 m/s" [ref=f1e96] [cursor=pointer]
+        - generic [ref=f1e97]:
+          - strong [ref=f1e98]: —
+          - generic [ref=f1e99]: T+0h
+          - emphasis [ref=f1e100]: —
+      - generic [ref=f1e101]:
+        - slider "Simulation time (hours)" [ref=f1e103]: "-6"
+        - generic "Domain event stream" [ref=f1e104]
+        - generic [ref=f1e105]:
+          - generic [ref=f1e106]: T−24h
+          - generic [ref=f1e107]: quan trắc
+          - generic [ref=f1e108]: HIỆN TẠI
+          - generic [ref=f1e109]: dự báo ensemble
+          - generic [ref=f1e110]: T+48h
+  - button "Trợ lý AI" [ref=f1e111] [cursor=pointer]: ✦
+  - status [ref=f1e112]:
+    - generic [ref=f1e113]: SYNTHETIC DATA · NOT FOR OPERATIONS
+    - generic [ref=f1e114]: — fps · H✓

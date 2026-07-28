@@ -1,0 +1,68 @@
+<style>
+  .contract-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:18px;margin-top:20px}
+  .contract-card{border:1px solid #35536a;border-radius:14px;background:#0a1d2b;padding:14px;color:#dcebf5}
+  .contract-card h3{margin:0 0 9px;color:#fff;font-size:15px}
+  .contract-card p,.contract-card li{color:#9fb9c9;font-size:12px;line-height:1.5}
+  .contract-card ul{margin:0;padding-left:18px}.contract-card li+li{margin-top:6px}
+  .state-row{display:grid;grid-template-columns:92px 1fr;gap:10px;padding:8px 0;border-top:1px solid rgba(130,174,207,.14)}
+  .state-row:first-of-type{border-top:0}.state-row b{font-size:11px;text-transform:uppercase;letter-spacing:.7px;color:#59e3d8}.state-row span{font-size:12px;color:#a9c0ce}
+  .mobile{width:280px;min-height:490px;margin:0 auto;border:5px solid #253e50;border-radius:28px;overflow:hidden;background:radial-gradient(circle at 60% 30%,#18525c,#0a2231 65%);position:relative;color:#dcebf5}
+  .mbar{height:42px;background:#071520;display:flex;align-items:center;gap:7px;padding:0 9px;font-size:10px}.mbar b{font-size:12px}.mbar span{padding:4px 6px;background:#17364b;border-radius:6px}.mmap{height:218px;position:relative}.mwater{position:absolute;left:20px;right:10px;top:45px;height:95px;background:rgba(55,182,255,.28);clip-path:polygon(0 35%,35% 0,100% 30%,82% 100%,18% 82%)}
+  .mdelta{position:absolute;left:9px;right:9px;top:8px;padding:8px;border:1px solid #47697f;border-radius:9px;background:rgba(8,23,36,.92);font-size:10px}.mdelta strong{color:#59e3d8;font-size:18px}.mpin{position:absolute;right:56px;top:126px;width:10px;height:10px;border-radius:50%;background:#ffc14d;box-shadow:0 0 0 5px rgba(255,193,77,.15)}
+  .msheet{position:absolute;left:0;right:0;bottom:0;height:225px;background:#081724;border-top:1px solid #47697f;border-radius:17px 17px 0 0;padding:10px}.mhandle{width:42px;height:4px;border-radius:5px;background:#47697f;margin:0 auto 8px}.mopt{display:flex;justify-content:space-between;gap:8px;border:1px solid #315064;border-radius:8px;padding:7px;margin-top:6px;font-size:10px}.mopt.active{border-color:#59e3d8}.mopt.bad{border-color:#ff6d5e}.mtime{height:5px;border-radius:5px;margin-top:10px;background:linear-gradient(90deg,#59e3d8 0 45%,#ffc14d 45% 70%,#37b6ff 70%)}
+  .test-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:18px}.test{border-left:3px solid #59e3d8;border-radius:8px;background:#0a1d2b;padding:10px 11px}.test b{display:block;color:#fff;font-size:12px;margin-bottom:4px}.test span{font-size:11px;color:#97b2c3;line-height:1.4}.test.warn{border-left-color:#ffc14d}
+  .approval{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:20px}.choice{border:1px solid #35536a;border-radius:12px;background:#0b1d2b;padding:13px;cursor:pointer}.choice.selected{border-color:#59e3d8}.choice h3{margin:0 0 5px;color:#fff;font-size:15px}.choice p{margin:0;color:#9bb5c6;font-size:12px}
+  @media(max-width:820px){.contract-grid{grid-template-columns:1fr}.test-grid,.approval{grid-template-columns:1fr}}
+</style>
+
+<h2>Phương án B · hợp đồng trải nghiệm và kiểm chứng</h2>
+<p class="subtitle">Đây là phần duyệt cuối trước khi viết design spec. Nó chốt hành vi khi tính toán chưa xong, dữ liệu thiếu, option vô nghiệm, màn hình hẹp và người dùng chỉ dùng bàn phím.</p>
+
+<div class="contract-grid">
+  <div>
+    <div class="contract-card">
+      <h3>Loading, empty, error</h3>
+      <div class="state-row"><b>Loading</b><span>Base option và bản đồ hiện ngay. Mỗi option có trạng thái riêng; delta chỉ xuất hiện khi hai phía cùng một clock/gauge và đều hoàn tất.</span></div>
+      <div class="state-row"><b>Empty</b><span>0 option: hướng dẫn thêm phương án. 1 option: ghi rõ “chưa phải so sánh”; không dựng delta giả.</span></div>
+      <div class="state-row"><b>Missing</b><span>Metric thiếu là <code>null</code> + tên feed và thời điểm cuối; không dùng giá trị cũ như kết quả mới.</span></div>
+      <div class="state-row"><b>Infeasible</b><span>Giữ option trong rail, nêu constraint và binding gauge; cấm đưa option đó vào Decision Package.</span></div>
+      <div class="state-row"><b>Engine error</b><span>Giữ forecast/reservoir state còn hợp lệ, bỏ flood extent mới, giảm confidence và ghi audit diagnostic.</span></div>
+    </div>
+
+    <div class="contract-card" style="margin-top:14px">
+      <h3>Authority, security, provenance</h3>
+      <ul>
+        <li>Scenario Compare chỉ tạo <code>SIMULATION</code>/<code>RECOMMENDATION</code>; không sửa <code>APPROVED_PLAN</code>.</li>
+        <li>“Đưa vào Decision Package” tạo bản sao có version/hash; phê duyệt vẫn cần đúng role + identity + reason.</li>
+        <li>Mọi metric mang lớp dữ liệu, valid time, issue time, model/version và confidence; nhãn synthetic luôn hiện.</li>
+        <li>Recovery là scenario entry có mô tả/giới hạn; không thêm tham số thủy văn hay quy tắc vận hành chưa có thẩm quyền.</li>
+        <li>Real-data custodianship vẫn là mục kế hoạch; UI không giả lập chủ sở hữu hay độ tin cậy của feed thật.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="contract-card">
+    <h3>Mobile · map vẫn là sản phẩm</h3>
+    <div class="mobile" aria-label="Mobile wireframe of scenario comparison">
+      <div class="mbar"><b>FloodTwin</b><span>Compare</span><span>T+12h</span></div>
+      <div class="mmap"><div class="mwater"></div><div class="mdelta">Ái Nghĩa · Rule → MPC<br><strong>−0,4 m</strong><br>Không phải lệnh vận hành</div><i class="mpin"></i></div>
+      <div class="msheet"><div class="mhandle"></div><small>Option rail · bottom sheet</small><div class="mopt"><b>A · Rule</b><span>tham chiếu</span></div><div class="mopt active"><b>B · MPC</b><span>đang vẽ</span></div><div class="mopt"><b>C · Recovery</b><span>hậu đỉnh</span></div><div class="mopt bad"><b>D · infeasible</b><span>C7 · Ái Nghĩa</span></div><div class="mtime"></div></div>
+    </div>
+    <ul style="margin-top:12px">
+      <li>Rail thành bottom sheet có snap; map không bị thay bằng danh sách.</li>
+      <li>Touch target ≥40 px; timeline và option rail cuộn độc lập, không tràn viewport 390 px.</li>
+      <li>Permanent synthetic/data-health signal không bị sheet che.</li>
+    </ul>
+  </div>
+</div>
+
+<div class="test-grid">
+  <div class="test"><b>Unit/domain</b><span>Same-clock comparator, delta/null rules, feasibility, binding gauge, immutable approved plan, Recovery metadata.</span></div>
+  <div class="test"><b>Browser/E2E</b><span>2–4 options, map swap, shared scrub, keyboard order, focus restore, mobile 390 px, infeasible export refusal.</span></div>
+  <div class="test warn"><b>Release gates</b><span>Extend app E2E + doc conformance; verify lifecycle, scenario library, attribution and stale-count protection.</span></div>
+</div>
+
+<div class="approval">
+  <div class="choice" data-choice="approve-final-design" onclick="toggleSelect(this)"><h3>Phê duyệt thiết kế hoàn chỉnh</h3><p>Cho phép viết spec, tự review và chuyển sang implementation plan.</p></div>
+  <div class="choice" data-choice="revise-final-design" onclick="toggleSelect(this)"><h3>Cần chỉnh phần cuối</h3><p>Chọn mục này rồi ghi phần cần đổi trong terminal.</p></div>
+</div>
