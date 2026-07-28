@@ -438,6 +438,134 @@ async function earthControls(browser) {
       !/lớp ngập đang tắt/i.test(result.on.text);
   });
 
+  await check('Earth place sheet separates observed and simulated truth for gauges and arbitrary terrain points', async (d) => {
+    const result = await page.evaluate(async () => {
+      const FT = window.FT;
+      const waitFrame = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const visible = (el) => !!el && !el.hidden && getComputedStyle(el).display !== 'none' && getComputedStyle(el).visibility !== 'hidden';
+      const text = (selector) => document.querySelector(selector)?.textContent || '';
+      const readSheet = () => {
+        const sheet = document.getElementById('earthPlaceSheet');
+        const observed = sheet?.querySelector('[data-place-section="observed"]');
+        const simulated = sheet?.querySelector('[data-place-section="simulated"]');
+        const actions = [...(sheet?.querySelectorAll('button[data-place-action]') || [])].map((button) => ({
+          action: button.dataset.placeAction,
+          visible: visible(button),
+          disabled: button.disabled,
+          text: button.textContent,
+          tag: button.tagName,
+        }));
+        const rect = sheet?.getBoundingClientRect();
+        return {
+          visible: visible(sheet),
+          heading: text('#earthPlaceSheet h2'),
+          name: text('[data-place-field="name"]'),
+          type: text('[data-place-field="type"]'),
+          coordinates: text('[data-place-field="coordinates"]'),
+          observedText: observed?.textContent || '',
+          simulatedText: simulated?.textContent || '',
+          actions,
+          box: rect ? { width: Math.round(rect.width), height: Math.round(rect.height) } : null,
+          activeId: document.activeElement?.id || null,
+        };
+      };
+
+      const origin = document.getElementById('canvas2d');
+      document.querySelector('#viewTabs button[data-view="3d"]').click();
+      await waitFrame();
+      origin.focus({ preventScroll: true });
+      FT.bus.emit('explainOrigin', { element: origin, moveFocus: false });
+      const gauge = FT.data.GAUGES[0];
+      FT.explain.select({ kind: 'gauge', id: gauge.id });
+      await waitFrame();
+      const gaugeSheet = readSheet();
+      const beforeCamera = FT.scene3d.cameraState();
+      FT.state.timeH = Math.min(FT.hydro.T1, FT.state.timeH + 6);
+      FT.bus.emit('scrubbed');
+      FT.world.updateRoadDepths();
+      FT.zones.stepStats(true);
+      FT.ui.tick(FT.hydro.at(FT.state.timeH));
+      await waitFrame();
+      const updatedGauge = readSheet();
+      const afterCamera = FT.scene3d.cameraState();
+      const closeButton = document.querySelector('#earthPlaceSheet [data-place-action="close"]');
+      closeButton?.focus({ preventScroll: true });
+      closeButton?.click();
+      await waitFrame();
+      const closeResult = {
+        hidden: document.getElementById('earthPlaceSheet')?.hidden,
+        activeId: document.activeElement?.id || null,
+      };
+
+      origin.focus({ preventScroll: true });
+      FT.bus.emit('explainOrigin', { element: origin, moveFocus: false });
+      FT.explain.select({ kind: 'point', xKm: 11.4, yKm: 88.2 });
+      await waitFrame();
+      const pointSheet = readSheet();
+      const orbitIn3d = pointSheet.actions.find((action) => action.action === 'orbit');
+      document.querySelector('#viewTabs button[data-view="2d"]').click();
+      await waitFrame();
+      const point2d = readSheet();
+      document.querySelector('#earthPlaceSheet [data-place-action="close"]')?.focus({ preventScroll: true });
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      await waitFrame();
+      const escapeResult = {
+        hidden: document.getElementById('earthPlaceSheet')?.hidden,
+        activeId: document.activeElement?.id || null,
+      };
+
+      return {
+        gaugeSheet,
+        updatedGauge,
+        pointSheet,
+        point2d,
+        orbitIn3d,
+        closeResult,
+        escapeResult,
+        cameraMovedOnUpdate: beforeCamera && afterCamera
+          ? Math.hypot(beforeCamera.target.x - afterCamera.target.x, beforeCamera.target.y - afterCamera.target.y) > 0.1
+          : null,
+      };
+    });
+    d(result);
+    const gaugeActions = Object.fromEntries(result.gaugeSheet.actions.map((item) => [item.action, item]));
+    const pointActions = Object.fromEntries(result.pointSheet.actions.map((item) => [item.action, item]));
+    const point2dActions = Object.fromEntries(result.point2d.actions.map((item) => [item.action, item]));
+    return result.gaugeSheet.visible &&
+      /Thông tin|địa điểm|place/i.test(result.gaugeSheet.heading) &&
+      result.gaugeSheet.name.trim().length > 0 &&
+      /trạm|gauge/i.test(result.gaugeSheet.type) &&
+      /\d/.test(result.gaugeSheet.coordinates) &&
+      /HIỆN TRẠNG/i.test(result.gaugeSheet.observedText) &&
+      /nguồn|source|provenance/i.test(result.gaugeSheet.observedText) &&
+      /fresh|phút|cập nhật|timestamp|2020|2024|2026|Z/i.test(result.gaugeSheet.observedText) &&
+      /MÔ PHỎNG/i.test(result.gaugeSheet.simulatedText) &&
+      /T[+-]\s*\d/i.test(result.gaugeSheet.simulatedText) &&
+      /lifecycle|vòng đời|chưa kiểm định|demo|synthetic/i.test(result.gaugeSheet.simulatedText) &&
+      /bất định|uncertainty|range|P05|P95|giới hạn|limitation/i.test(result.gaugeSheet.simulatedText) &&
+      result.updatedGauge.simulatedText !== result.gaugeSheet.simulatedText &&
+      result.cameraMovedOnUpdate === false &&
+      ['fly', 'zoom', 'orbit'].every((key) => gaugeActions[key]?.tag === 'BUTTON' && gaugeActions[key].visible) &&
+      !gaugeActions.fly.disabled &&
+      !gaugeActions.zoom.disabled &&
+      !gaugeActions.orbit.disabled &&
+      result.closeResult.hidden === true &&
+      result.closeResult.activeId === 'canvas2d' &&
+      result.pointSheet.visible &&
+      /điểm|point|ô lưới/i.test(result.pointSheet.type) &&
+      /\d/.test(result.pointSheet.coordinates) &&
+      result.pointSheet.observedText.includes('Không có số đo hiện tại') &&
+      !/mô phỏng/i.test(result.pointSheet.observedText.replace('Không có số đo hiện tại', '')) &&
+      /MÔ PHỎNG/i.test(result.pointSheet.simulatedText) &&
+      pointActions.fly?.visible &&
+      pointActions.zoom?.visible &&
+      result.orbitIn3d?.visible &&
+      result.orbitIn3d?.disabled === false &&
+      (!point2dActions.orbit || point2dActions.orbit.disabled || !point2dActions.orbit.visible) &&
+      result.escapeResult.hidden === true &&
+      result.escapeResult.activeId === 'canvas2d';
+  });
+
   await check('Command palette routes zones and active alerts through shared navigation without dropping UI events', async (d) => {
     const result = await page.evaluate(() => {
       const FT = window.FT;

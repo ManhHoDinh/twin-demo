@@ -153,6 +153,137 @@
     return localPair(QUANTITY_LABELS[key], key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()));
   }
 
+  function placeType(selection) {
+    const labels = {
+      point: ["Điểm địa hình / ô lưới", "Terrain point / grid cell"],
+      gauge: ["Trạm thủy văn", "Hydrological gauge"],
+      reservoir: ["Hồ chứa", "Reservoir"],
+      zone: ["Khu vực giám sát", "Monitoring zone"],
+      road: ["Đường / tuyến giao thông", "Road / traffic link"],
+    };
+    return localPair(labels[selection && selection.kind], selection && selection.kind || "selection");
+  }
+
+  function placeName(selection) {
+    if (!selection) return "—";
+    if (selection.name) return selection.name;
+    if (selection.kind === "point") return `${FT.state.lang === "vi" ? "Ô lưới" : "Grid cell"} ${selection.cell_id || ""}`.trim();
+    return selection.id || selection.kind;
+  }
+
+  function placeCoordinates(selection) {
+    if (!selection) return "—";
+    const x = Number.isFinite(selection.xKm) ? selection.xKm : null;
+    const y = Number.isFinite(selection.yKm) ? selection.yKm : null;
+    const ll = Number.isFinite(selection.longitude) && Number.isFinite(selection.latitude)
+      ? [selection.longitude, selection.latitude]
+      : x != null && y != null && FT.geo && FT.geo.km2ll
+        ? FT.geo.km2ll(x, y)
+        : null;
+    const km = x != null && y != null ? `x ${U.fmt(x, 2)} km · y ${U.fmt(y, 2)} km` : "";
+    const lonLat = ll ? `${U.fmt(ll[1], 5)}°, ${U.fmt(ll[0], 5)}°` : "";
+    return [lonLat, km].filter(Boolean).join(" · ") || "—";
+  }
+
+  function formatQuantityValue(q) {
+    if (!q || q.value == null) return FT.i18n.t("explain.notComputed");
+    if (q.unit === "people") return `${U.fmtInt(q.value)} ${FT.i18n.t("unit.people")}`;
+    if (q.unit === "class") return String(q.value);
+    return `${U.fmt(q.value, q.unit === "m3/s" ? 0 : 2)} ${q.unit}`;
+  }
+
+  function freshnessText(q, contract) {
+    const age = q && q.age;
+    const valid = q && q.valid_time || contract && contract.valid_time;
+    const clock = valid && valid.iso ? valid.iso : "—";
+    const ageText = Number.isFinite(age)
+      ? `${U.fmt(age, 0)} ${FT.state.lang === "vi" ? "phút tuổi" : "min old"}`
+      : (FT.state.lang === "vi" ? "tuổi dữ liệu không có" : "age unavailable");
+    return `${clock} · ${ageText}`;
+  }
+
+  function contractFromSelection(selection) {
+    if (!selection) return null;
+    try {
+      if (selection.contract && selection.selection && Array.isArray(selection.quantities)) return selection;
+      if (selection.kind === "point") return FT.explain && FT.explain.atPoint ? FT.explain.atPoint(selection.xKm, selection.yKm) : null;
+      return FT.explain && FT.explain.forEntity ? FT.explain.forEntity(selection.kind, selection.id) : null;
+    } catch (e) {
+      console.warn("[placeDetail]", e);
+      return null;
+    }
+  }
+
+  function firstQuantity(contract, keys, requireValue) {
+    if (!contract || !Array.isArray(contract.quantities)) return null;
+    return contract.quantities.find((q) => keys.includes(q.key) && (!requireValue || q.value != null)) || null;
+  }
+
+  UI.placeDetail = function (selection, snap) {
+    const contract = contractFromSelection(selection);
+    const sel = contract && contract.selection || selection || {};
+    const kind = sel.kind || "point";
+    const observedKeys = {
+      gauge: ["gauge_stage", "gauge_trend_3h", "alert_level"],
+      reservoir: ["reservoir_stage", "reservoir_inflow", "reservoir_outflow"],
+    }[kind] || [];
+    const simulatedKeys = {
+      gauge: ["flood_excess", "depth"],
+      reservoir: ["flood_excess", "depth"],
+      zone: ["zone_max_flood_excess", "zone_mean_flood_excess"],
+      road: ["road_flood_excess", "road_passability_class"],
+      point: ["flood_excess", "depth"],
+    }[kind] || ["flood_excess", "depth"];
+    const observedQ = firstQuantity(contract, observedKeys, true);
+    const simulatedQ = firstQuantity(contract, simulatedKeys, true) || firstQuantity(contract, simulatedKeys, false);
+    const source = observedQ && (contract.sources || []).find((item) => item.source_id === observedQ.source_id);
+    const timeH = FT.state && Number.isFinite(FT.state.timeH) ? FT.state.timeH : 0;
+    const rel = U.rel ? U.rel(timeH) : `T${timeH >= 0 ? "+" : "-"}${Math.abs(Math.round(timeH))}h`;
+    const lifecycle = FT.state.lang === "vi"
+      ? "Vòng đời: Mô phỏng demo, chưa kiểm định vận hành"
+      : "Lifecycle: demo simulation, not operationally validated";
+    const uncertainty = simulatedQ && simulatedQ.uncertainty
+      ? `${enumLabel(simulatedQ.uncertainty.type)} · ${enumLabel(simulatedQ.uncertainty.reason)}`
+      : (FT.state.lang === "vi" ? "Giới hạn: chưa có mô hình bất định được kiểm định" : "Limitation: no validated uncertainty model");
+    const canRoute = !!(FT.traffic && FT.traffic.findRoute && (kind === "zone" || kind === "road"));
+    return {
+      id: sel.id || `${kind}:${Number.isFinite(sel.xKm) ? U.fmt(sel.xKm, 2) : "na"}:${Number.isFinite(sel.yKm) ? U.fmt(sel.yKm, 2) : "na"}`,
+      kind,
+      name: placeName(sel),
+      type: placeType(sel),
+      coordinates: placeCoordinates(sel),
+      observed: {
+        available: !!observedQ,
+        label: "HIỆN TRẠNG",
+        value: observedQ ? `${quantityLabel(observedQ.key)}: ${formatQuantityValue(observedQ)}` : "Không có số đo hiện tại",
+        timestamp: observedQ ? (observedQ.valid_time && observedQ.valid_time.iso || contract.valid_time.iso) : null,
+        source: observedQ ? `${sourceLabel(observedQ.source_id)} [${observedQ.source_id}] · ${enumLabel(observedQ.provenance || source && source.provenance)}` : "—",
+        freshness: observedQ ? freshnessText(observedQ, contract) : "Không có số đo hiện tại",
+      },
+      simulated: {
+        available: !!simulatedQ,
+        label: "MÔ PHỎNG",
+        value: simulatedQ ? `${quantityLabel(simulatedQ.key)}: ${formatQuantityValue(simulatedQ)}` : (FT.state.lang === "vi" ? "Đại lượng mô phỏng chưa được tính" : "Simulated quantity not computed"),
+        timeLabel: rel,
+        lifecycle,
+        uncertainty,
+      },
+      actions: {
+        canRoute,
+        canOrbit: !!(FT.scene3d && FT.scene3d.flyToSelection),
+        canFly: !!(FT.navigation && FT.navigation.flyToSelection),
+      },
+      selection: {
+        kind: sel.kind,
+        id: sel.id,
+        xKm: sel.xKm,
+        yKm: sel.yKm,
+      },
+      contract,
+      snap: snap || (H && H.at ? H.at(timeH) : null),
+    };
+  };
+
   function explanationDocsHref(selection) {
     const targets = {
       gauge: "https://info.skylabs.vn/simulation-engines.html#hydrology-engine",
@@ -1113,6 +1244,7 @@
     el.camPresets.style.display = v === "3d" ? "" : "none";
     el.pipTag.textContent = v === "3d" ? "2D" : "3D";
     document.getElementById("pipSwap").style.display = FT.state.threeReady ? "" : "none";
+    FT.bus.emit("viewChanged", { view: v });
   }
   UI.forceView = setView;
 

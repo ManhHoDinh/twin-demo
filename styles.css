@@ -1631,10 +1631,150 @@ body.geoshell .geoFloat #timelinePanel { display: block; }
   line-height: 1.25;
   color: var(--ink-1);
 }
+.earthPlaceSheet {
+  position: fixed;
+  left: 50%;
+  bottom: calc(26px + var(--geoTimelineH, 191px) + 10px);
+  transform: translateX(-50%);
+  z-index: 49;
+  width: min(540px, calc(100vw - 160px));
+  max-height: min(48vh, 420px);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+  border: 1px solid rgba(148,196,234,.34);
+  border-radius: 8px;
+  background: rgba(7,19,32,.92);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(16px);
+  pointer-events: none;
+}
+.earthPlaceSheet[hidden] { display: none; }
+.earthPlaceHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--line);
+}
+.earthPlaceHead h2 {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.2;
+  color: var(--ink-0);
+}
+.earthPlaceClose {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid var(--line-strong);
+  background: rgba(11,27,42,.82);
+  color: var(--ink-0);
+  font-size: 19px;
+  line-height: 1;
+}
+.earthPlaceBody {
+  min-height: 0;
+  overflow: auto;
+  padding: 10px;
+  display: grid;
+  gap: 9px;
+}
+.earthPlaceSummary {
+  display: grid;
+  gap: 3px;
+}
+.earthPlaceSummary strong {
+  color: var(--ink-0);
+  font-size: 15px;
+}
+.earthPlaceSummary span {
+  color: var(--ink-1);
+  font-size: 12px;
+}
+.earthPlaceSummary small {
+  color: var(--ink-2);
+  font-family: var(--mono);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.earthPlaceSection {
+  position: relative;
+  display: grid;
+  gap: 6px;
+  padding: 9px 10px 9px 13px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(9,24,38,.64);
+}
+.earthPlaceSection::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 4px;
+  border-radius: 0 4px 4px 0;
+}
+.earthPlaceSection.observed::before { background: #58d98c; }
+.earthPlaceSection.simulated::before {
+  background: #4aa3ff;
+  background-image: repeating-linear-gradient(45deg, rgba(255,255,255,.38) 0 3px, transparent 3px 6px);
+}
+.earthPlaceSection.missing { border-style: dashed; }
+.earthPlaceSection h3 {
+  margin: 0 0 2px;
+  font-size: 12px;
+  line-height: 1.2;
+  letter-spacing: .35px;
+}
+.earthPlaceSection.observed h3 { color: #8df0b2; }
+.earthPlaceSection.simulated h3 { color: #99d2ff; }
+.earthPlaceRow {
+  display: grid;
+  grid-template-columns: minmax(92px, .5fr) minmax(0, 1fr);
+  gap: 8px;
+  align-items: baseline;
+  font-size: 12px;
+  color: var(--ink-1);
+}
+.earthPlaceRow span {
+  color: var(--ink-2);
+}
+.earthPlaceRow strong {
+  min-width: 0;
+  color: var(--ink-0);
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+.earthPlaceActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.earthPlaceActions button {
+  min-height: 38px;
+  border-radius: 8px;
+  padding: 0 12px;
+  pointer-events: auto;
+}
+.earthPlaceClose { pointer-events: auto; }
+.earthPlaceActions button[hidden] { display: none; }
+.earthPlaceActions button:disabled {
+  opacity: .48;
+  cursor: not-allowed;
+}
+.earthPlaceClose:focus-visible,
+.earthPlaceActions button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 @media (prefers-reduced-motion: reduce) {
   .earthNav,
   .earthCameraStatus,
-  .earthLayerLabel { transition: none; }
+  .earthLayerLabel,
+  .earthPlaceSheet { transition: none; }
 }
 
 /* ---- STATUS RIBBON (2px → hover) ---- */
@@ -1735,6 +1875,16 @@ body.mode-split #labels3d { width: 50%; }
     bottom: calc(40px + var(--geoTimelineH, 236px) + 172px);
     max-width: none;
   }
+  .earthPlaceSheet {
+    left: 8px;
+    right: 8px;
+    bottom: calc(40px + var(--geoTimelineH, 236px) + 8px);
+    width: auto;
+    max-height: min(58vh, 460px);
+    transform: none;
+  }
+  .earthPlaceRow { grid-template-columns: 1fr; gap: 2px; }
+  .earthPlaceActions button { flex: 1 1 130px; }
   .geoTimeline { left: 8px; right: 8px; width: auto !important; transform: none; bottom: 40px; }
   .cheatGrid { grid-template-columns: 1fr; }
 }

@@ -12,6 +12,7 @@
   let waterCv = null, waterCtx = null, waterImg = null, waterStamp = 0;
   let waterEdgeCv = null, waterEdgeCtx = null, waterEdgeImg = null;
   let pipStamp = 0;
+  let selectedPulse = null;
   const cam = { x: SZ / 2, y: SZ / 2, scale: 14 };  // px per km (logical px)
   let minScale = 10;
 
@@ -57,6 +58,9 @@
   function fitAll() {
     const s = Math.min(cw, ch) / dpr / (SZ * 1.04);
     cam.scale = s; minScale = s * 0.9; cam.x = SZ / 2; cam.y = SZ / 2;
+  }
+  function reducedMotion() {
+    return window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   }
 
   /* ---------- basemap prerender (satellite-style) ---------- */
@@ -430,6 +434,49 @@
       return z ? { x: z.x, y: z.y } : null;
     }
     return null;
+  }
+
+  function showSelectionPulse(selection) {
+    const point = pointFromSelection(selection);
+    if (!point) {
+      selectedPulse = null;
+      return;
+    }
+    selectedPulse = {
+      selection: { kind: selection.kind, id: selection.id || null, xKm: point.x, yKm: point.y },
+      x: point.x,
+      y: point.y,
+      start: performance.now(),
+      duration: reducedMotion() ? 0 : 1800,
+    };
+  }
+
+  function drawSelectionPulse() {
+    if (!selectedPulse) return;
+    const now = performance.now();
+    const t = selectedPulse.duration ? U.clamp((now - selectedPulse.start) / selectedPulse.duration, 0, 1) : 1;
+    if (t >= 1 && selectedPulse.duration) {
+      selectedPulse = null;
+      return;
+    }
+    const X = sx(selectedPulse.x), Y = sy(selectedPulse.y);
+    if (X < -80 || X > cw + 80 || Y < -80 || Y > ch + 80) return;
+    const hold = selectedPulse.duration ? 1 - t : 0.8;
+    const r = (12 + t * 20) * dpr;
+    ctx.save();
+    ctx.setLineDash([]);
+    ctx.lineWidth = 3 * dpr;
+    ctx.strokeStyle = `rgba(74, 163, 255, ${0.9 * hold})`;
+    ctx.fillStyle = `rgba(74, 163, 255, ${0.12 * hold})`;
+    ctx.beginPath();
+    ctx.arc(X, Y, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(X, Y, 5 * dpr, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(220, 242, 255, ${0.95 * hold})`;
+    ctx.fill();
+    ctx.restore();
   }
 
   /* ---------- zones ---------- */
@@ -1069,6 +1116,7 @@
     fitAll();
     for (let i = 0; i < NP; i++) respawn(i);
     bindEvents();
+    FT.bus.on("explainSelection", (contract) => showSelectionPulse(contract && contract.selection));
   };
 
   let clock = 0;
@@ -1141,10 +1189,12 @@
     if (FT.state.layers.labels) drawCities();
     if (FT.state.layers.rain) drawRain(snap, dtReal);
     drawKeyboardCursor();
+    drawSelectionPulse();
     drawHUD(snap);
   };
 
   Object.defineProperty(M, "keyboardCursor", { enumerable: true, get() { return { ...keyboardCursor }; } });
+  Object.defineProperty(M, "selectionPresentation", { enumerable: true, get() { return selectedPulse ? { ...selectedPulse.selection } : null; } });
 
   M.cameraState = cameraState;
 

@@ -20,6 +20,7 @@
   const persist = () => { try { localStorage.setItem(LSKEY, JSON.stringify(saved)); } catch (e) {} };
 
   const reduceMotion = () => window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let placeSheet = null, placeReturnFocus = null, activePlaceSelection = null;
 
   /* ======================================================================
      FloatingPanel — the universal state machine
@@ -260,6 +261,187 @@
       FT.navigation.flyToSelection(selection, options || {});
   }
 
+  function restorePlaceFocus() {
+    const view = FT.state && FT.state.view === "2d" ? "2d" : "3d";
+    const activeCanvas = document.getElementById(`canvas${view}`);
+    const candidates = [
+      placeReturnFocus,
+      activeCanvas && activeCanvas.classList.contains("isActive") ? activeCanvas : null,
+      document.querySelector(`#viewTabs button[data-view="${view}"]`),
+    ];
+    for (const candidate of candidates) {
+      if (!candidate || !document.contains(candidate)) continue;
+      const style = getComputedStyle(candidate);
+      if (style.display === "none" || style.visibility === "hidden") continue;
+      candidate.focus({ preventScroll: true });
+      if (document.activeElement === candidate) return;
+    }
+  }
+
+  function buildPlaceRow(labelText, valueText) {
+    const row = el("div", "earthPlaceRow");
+    const label = el("span");
+    label.textContent = labelText;
+    const value = el("strong");
+    value.textContent = valueText || "—";
+    row.append(label, value);
+    return row;
+  }
+
+  function closePlaceSheet() {
+    if (!placeSheet || placeSheet.hidden) return;
+    placeSheet.hidden = true;
+    document.body.classList.remove("place-sheet-open");
+    restorePlaceFocus();
+  }
+
+  function renderPlaceSheet(moveFocus) {
+    if (!placeSheet || !activePlaceSelection || !FT.ui || !FT.ui.placeDetail) return;
+    const vm = FT.ui.placeDetail(activePlaceSelection, FT.hydro && FT.hydro.at ? FT.hydro.at(FT.state.timeH) : null);
+    const set = (name, value) => {
+      const node = placeSheet.querySelector(`[data-place-field="${name}"]`);
+      if (node) node.textContent = value || "—";
+    };
+    set("name", vm.name);
+    set("type", vm.type);
+    set("coordinates", vm.coordinates);
+    placeSheet.dataset.placeKind = vm.kind || "";
+    placeSheet.dataset.placeId = vm.id || "";
+
+    const observed = placeSheet.querySelector('[data-place-section="observed"]');
+    const simulated = placeSheet.querySelector('[data-place-section="simulated"]');
+    observed.replaceChildren();
+    const oh = document.createElement("h3");
+    oh.textContent = vm.observed.label;
+    observed.appendChild(oh);
+    observed.append(
+      buildPlaceRow("Số đo", vm.observed.value),
+      buildPlaceRow("Nguồn / provenance", vm.observed.source),
+      buildPlaceRow("Timestamp / freshness", vm.observed.freshness)
+    );
+    observed.classList.toggle("missing", !vm.observed.available);
+
+    simulated.replaceChildren();
+    const sh = document.createElement("h3");
+    sh.textContent = vm.simulated.label;
+    simulated.appendChild(sh);
+    simulated.append(
+      buildPlaceRow("Giá trị", vm.simulated.value),
+      buildPlaceRow("Timeline", vm.simulated.timeLabel),
+      buildPlaceRow("Lifecycle", vm.simulated.lifecycle),
+      buildPlaceRow("Bất định / range", vm.simulated.uncertainty)
+    );
+    simulated.classList.toggle("missing", !vm.simulated.available);
+
+    const route = placeSheet.querySelector('[data-place-action="route"]');
+    if (route) route.hidden = !vm.actions.canRoute;
+    const orbit = placeSheet.querySelector('[data-place-action="orbit"]');
+    if (orbit) {
+      const is3d = FT.state && FT.state.view === "3d";
+      orbit.hidden = !is3d;
+      orbit.disabled = !(is3d && vm.actions.canOrbit);
+      orbit.setAttribute("aria-disabled", String(orbit.disabled));
+    }
+    placeSheet.querySelector('[data-place-action="fly"]').disabled = !vm.actions.canFly;
+    placeSheet.querySelector('[data-place-action="zoom"]').disabled = !vm.actions.canFly;
+    placeSheet.hidden = false;
+    document.body.classList.add("place-sheet-open");
+    if (moveFocus) {
+      const close = placeSheet.querySelector('[data-place-action="close"]');
+      close && close.focus({ preventScroll: true });
+    }
+  }
+
+  function buildPlaceSheet() {
+    if (document.getElementById("earthPlaceSheet")) return;
+    const sheet = el("section", "earthPlaceSheet");
+    sheet.id = "earthPlaceSheet";
+    sheet.hidden = true;
+    sheet.setAttribute("role", "region");
+    sheet.setAttribute("aria-labelledby", "earthPlaceSheetTitle");
+    const head = el("div", "earthPlaceHead");
+    const title = document.createElement("h2");
+    title.id = "earthPlaceSheetTitle";
+    title.textContent = "Thông tin địa điểm";
+    const close = el("button", "earthPlaceClose", "×");
+    close.type = "button";
+    close.dataset.placeAction = "close";
+    close.setAttribute("aria-label", "Đóng thông tin địa điểm");
+    close.addEventListener("click", closePlaceSheet);
+    head.append(title, close);
+
+    const body = el("div", "earthPlaceBody");
+    const summary = el("div", "earthPlaceSummary");
+    const name = el("strong");
+    name.dataset.placeField = "name";
+    const type = el("span");
+    type.dataset.placeField = "type";
+    const coordinates = el("small");
+    coordinates.dataset.placeField = "coordinates";
+    summary.append(name, type, coordinates);
+
+    const observed = el("section", "earthPlaceSection observed");
+    observed.dataset.placeSection = "observed";
+    const simulated = el("section", "earthPlaceSection simulated");
+    simulated.dataset.placeSection = "simulated";
+    const actions = el("div", "earthPlaceActions");
+    [
+      ["fly", "Bay tới"],
+      ["zoom", "Zoom tới"],
+      ["orbit", "Orbit quanh điểm"],
+      ["route", "Tuyến tới đây"],
+    ].forEach(([action, label]) => {
+      const button = el("button", action === "fly" ? "btnPrimary" : "", label);
+      button.type = "button";
+      button.dataset.placeAction = action;
+      button.addEventListener("click", () => {
+        if (!activePlaceSelection) return;
+        if (action === "fly") FT.navigation && FT.navigation.flyToSelection(activePlaceSelection, { intent: "asset" });
+        else if (action === "zoom") FT.navigation && FT.navigation.flyToSelection(activePlaceSelection, { intent: "street" });
+        else if (action === "orbit" && FT.state && FT.state.view === "3d") FT.navigation && FT.navigation.flyToSelection(activePlaceSelection, { intent: "asset" });
+        else if (action === "route") panels.drawer && panels.drawer.show("expanded");
+      });
+      actions.appendChild(button);
+    });
+    body.append(summary, observed, simulated, actions);
+    sheet.append(head, body);
+    document.body.appendChild(sheet);
+    placeSheet = sheet;
+    FT.dom = FT.dom || {};
+    FT.dom.earthPlaceSheet = sheet;
+
+    FT.bus.on("explainOrigin", (origin) => {
+      if (!origin || !origin.element || !document.contains(origin.element)) return;
+      placeReturnFocus = origin.element;
+    });
+    FT.bus.on("explainSelection", (contract) => {
+      if (!contract) {
+        activePlaceSelection = null;
+        closePlaceSheet();
+        return;
+      }
+      if (contract.selection && contract.selection.kind === "road") {
+        activePlaceSelection = null;
+        closePlaceSheet();
+        return;
+      }
+      activePlaceSelection = contract.selection;
+      if (!placeReturnFocus && document.activeElement && !sheet.contains(document.activeElement)) placeReturnFocus = document.activeElement;
+      renderPlaceSheet(false);
+    });
+    ["scrubbed", "hydroRebuilt", "lang", "viewChanged"].forEach((eventName) => FT.bus.on(eventName, () => {
+      if (activePlaceSelection && !sheet.hidden) renderPlaceSheet(false);
+    }));
+    document.addEventListener("keydown", (ev) => {
+      if (ev.key !== "Escape" || sheet.hidden) return;
+      if (sheet.contains(document.activeElement) || document.activeElement === document.body || document.activeElement === document.documentElement) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        closePlaceSheet();
+      }
+    }, true);
+  }
+
   function alarmTargetSelection(alarm) {
     if (!alarm) return null;
     if (alarm.kind === "gauge") return resolveSelection({ kind: "gauge", id: alarm.subject });
@@ -328,6 +510,7 @@
     buildDock();
     buildViewControl();
     buildEarthNav();
+    buildPlaceSheet();
     buildModeRail();
     buildTimeline();
     buildInspector();

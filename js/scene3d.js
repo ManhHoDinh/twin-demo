@@ -15,6 +15,7 @@
   let damGroup, dams = [], gaugeGroup, gauges = [];
   let labelWrap, labels = [];
   let flyFrom = null, flyTo = null, flyT = 1, activeFly = null;
+  let selectionRing = null, selectionPulse = null;
   let skyClear = null, skyStorm = null, skyTmp = null;
   const tmpV = { v: null };
   let clock = 0;
@@ -1088,6 +1089,59 @@
     return null;
   }
 
+  function ensureSelectionRing() {
+    if (selectionRing || !THREE || !scene) return selectionRing;
+    const geo = new THREE.RingGeometry(0.42, 0.58, 64);
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0x4aa3ff,
+      transparent: true,
+      opacity: 0.92,
+      depthTest: false,
+      side: THREE.DoubleSide,
+    });
+    selectionRing = new THREE.Mesh(geo, mat);
+    selectionRing.rotation.x = -Math.PI / 2;
+    selectionRing.renderOrder = 80;
+    selectionRing.visible = false;
+    scene.add(selectionRing);
+    return selectionRing;
+  }
+
+  function showSelectionPulse(selection) {
+    const point = pointFromSelection(selection);
+    const ring = ensureSelectionRing();
+    if (!point || !ring) {
+      selectionPulse = null;
+      if (ring) ring.visible = false;
+      return;
+    }
+    selectionPulse = {
+      selection: { kind: selection.kind, id: selection.id || null, xKm: point.x, yKm: point.y },
+      x: point.x,
+      y: point.y,
+      start: performance.now(),
+      duration: reducedMotion() ? 0 : 1800,
+    };
+    ring.visible = true;
+  }
+
+  function updateSelectionPulse() {
+    if (!selectionRing || !selectionPulse) return;
+    const t = selectionPulse.duration ? U.clamp((performance.now() - selectionPulse.start) / selectionPulse.duration, 0, 1) : 1;
+    if (t >= 1 && selectionPulse.duration) {
+      selectionPulse = null;
+      selectionRing.visible = false;
+      return;
+    }
+    const hold = selectionPulse.duration ? 1 - t : 0.82;
+    const y = elevToY(Math.max(1, terrAt(selectionPulse.x, selectionPulse.y))) + 0.08;
+    const s = 1 + t * 1.4;
+    selectionRing.position.set(selectionPulse.x, y, selectionPulse.y);
+    selectionRing.scale.setScalar(s);
+    selectionRing.material.opacity = 0.88 * hold;
+    selectionRing.visible = true;
+  }
+
   /* ============ dynamic close-zoom detail (live slippy tiles draped on terrain — Google-Earth style) ============ */
   const DQ = { mesh: null, cv: null, ctx: null, tex: null, N: 64, acc: 9, key: "", pending: 0 };
   function ensureDetail() {
@@ -1246,6 +1300,7 @@
     buildRain();
     buildLabels();
     bindSelection();
+    ensureSelectionRing();
 
     const ro = new ResizeObserver(() => S3.resize());
     ro.observe(cv);
@@ -1253,6 +1308,7 @@
     FT.bus.on("osmRoads", () => { try { buildOsmRoads(); } catch (e) { console.warn("osm 3d roads", e); } });
     FT.bus.on("osmBuildings", () => { try { swapOsmBuildings(); } catch (e) { console.warn("osm 3d bldg", e); } });
     FT.bus.on("osmMinor", () => { try { buildOsmMinor(); } catch (e) { console.warn("osm 3d minor", e); } });
+    FT.bus.on("explainSelection", (contract) => showSelectionPulse(contract && contract.selection));
   };
 
   S3.resize = function () {
@@ -1480,6 +1536,8 @@
     updateRain(snap, dtReal);
     updateLabels(snap);
     updateDetail(dtReal);
+    updateSelectionPulse();
     renderer.render(scene, camera);
   };
+  Object.defineProperty(S3, "selectionPresentation", { enumerable: true, get() { return selectionPulse ? { ...selectionPulse.selection } : null; } });
 })();
