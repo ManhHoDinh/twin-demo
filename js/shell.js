@@ -228,6 +228,17 @@
       if (!renderer || !renderer.flyToSelection) return false;
       return !!renderer.flyToSelection(target, options || {});
     },
+    orbitSelection(selection) {
+      if (!FT.state || FT.state.view !== "3d" || !FT.scene3d || !FT.scene3d.orbitSelection) return false;
+      const resolved = resolveSelection(selection);
+      const target = resolved ? {
+        kind: resolved.kind,
+        id: resolved.id,
+        xKm: resolved.xKm,
+        yKm: resolved.yKm,
+      } : selection;
+      return !!FT.scene3d.orbitSelection(target);
+    },
     locateSelection() {
       const selection = currentSelection();
       if (selection && Navigation.flyToSelection(selection, { intent: "asset" })) return true;
@@ -256,6 +267,7 @@
   }
 
   function focusSelection(selection, options) {
+    if (selection && FT.explain && FT.explain.select) FT.explain.select(selection);
     emitSelectionFocus(selection);
     return FT.navigation && FT.navigation.flyToSelection &&
       FT.navigation.flyToSelection(selection, options || {});
@@ -398,7 +410,7 @@
         if (!activePlaceSelection) return;
         if (action === "fly") FT.navigation && FT.navigation.flyToSelection(activePlaceSelection, { intent: "asset" });
         else if (action === "zoom") FT.navigation && FT.navigation.flyToSelection(activePlaceSelection, { intent: "street" });
-        else if (action === "orbit" && FT.state && FT.state.view === "3d") FT.navigation && FT.navigation.flyToSelection(activePlaceSelection, { intent: "asset" });
+        else if (action === "orbit" && FT.state && FT.state.view === "3d") FT.navigation && FT.navigation.orbitSelection && FT.navigation.orbitSelection(activePlaceSelection);
         else if (action === "route") panels.drawer && panels.drawer.show("expanded");
       });
       actions.appendChild(button);
@@ -434,11 +446,21 @@
     }));
     document.addEventListener("keydown", (ev) => {
       if (ev.key !== "Escape" || sheet.hidden) return;
-      if (sheet.contains(document.activeElement) || document.activeElement === document.body || document.activeElement === document.documentElement) {
-        ev.preventDefault();
-        ev.stopPropagation();
+      const active = document.activeElement;
+      const tag = (active && active.tagName || "").toLowerCase();
+      if (tag === "input" || tag === "select" || tag === "textarea" || active && active.isContentEditable) return;
+      const modal = document.getElementById("modalScrim");
+      if (modal && !modal.hidden && active && modal.contains(active)) return;
+      const isSource = active === placeReturnFocus ||
+        active && (active.id === "canvas2d" || active.id === "canvas3d" || active.closest(".earthNav, .geoViewCtl, .cmdBar, .geoDock"));
+      if (!sheet.contains(active) && active !== document.body && active !== document.documentElement && !isSource) return;
+      if (active && (active.id === "canvas2d" || active.id === "canvas3d")) {
         closePlaceSheet();
+        return;
       }
+      ev.preventDefault();
+      ev.stopPropagation();
+      closePlaceSheet();
     }, true);
   }
 

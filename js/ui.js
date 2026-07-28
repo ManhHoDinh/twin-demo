@@ -270,7 +270,7 @@
       },
       actions: {
         canRoute,
-        canOrbit: !!(FT.scene3d && FT.scene3d.flyToSelection),
+        canOrbit: !!(FT.navigation && FT.navigation.orbitSelection || FT.scene3d && FT.scene3d.orbitSelection),
         canFly: !!(FT.navigation && FT.navigation.flyToSelection),
       },
       selection: {

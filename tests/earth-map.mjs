@@ -566,6 +566,105 @@ async function earthControls(browser) {
       result.escapeResult.activeId === 'canvas2d';
   });
 
+  await check('Earth place Orbit action performs a real 3D orbit distinct from fixed fly-to', async (d) => {
+    const result = await page.evaluate(async () => {
+      const FT = window.FT;
+      const waitSettled = (view = '3d') => new Promise((resolve, reject) => {
+        const deadline = window.setTimeout(() => reject(new Error(`${view} camera settle timeout`)), 4000);
+        FT.bus.on('camera.fly.settled', (ev) => {
+          if (ev && ev.view === view) {
+            window.clearTimeout(deadline);
+            window.setTimeout(resolve, 120);
+          }
+        });
+      });
+      const norm = (deg) => ((deg % 360) + 540) % 360 - 180;
+      const bearingDelta = (a, b) => Math.abs(norm(a - b));
+      document.querySelector('#viewTabs button[data-view="3d"]').click();
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const selection = { kind: 'gauge', id: FT.data.GAUGES[0].id };
+      FT.explain.select(selection);
+      FT.scene3d.flyToSelection(selection, { intent: 'asset' });
+      await waitSettled('3d');
+      const fixedBefore = FT.scene3d.cameraState();
+      const events = [];
+      FT.bus.on('camera.fly.start', (payload) => events.push({ type: 'start', payload }));
+      FT.bus.on('camera.fly.settled', (payload) => events.push({ type: 'settled', payload }));
+      document.querySelector('#earthPlaceSheet [data-place-action="orbit"]')?.click();
+      await waitSettled('3d');
+      const orbit = FT.scene3d.cameraState();
+      FT.scene3d.flyToSelection(selection, { intent: 'asset' });
+      await waitSettled('3d');
+      const fixedAfter = FT.scene3d.cameraState();
+      return {
+        fixedBefore,
+        orbit,
+        fixedAfter,
+        events,
+        orbitApi: typeof FT.navigation.orbitSelection,
+        bearingChange: bearingDelta(orbit.bearing, fixedBefore.bearing),
+        fixedResetDelta: bearingDelta(fixedAfter.bearing, fixedBefore.bearing),
+        targetMove: Math.hypot(orbit.target.x - fixedBefore.target.x, orbit.target.y - fixedBefore.target.y),
+        repeatedFlyVsOrbit: bearingDelta(fixedAfter.bearing, orbit.bearing),
+      };
+    });
+    d(result);
+    const starts = result.events.filter((event) => event.type === 'start' && event.payload?.intent === 'orbit');
+    const settled = result.events.filter((event) => event.type === 'settled' && event.payload?.intent === 'orbit' && event.payload?.status === 'settled');
+    return result.orbitApi === 'function' &&
+      starts.length === 1 &&
+      settled.length === 1 &&
+      result.fixedBefore &&
+      result.orbit &&
+      result.fixedAfter &&
+      result.bearingChange >= 25 &&
+      result.targetMove < 0.25 &&
+      result.orbit.distance > 4 &&
+      result.orbit.distance < 45 &&
+      result.fixedResetDelta < 1 &&
+      result.repeatedFlyVsOrbit >= 25;
+  });
+
+  await check('Earth place sheet Escape closes from canvas origin but does not steal input Escape', async (d) => {
+    const canvasResult = await page.evaluate(async () => {
+      const FT = window.FT;
+      const waitFrame = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      document.querySelector('#viewTabs button[data-view="3d"]').click();
+      await waitFrame();
+      const canvas = document.getElementById('canvas3d');
+      canvas.focus({ preventScroll: true });
+      FT.bus.emit('explainOrigin', { element: canvas, moveFocus: false });
+      FT.explain.select({ kind: 'point', xKm: 42, yKm: 44 });
+      await waitFrame();
+      const input = document.getElementById('cmdSearchInput');
+      input.focus({ preventScroll: true });
+      return {
+        beforeHidden: document.getElementById('earthPlaceSheet').hidden,
+        inputActive: document.activeElement === input,
+      };
+    });
+    await page.keyboard.press('Escape');
+    const afterInput = await page.evaluate(() => ({
+      hidden: document.getElementById('earthPlaceSheet').hidden,
+      activeId: document.activeElement?.id || null,
+    }));
+    await page.focus('#canvas3d');
+    await page.keyboard.press('Escape');
+    const afterCanvas = await page.evaluate(() => ({
+      hidden: document.getElementById('earthPlaceSheet').hidden,
+      activeId: document.activeElement?.id || null,
+      currentKind: window.FT.explain.current?.selection?.kind || null,
+    }));
+    const result = { canvasResult, afterInput, afterCanvas };
+    d(result);
+    return canvasResult.beforeHidden === false &&
+      canvasResult.inputActive === true &&
+      afterInput.hidden === false &&
+      afterCanvas.hidden === true &&
+      afterCanvas.activeId === 'canvas3d' &&
+      afterCanvas.currentKind === 'point';
+  });
+
   await check('Command palette routes zones and active alerts through shared navigation without dropping UI events', async (d) => {
     const result = await page.evaluate(() => {
       const FT = window.FT;
@@ -585,7 +684,15 @@ async function earthControls(browser) {
       FT.bus.on('gaugeSelected', (id) => emissions.push({ type: 'gaugeSelected', id }));
       FT.bus.on('reservoirFocus', (id) => emissions.push({ type: 'reservoirFocus', id }));
       try {
-        if (zoneEntry) zoneEntry.run();
+        if (zoneEntry) {
+          zoneEntry.run();
+          var afterZone = {
+            current: FT.explain.current && FT.explain.current.selection,
+            sheetHidden: document.getElementById('earthPlaceSheet')?.hidden,
+            sheetKind: document.getElementById('earthPlaceSheet')?.dataset.placeKind,
+            sheetName: document.querySelector('#earthPlaceSheet [data-place-field="name"]')?.textContent || '',
+          };
+        }
         if (alertEntry) alertEntry.run();
       } finally {
         FT.navigation.flyToSelection = originalFly;
@@ -597,6 +704,7 @@ async function earthControls(browser) {
         alertCount: catalog.filter((item) => item.g === 'Cảnh báo').length,
         zoneEntry: zoneEntry && { label: zoneEntry.label, selection: zoneEntry.selection },
         alertEntry: alertEntry && { label: alertEntry.label, selection: alertEntry.selection },
+        afterZone,
         calls,
         emissions,
         alertsPanelMode: FT.panels?.alerts?.mode || null,
@@ -611,6 +719,11 @@ async function earthControls(browser) {
     return result.zoneCount === result.dataZoneCount &&
       result.zoneEntry &&
       zoneCall?.options?.intent === 'district' &&
+      result.afterZone?.current?.kind === 'zone' &&
+      result.afterZone?.current?.id === result.zoneEntry.selection.id &&
+      result.afterZone?.sheetHidden === false &&
+      result.afterZone?.sheetKind === 'zone' &&
+      result.afterZone?.sheetName.trim().length > 0 &&
       result.emissions.some((event) => event.type === 'zoneSelected' && event.id === result.zoneEntry.selection.id) &&
       (result.activeAlarmCount === 0 || (result.alertCount > 0 && result.alertEntry && alertCall && alertUiPreserved));
   });

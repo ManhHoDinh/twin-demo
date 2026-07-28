@@ -1301,6 +1301,7 @@
     buildLabels();
     bindSelection();
     ensureSelectionRing();
+    canvas.tabIndex = 0;
 
     const ro = new ResizeObserver(() => S3.resize());
     ro.observe(cv);
@@ -1431,6 +1432,26 @@
     ];
     const tgt = [point.x, te, point.y];
     return startFly(pos, tgt, { selection, intent });
+  };
+
+  S3.orbitSelection = function (selection) {
+    if (!camera || !controls) return false;
+    const point = pointFromSelection(selection);
+    if (!point) return false;
+    const te = elevToY(Math.max(1, terrAt(point.x, point.y))) * scene.scale.y;
+    const current = cameraVector();
+    const currentBearing = current ? Math.atan2(current.x, current.z) : -38 * Math.PI / 180;
+    const bearing = currentBearing + 72 * Math.PI / 180;
+    const dist = U.clamp(current ? current.length() : CAMERA_DISTANCES.asset, 12, 22);
+    const tilt = 60 * Math.PI / 180;
+    const vertical = Math.max(2.8, Math.cos(tilt) * dist);
+    const horizontal = Math.max(1.2, Math.sin(tilt) * dist);
+    const pos = [
+      point.x + Math.sin(bearing) * horizontal,
+      te + vertical,
+      point.y + Math.cos(bearing) * horizontal,
+    ];
+    return startFly(pos, [point.x, te, point.y], { selection, intent: "orbit" });
   };
 
   S3.zoomStep = function (direction) {
