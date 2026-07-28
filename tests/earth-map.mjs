@@ -324,17 +324,15 @@ async function earthControls(browser) {
       window.__earth2dCancelEvents = events;
       FT.bus.on('camera.fly.start', capture('start'));
       FT.bus.on('camera.fly.settled', capture('settled'));
-      FT.navigation.flyToSelection({ kind: 'point', xKm: 15, yKm: 20 }, { intent: 'street' });
-      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-      window.__earth2dCancelDuring = FT.map2d.cameraState();
+      document.getElementById('canvas2d').addEventListener('wheel', () => {
+        FT.navigation.flyToSelection({ kind: 'point', xKm: 15, yKm: 20 }, { intent: 'street' });
+        window.__earth2dCancelDuring = FT.map2d.cameraState();
+      }, { capture: true, once: true });
     });
     const box = await page.locator('#canvas2d').boundingBox();
     const x = box.x + box.width * 0.52;
     const y = box.y + box.height * 0.48;
     await page.mouse.move(x, y);
-    await page.mouse.down();
-    await page.mouse.move(x + 44, y + 12, { steps: 3 });
-    await page.mouse.up();
     await page.mouse.wheel(0, -180);
     const result = await page.evaluate(async () => {
       await new Promise((resolve) => setTimeout(resolve, 450));
