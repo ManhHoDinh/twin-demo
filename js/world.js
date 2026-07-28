@@ -499,7 +499,12 @@
     m.t += dt;
   }
 
-  const MAX_SUB_DT = 20;                                                         // s (CFL-safe for ~8 m deep)
+  /* CFL-derived substep: dt ≤ Cr·CELL / √(g·h_max). With Courant Cr=0.4 and h_max≈8 m
+     (deep flood) the wave speed is √(9.81·8)=8.9 m/s, so dt_max = 0.4·CELL/8.9. This
+     makes the explicit scheme provably stable at ANY grid resolution — refine N and the
+     substep tightens automatically. Capped at 20 s (coarse grids don't need more). */
+  const CFL_CR = 0.4, WAVE_MAX = Math.sqrt(9.81 * 8);
+  const MAX_SUB_DT = Math.min(20, (CFL_CR * CELL) / WAVE_MAX);                   // s
   W.step = function (simDt, snap) {
     buildEqField(snap);
     let remaining = Math.min(simDt, 360);                                        // cap work per frame

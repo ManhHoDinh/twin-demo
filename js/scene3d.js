@@ -156,8 +156,8 @@
     scene.add(terrainMesh);
   }
 
-  /* ============ water (display mesh upsampled 240² from the 144² sim) ============ */
-  const WN = 240;
+  /* ============ water (display mesh matches the 288² sim so finer flood detail renders) ============ */
+  const WN = 288;
   let wSampX = null, wSampY = null;                        // precomputed bilinear indices into the sim grid
   function buildWater() {
     const N = W.N;

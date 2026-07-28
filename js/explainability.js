@@ -7,7 +7,7 @@
   const D = FT.data;
   const CONTRACT = "floodtwin.explain/v1";
   const QUANTITY_SCHEMA = "eng-quantity-envelope/1";
-  const MODEL_VERSION = "swe-144-1";
+  const MODEL_VERSION = "swe-288-1";
   const PROVENANCE = new Set(["MEASURED", "FORECAST", "MODELLED", "ASSUMED", "SYNTHETIC"]);
   const REASON_CATEGORIES = Object.freeze(["MISSING_DATA", "STALE", "QUALITY_REJECTED", "MODEL_FAILURE", "UNSUPPORTED_PHYSICS", "PLANNED"]);
   const REASONS = new Set(REASON_CATEGORIES);

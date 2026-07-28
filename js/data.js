@@ -7,7 +7,12 @@
   const FT = window.FT;
   const LL = FT.LL;
 
-  const DOMAIN = { sizeKm: FT.geo.SZ, N: 144, cellKm: FT.geo.SZ / 144, seaLevel: 0 };
+  /* SWE grid resolution. Raised 144→288 (667 m → 333 m/cell) so the solver actually
+     resolves the ~37 m DEM it samples instead of averaging it into 667 m blocks — the
+     flood front now spreads on real terrain detail. Only ~16% of cells are dynamic and a
+     step is <1 ms at 144², so 4× the cells stays well inside the 60 fps budget; the
+     substep is CFL-derived (see world.js) so stability holds at any N. */
+  const DOMAIN = { sizeKm: FT.geo.SZ, N: 288, cellKm: FT.geo.SZ / 288, seaLevel: 0 };
 
   /* ---------- scenarios (unchanged hydrology shapes) ---------- */
   const SCENARIOS = {
@@ -277,7 +282,7 @@
     d1865_a8: { id: "QĐ 1865/QĐ-TTg · Điều 8", id_en: "Decision 1865/QĐ-TTg · Art. 8", text_vi: "Văn bản pháp lý thật. Vận hành giảm lũ cho hạ du phải giữ mực nước tại trạm Ái Nghĩa và Câu Lâu không vượt báo động 3 trong khả năng cắt lũ của hồ.", text_en: "Real legal text. Flood-mitigation operation shall keep Ái Nghĩa and Câu Lâu gauges below alert level 3 within the cascade's cut-flood capability." },
     nchmf: { id: "Bản tin thuỷ văn · mô phỏng", id_en: "Hydrological bulletin · simulated", text_vi: "Bản tin mô phỏng theo dạng bản tin NCHMF phát 18:00. Kịch bản demo, không phải bản tin đã phát hành.", text_en: "A bulletin simulated in the shape of an NCHMF 18:00 issue. Demo scenario, not a bulletin that was ever published." },
     gencast: { id: "Ensemble mô phỏng · 50 thành viên", id_en: "Simulated ensemble · 50 members", text_vi: "Cưỡng bức mưa và dòng vào là hàm giải tích khớp hình dạng sự kiện 10/2020, lan rộng theo lead time. Đích thiết kế §4 là ensemble GenCast 06Z hiệu chỉnh IMERG với CRPS 24h ≤ 0,42 — chưa nối.", text_en: "Rainfall and inflow forcing are analytic functions shaped after the Oct-2020 event, with spread growing by lead time. The §4 design target is a GenCast 06Z ensemble with IMERG bias correction and 24-h CRPS ≤ 0.42, which is not yet connected." },
-    surrogate: { id: "Bộ giải trong trình duyệt", id_en: "In-browser solver", text_vi: "Số đọc được sinh tại chỗ: diễn toán hồ giải tích và trường nước nông 144² chạy trong trình duyệt bạn đang mở. Đích thiết kế §5 là bộ giải thay thế FNO đạt CSI ≥ 0,80 so với HEC-RAS-2D — chưa huấn luyện.", text_en: "The value was produced here: analytic reservoir routing plus a 144² shallow-water field running in the browser you have open. The §5 design target is an FNO surrogate reaching CSI ≥ 0.80 against HEC-RAS-2D, which is not yet trained." },
+    surrogate: { id: "Bộ giải trong trình duyệt", id_en: "In-browser solver", text_vi: "Số đọc được sinh tại chỗ: diễn toán hồ giải tích và trường nước nông 288² chạy trong trình duyệt bạn đang mở. Đích thiết kế §5 là bộ giải thay thế FNO đạt CSI ≥ 0,80 so với HEC-RAS-2D — chưa huấn luyện.", text_en: "The value was produced here: analytic reservoir routing plus a 288² shallow-water field running in the browser you have open. The §5 design target is an FNO surrogate reaching CSI ≥ 0.80 against HEC-RAS-2D, which is not yet trained." },
     sensor: { id: "Trạng thái hồ · mô phỏng", id_en: "Reservoir state · simulated", text_vi: "Mực hồ, độ mở cửa van và lưu lượng xả do mô hình sinh ra. Đích thiết kế là đấu nối SCADA chủ hồ, chu kỳ 5 phút — cần thoả thuận chia sẻ dữ liệu.", text_en: "Reservoir stage, gate opening and discharge are produced by the model. The design target is a live SCADA link from the reservoir owner on a 5-minute cycle, which needs a data-sharing agreement." },
     dem: { id: "Địa hình thật · AWS Terrain Tiles", id_en: "Real terrain · AWS Terrain Tiles", text_vi: "Dữ liệu thật. Địa hình lấy từ DEM toàn cầu (AWS Terrain Tiles) và ảnh Esri World Imagery cho đúng lưu vực Vu Gia – Thu Bồn.", text_en: "Real data. Terrain comes from a global DEM (AWS Terrain Tiles) with Esri World Imagery over the actual Vu Gia – Thu Bồn basin." },
   };

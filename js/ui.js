@@ -819,7 +819,7 @@
       const vi = FT.state.lang === "vi";
       openModal("modal.method", (vi ? `
         <h4>Thật (chạy trong trình duyệt)</h4>
-        <p>· Mô phỏng nước mặt: <b>shallow-water height-field</b> (virtual pipes, Mei 2007) lưới 144², chỉ chạy động lực trên đồng bằng &lt;28 m — thượng lưu là đoạn chẩn đoán (tương ứng cấu trúc 1D/2D của paper §5).<br>
+        <p>· Mô phỏng nước mặt: <b>shallow-water height-field</b> (virtual pipes, Mei 2007) lưới 288², chỉ chạy động lực trên đồng bằng &lt;28 m — thượng lưu là đoạn chẩn đoán (tương ứng cấu trúc 1D/2D của paper §5).<br>
         · <b>Đồng hóa mực trạm</b> dọc hành lang sông (vòng lặp DA của twin, §6).<br>
         · <b>Routing hồ chứa</b> tích phân cân bằng khối cho cả hai chính sách (rule curve §3 · MPC §6), ensemble lan rộng theo lead time.<br>
         · <b>Giao thông</b>: Dijkstra thời gian thực trên mạng đường, đóng ở ≥30 cm (He 2026).<br>
@@ -832,7 +832,7 @@
         <h4>Ánh xạ paper</h4>
         <p>Forcing §4 → thanh cưỡng bức · Surrogate §5 → SWE + chip 68× · Tối ưu §6 → Rule⇄MPC + gói quyết định · LLM §7 → bản tin/hỏi đáp · Benchmark §8 → thẻ chỉ số.</p>` : `
         <h4>Real (runs in your browser)</h4>
-        <p>· Surface water: <b>shallow-water height-field</b> (virtual pipes, Mei 2007), 144² grid, dynamics on the &lt;28 m floodplain only — upstream reaches are diagnostic (mirroring the paper's 1D/2D split, §5).<br>
+        <p>· Surface water: <b>shallow-water height-field</b> (virtual pipes, Mei 2007), 288² grid, dynamics on the &lt;28 m floodplain only — upstream reaches are diagnostic (mirroring the paper's 1D/2D split, §5).<br>
         · <b>Gauge-stage assimilation</b> along river corridors (the twin's DA loop, §6).<br>
         · <b>Reservoir routing</b> with mass balance for both policies (rule curve §3 · MPC §6); ensemble spread grows with lead time.<br>
         · <b>Traffic</b>: live Dijkstra over the road graph, closures at ≥30 cm (He 2026).<br>
