@@ -12,7 +12,13 @@ import { step, check, usePage, bootApp, report, results } from './harness.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
-const ACTIONS = ['zoom-in', 'zoom-out', 'north', 'tilt', 'locate'];
+const ACTIONS = [
+  { action: 'zoom-in', name: /Phóng to/i },
+  { action: 'zoom-out', name: /Thu nhỏ/i },
+  { action: 'north', name: /Bắc/i },
+  { action: 'tilt', name: /Nghiêng/i },
+  { action: 'locate', name: /Vị trí|Định vị/i },
+];
 let BASE = '';
 
 async function earthControls(browser) {
@@ -21,42 +27,33 @@ async function earthControls(browser) {
   usePage(page);
 
   await check('Earth camera controls are native Vietnamese-accessible buttons with 40px targets', async (d) => {
-    const controls = await page.evaluate((actions) => {
-      const labelledText = (el) => {
-        const ids = (el.getAttribute('aria-labelledby') || '').trim().split(/\s+/).filter(Boolean);
-        return ids.map((id) => document.getElementById(id)?.textContent || '').join(' ').trim();
-      };
-      const accessibleName = (el) => [
-        el.getAttribute('aria-label'),
-        labelledText(el),
-        el.textContent,
-        el.getAttribute('title'),
-      ].find((value) => value && value.trim())?.trim() || '';
-      const vietnamese = /[ÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠƯàáâãèéêìíòóôõùúăđĩũơưẠ-ỹ]/u;
-
-      return actions.map((action) => {
-        const el = document.querySelector(`[data-earth-action="${action}"]`);
-        if (!el) return { action, present: false };
-        const rect = el.getBoundingClientRect();
-        const name = accessibleName(el);
-        return {
-          action,
-          present: true,
-          tag: el.tagName,
-          name,
-          hasVietnameseName: vietnamese.test(name),
-          width: Math.round(rect.width),
-          height: Math.round(rect.height),
-          targetOk: rect.width >= 40 && rect.height >= 40,
-        };
+    const controls = [];
+    for (const { action, name } of ACTIONS) {
+      const hook = page.locator(`[data-earth-action="${action}"]`);
+      const control = hook.and(page.getByRole('button', { name }));
+      const count = await control.count();
+      const visible = count === 1 ? await control.isVisible() : false;
+      const box = visible ? await control.boundingBox() : null;
+      const tag = count === 1 ? await control.evaluate((el) => el.tagName) : null;
+      controls.push({
+        action,
+        expectedName: String(name),
+        dataHookCount: await hook.count(),
+        roleNameMatchCount: count,
+        visible,
+        tag,
+        width: box ? Math.round(box.width) : null,
+        height: box ? Math.round(box.height) : null,
+        targetOk: !!box && box.width >= 40 && box.height >= 40,
       });
-    }, ACTIONS);
+    }
 
     d(controls);
     return controls.every((control) => (
-      control.present &&
+      control.dataHookCount === 1 &&
+      control.roleNameMatchCount === 1 &&
+      control.visible &&
       control.tag === 'BUTTON' &&
-      control.hasVietnameseName &&
       control.targetOk
     ));
   });
