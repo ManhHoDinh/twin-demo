@@ -225,6 +225,50 @@
     const stage = rec.stage != null ? U.fmt(rec.stage, 2) : "—";
     const bdTxt = rec.bdLevel ? `${L("trên BĐ", "above AL")}${rec.bdLevel} ${rec.overBy != null ? `${U.fmt(rec.overBy, 2)} m` : ""}` : "";
 
+    /* Capacity-honest shelter guidance for the HEADLINE zone (the area the message speaks to).
+       Three states from the allocation: fully placed → name shelter + deadline; partially placed
+       → name shelter for those who fit AND tell the rest to take vertical refuge, with the honest
+       count; unplaced → refuge only, never a shelter the zone has no place at. A warning that
+       promises room that is not there costs public compliance the next time (failure library
+       §message-credibility). The refuge wording matches the ops panel's isolated-zone copy. */
+    const hp = rec.shelterPlan && rec.shelterPlan.length ? rec.shelterPlan[0] : null;
+    const refugeShort = "Len tang cao/vung cao, cho cuu ho";
+    const refugeVi = "lên tầng cao hoặc vùng cao và chờ lực lượng cứu hộ";
+    const refugeEn = "move to upper floors or high ground and await rescue";
+    // SMS (unaccented, terse): "Den X truoc HH:MM." + shortfall note, or refuge only
+    const smsShelter = (() => {
+      if (!hp || !hp.shelter) return ` ${refugeShort}.`;
+      const by = hp.departBy != null ? ` truoc ${hm(hp.departBy)}` : "";
+      const fit = ` Den ${hp.shelter}${by} (${U.fmtInt(hp.placed)} cho).`;
+      const rest = hp.unsheltered > 0 ? ` Con ~${U.fmtInt(hp.unsheltered)} nguoi: ${refugeShort}.` : "";
+      return fit + rest;
+    })();
+    // Loudspeaker / public card (accented, room for the honest count) — headline zone.
+    // `lead` differs by channel: the loudspeaker says "đến X", the public card just "X".
+    const shelterLine = (lead) => {
+      if (!hp || !hp.shelter) return L(refugeVi, refugeEn);
+      const by = hp.departBy != null ? L(` trước ${hm(hp.departBy)}`, ` before ${hm(hp.departBy)}`) : "";
+      const head = L(`${lead ? "đến " : ""}${hp.shelter}${by} (còn ${U.fmtInt(hp.placed)} chỗ)`,
+                     `${lead ? "to " : ""}${hp.shelter}${by} (${U.fmtInt(hp.placed)} places)`);
+      if (hp.unsheltered <= 0) return head;
+      const rest = L(`; ~${U.fmtInt(hp.unsheltered)} người còn lại ${refugeVi}`,
+                     `; the remaining ~${U.fmtInt(hp.unsheltered)} ${refugeEn}`);
+      return head + rest;
+    };
+    /* Loudspeaker addresses MULTIPLE zones, so it gives each addressed zone its OWN shelter
+       (where the allocation places it) and its own shortfall — a resident hears the instruction
+       for their own area, never another district's shelter. Per-zone honesty, founder decision. */
+    const perZoneLoud = () => {
+      const plan = rec.shelterPlan || [];
+      if (!plan.length) return "";
+      return plan.map((p) => {
+        if (!p.shelter) return `- ${p.zone}: ${refugeVi}.`;
+        const by = p.departBy != null ? ` (trước ${hm(p.departBy)})` : "";
+        const rest = p.unsheltered > 0 ? `; ~${U.fmtInt(p.unsheltered)} người còn lại ${refugeVi}` : "";
+        return `- ${p.zone}: đến ${p.shelter}${by}, còn ${U.fmtInt(p.placed)} chỗ${rest}.`;
+      }).join("\n");
+    };
+
     out.call =
 `${rec.issuer} → [NGƯỜI NHẬN], ${hm(rec.t)} ${dm(rec.t)}.
 ${rec.headline}
@@ -234,7 +278,7 @@ Xin xác nhận đã nhận.`;
 
     out.smsParts = smsParts(unaccent(
 `CANH BAO ${rec.areaShort || "HA DU"}: ${rec.headlineShort}. ${g ? `${g.name} ~${stage}m ${bdTxt}` : ""} tu ${hm(rec.startT != null ? rec.startT : rec.t)} ${dm(rec.t)}.` +
-`${rec.shelter ? ` Den ${rec.shelter}.` : ""}${rec.roadWarn ? ` ${rec.roadWarn}.` : ""} ${rec.issuerShort}`));
+`${smsShelter}${rec.roadWarn ? ` ${rec.roadWarn}.` : ""} ${rec.issuerShort}`));
     out.sms = out.smsParts.join("\n");
 
     out.loudspeaker =
@@ -242,7 +286,8 @@ Xin xác nhận đã nhận.`;
 ${rec.headline}
 ${g ? `Mực nước sông tại ${g.name} dự kiến ${stage} mét, ${bdTxt}, vào khoảng ${hm(rec.arriveT != null ? rec.arriveT : rec.t)}.` : ""}
 ${rec.areas && rec.areas.length ? `Các khu vực có khả năng ngập sâu: ${rec.areas.join(", ")}.` : ""}
-Đề nghị bà con: kê cao tài sản; di chuyển người già, trẻ em, người bệnh${rec.shelter ? ` đến ${rec.shelter}` : " lên tầng cao"}${rec.departBy != null ? ` trước ${hm(rec.departBy)}` : ""}.
+Đề nghị bà con: kê cao tài sản; di chuyển người già, trẻ em, người bệnh theo hướng dẫn từng khu vực:
+${rec.shelterPlan && rec.shelterPlan.length ? perZoneLoud() : `- ${shelterLine(true)}`}
 ${rec.roadWarn ? `${rec.roadWarn}.` : ""}
 Xin nhắc lại…`;
 
@@ -251,7 +296,7 @@ Xin nhắc lại…`;
 ${rec.publicWhen || rec.headline}
 ${rec.publicDepth ? `${L("Độ sâu dự kiến", "Expected depth")}: ${rec.publicDepth}` : ""}
 ${L("Việc cần làm", "What to do")}: ${rec.action || "—"}
-${rec.shelter ? `${L("Nơi đến", "Where to go")}: ${rec.shelter}${rec.departBy != null ? ` — ${L("đi trước", "leave before")} ${hm(rec.departBy)}` : ""}` : ""}
+${L("Nơi đến", "Where to go")}: ${shelterLine(false)}
 ${L("Nguồn tin", "Issued by")}: ${rec.issuer} · ${L("cập nhật tiếp", "next update")} ${hm(rec.t + 1)}
 ${L("Mức chắc chắn", "Confidence")}: ${rec.likelihood || "—"}`;
 
@@ -277,7 +322,30 @@ ${L("Mức chắc chắn", "Confidence")}: ${rec.likelihood || "—"}`;
     const worst = (FT.zones.sorted || []).filter((z) => z.status >= 2).slice(0, 4);
     const sum = FT.forecast ? FT.forecast.summary(t) : null;
     const firstClose = sum && sum.upcoming.length ? sum.upcoming[0] : null;
-    const sh = worst.find((z) => z.shelter);
+    /* Shelter guidance must match the capacity-aware allocation, and it must be PER ZONE and
+       HONEST about capacity (founder decision 2026-07-27, warning-shelter-consistency.md).
+       Each addressed zone gets ITS OWN allocation shelter — never one zone's shelter named for
+       a different zone — and the message states how many fit versus how many must take vertical
+       refuge. A zone the allocation places zero of is told refuge, not a shelter it cannot use.
+       The old code named the first worst zone with any nearby shelter for the whole order; at a
+       superstorm peak that told the headline zone (allocated zero) to go to another district's
+       full school and said nothing of the tens of thousands with no place. See
+       docs/plans/completed/shelter-capacity-allocation.md and warning-shelter-consistency.md. */
+    const alloc = FT.forecast && FT.forecast.allocateShelters ? FT.forecast.allocateShelters(t) : null;
+    const allocByZone = alloc ? Object.fromEntries(alloc.zones.map((z) => [z.zoneId, z])) : {};
+    const shelterPlan = worst.map((z) => {
+      const az = allocByZone[z.def.id];
+      const primary = az && az.primary && az.primary.placed > 0 ? az.primary : null;
+      return {
+        zone: z.def.name,
+        shelter: primary ? primary.name : null,
+        placed: primary ? primary.placed : 0,
+        unsheltered: az ? az.unsheltered : Math.round(z.exposed),
+        departBy: primary && primary.route && primary.route.lastDeparture != null ? primary.route.lastDeparture : null,
+      };
+    });
+    // The headline copy speaks for the highest-priority addressed zone, using ITS OWN placement.
+    const headlinePlan = shelterPlan[0] || null;
     const pEx = FT.forecast ? FT.forecast.pExceedWindow(g.id, g.bd[2], t, Math.min(FT.hydro.T1, t + 12)) : 0;
     const likelihood = pEx > 0.8 ? L("rất có khả năng", "very likely") : pEx > 0.6 ? L("có khả năng", "likely")
       : pEx > 0.4 ? L("có thể", "possible") : pEx > 0.2 ? L("ít khả năng", "unlikely") : L("rất ít khả năng", "very unlikely");
@@ -291,8 +359,9 @@ ${L("Mức chắc chắn", "Confidence")}: ${rec.likelihood || "—"}`;
       issuerShort: "BCH PCTT TP Da Nang",
       areas: worst.map((z) => z.def.name),
       areaShort: worst.length ? worst[0].def.name : L("hạ du", "downstream"),
-      shelter: sh && sh.shelter ? sh.shelter.name : null,
-      departBy: sh && sh.shelterRoute && sh.shelterRoute.lastDeparture != null ? sh.shelterRoute.lastDeparture : null,
+      shelter: headlinePlan ? headlinePlan.shelter : null,
+      departBy: headlinePlan ? headlinePlan.departBy : null,
+      shelterPlan,                        // per-zone capacity-aware guidance (name + fit + shortfall)
       roadWarn: firstClose ? L(`Tuyến ${firstClose.name} dự kiến đóng lúc ${hm(firstClose.at)}`, `${firstClose.name} expected to close at ${hm(firstClose.at)}`) : null,
       likelihood,
       publicDepth: worst.length ? `${U.fmt(worst[0].meanD, 1)}–${U.fmt(worst[0].maxD, 1)} m` : null,

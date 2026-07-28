@@ -291,7 +291,14 @@
     const p = H.proposal;
     if (!p) return "<p>—</p>";
     const vi = FT.state.lang === "vi";
-    return `
+    /* Lifecycle marker (js/lifecycle.js): this package is an AI RECOMMENDATION until an
+       entitled operator approves it, at which point it becomes the APPROVED PLAN in force.
+       Rendering the class here is what stops a proposal from ever reading as operational. */
+    const lc = FT.lifecycle ? FT.lifecycle.classifyDecision({ kind: "PROPOSAL" }) : null;
+    const lcBanner = lc ? `<div class="lcBanner lc-${FT.lifecycle.badge(lc)}">
+      <span class="lcDot" aria-hidden="true"></span>
+      <b>${FT.lifecycle.label(lc)}</b><em>${FT.lifecycle.reviewNotice(lc)}</em></div>` : "";
+    return `${lcBanner}
       <div class="decisionKpis">
         <div><span>${vi ? `Cắt đỉnh tại ${p.gaugeName}` : `Peak cut at ${p.gaugeName}`}</span><strong>−${U.fmt(Math.max(0, p.ruleStage - p.mpcStage), 1)} m</strong></div>
         <div><span>${vi ? "Bắt đầu" : "Start"}</span><strong>T+${p.tStart}h</strong></div>
@@ -818,7 +825,7 @@
         · <b>Giao thông</b>: Dijkstra thời gian thực trên mạng đường, đóng ở ≥30 cm (He 2026).<br>
         · Ngưỡng báo động BĐ1/2/3, tên hồ/trạm/sông, khung pháp lý QĐ 1865/QĐ-TTg là <b>thật</b>.</p>
         <h4>Bản đồ thật</h4>
-        <p>· Địa hình: <b>DEM thật</b> (AWS Terrain Tiles z11) cho bbox 107,55–108,45°E / 15,30–16,16°N (96 km); ảnh <b>Esri World Imagery z12</b> + tile động theo khung nhìn tới <b>z19 (~0,3 m/px)</b> khi zoom; <b>đường thật</b> Esri World Transportation cùng mức zoom (vector OSM khi trình duyệt cho phép); tọa độ đập/trạm/khu là vị trí thật.</p>
+        <p>· Địa hình: <b>DEM thật</b> (AWS Terrarium z12 ≈ 37 m/px toàn lưu vực + lớp phủ z14 ≈ 9 m/px trên đồng bằng Hội An–Vĩnh Điện–Ái Nghĩa–Cẩm Lệ) cho bbox 107,55–108,45°E / 15,30–16,16°N (96 km). <b>Giới hạn thật:</b> đây là DEM vệ tinh miễn phí — sai số đứng ±vài mét; độ chính xác 0,1 m cần LiDAR đo đạc (không có nguồn stream web). Ảnh <b>Esri World Imagery z12</b> + tile động tới <b>z19 (~0,3 m/px)</b> khi zoom; <b>đường thật</b> Esri World Transportation; tọa độ đập/trạm/khu là vị trí thật.</p>
         <h4>Tổng hợp (minh hoạ)</h4>
         <p>· Mưa/dòng vào là hàm giải tích khớp hình dạng sự kiện 10/2020 & Yagi; tòa nhà suy ra từ pixel ảnh (không phải footprint từng căn); chỉ số CSI/NSE/KGE là <b>mục tiêu thiết kế §8</b>, không phải đo đạc.<br>
         · Bản tin LLM là khuôn mẫu có trích dẫn — minh hoạ ràng buộc groundedness ≥ 0,95 (§7), không gọi mô hình thật.</p>
@@ -831,7 +838,7 @@
         · <b>Traffic</b>: live Dijkstra over the road graph, closures at ≥30 cm (He 2026).<br>
         · Alert stages AL1/2/3, reservoir/gauge/river names and the 1865/QD-TTg legal frame are <b>real</b>.</p>
         <h4>Real map</h4>
-        <p>· Terrain: <b>real DEM</b> (AWS Terrain Tiles z11) over 107.55–108.45°E / 15.30–16.16°N (96 km); <b>Esri World Imagery z12</b> + viewport tiles up to <b>z19 (~0.3 m/px)</b> on zoom; <b>real roads</b> via Esri World Transportation at matching zoom (OSM vectors when the browser allows); dam/gauge/zone coordinates are real.</p>
+        <p>· Terrain: <b>real DEM</b> (AWS Terrarium z12 ≈ 37 m/px basin-wide + a z14 ≈ 9 m/px overlay across the Hội An–Vĩnh Điện–Ái Nghĩa–Cẩm Lệ delta) over 107.55–108.45°E / 15.30–16.16°N (96 km). <b>Honest limit:</b> this is free satellite DEM — vertical error ±several metres; 0.1 m accuracy needs surveyed LiDAR (no web-streamable source exists). <b>Esri World Imagery z12</b> + viewport tiles up to <b>z19 (~0.3 m/px)</b> on zoom; <b>real roads</b> via Esri World Transportation; dam/gauge/zone coordinates are real.</p>
         <h4>Synthetic (illustrative)</h4>
         <p>· Rainfall/inflows are analytic functions shaped after Oct-2020 & Yagi; buildings are inferred from imagery pixels (not per-building footprints); the CSI/NSE/KGE shown are the paper's <b>§8 design targets</b>, not measurements.<br>
         · The LLM brief is a cited template — illustrating the ≥0.95 groundedness bound (§7), no live model call.</p>

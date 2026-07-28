@@ -629,6 +629,24 @@ canvas { display: block; }
 .modalBody table { width: 100%; border-collapse: collapse; font-size: 11.5px; font-family: var(--mono); }
 .modalBody td, .modalBody th { padding: 4px 8px; border-bottom: 1px solid var(--line); text-align: left; }
 .modalBody th { color: var(--ink-2); font-weight: 600; }
+/* Decision-lifecycle marker (js/lifecycle.js). A recommendation must be visibly distinct
+   from an approved plan; the amber RECOMMENDATION band and the cyan APPROVED_PLAN band can
+   never be confused, and the notice states it is not in force until an operator approves. */
+.lcBanner {
+  display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+  margin: 0 0 10px; padding: 7px 11px; border-radius: 8px;
+  font-size: 11.5px; border: 1px solid var(--line);
+}
+.lcBanner .lcDot { width: 9px; height: 9px; border-radius: 50%; align-self: center; flex: 0 0 auto; }
+.lcBanner b { text-transform: uppercase; letter-spacing: .6px; font-size: 11px; }
+.lcBanner em { font-style: normal; color: var(--ink-1); }
+.lcBanner.lc-rec { background: rgba(255, 193, 77, 0.1); border-color: rgba(255, 193, 77, 0.45); }
+.lcBanner.lc-rec .lcDot { background: var(--warn); box-shadow: 0 0 8px rgba(255, 193, 77, .6); }
+.lcBanner.lc-rec b { color: var(--warn); }
+.lcBanner.lc-plan { background: rgba(89, 227, 216, 0.1); border-color: rgba(89, 227, 216, 0.45); }
+.lcBanner.lc-plan .lcDot { background: var(--cyan); box-shadow: 0 0 8px rgba(89, 227, 216, .6); }
+.lcBanner.lc-plan b { color: var(--cyan); }
+
 .decisionKpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 8px 0; }
 .decisionKpis > div { background: rgba(9, 24, 38, 0.7); border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px; }
 .decisionKpis span { display: block; font-size: 11px; text-transform: uppercase; color: var(--ink-2); letter-spacing: .5px; }
@@ -1703,3 +1721,6 @@ body.geoshell .geoFlyout { top: 76px; }
 @media (max-height: 800px) {
   body.geoshell .geoInspector, body.geoshell .geoDecision, body.geoshell .geoAlerts { max-height: calc(100vh - 110px); }
 }
+
+/* measured mass-conservation metric turns green when within the ≤0.01% target */
+.metricRow strong.metricGood { color: var(--ok); }

@@ -12,7 +12,8 @@
     "test:explainability": "node tests/explainability.mjs",
     "shell": "node tests/shell-smoke.mjs && node tests/shell-interactions.mjs && node tests/shell-layout.mjs",
     "shell:layout": "node tests/shell-layout.mjs",
-    "test": "npm run docs:engineering && npm run test:explainability && node tests/e2e.mjs && node tests/ux-audit.mjs && npm run shell",
+    "physics": "node tests/physics-conservation.mjs",
+    "test": "npm run docs:engineering && npm run test:explainability && node tests/e2e.mjs && node tests/ux-audit.mjs && npm run shell && npm run physics",
     "ux": "node tests/ux-audit.mjs",
     "ux:strict": "node tests/ux-audit.mjs --strict"
   },

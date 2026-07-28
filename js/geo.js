@@ -68,24 +68,77 @@
     return [ (lon2t(lon, st.z) - st.x0) * 256, (lat2t(lat, st.z) - st.y0) * 256 ];
   }
 
-  /* ---------- DEM (terrarium encoding: h = R*256 + G + B/256 − 32768) ---------- */
+  /* ---------- DEM (terrarium encoding: h = R*256 + G + B/256 − 32768) ----------
+     Base grid at z13 (≈18 m/px — the finest zoom the Terrarium source serves with
+     REAL, coherent data over this basin; z15 over-zooms into decode garbage). A z14
+     fine-DEM overlay (≈9 m/px) covers the populated Vu Gia–Thu Bồn delta, where flood
+     depth/extent actually matter. elevAt() samples the fine overlay where available,
+     else the base — same pattern the imagery pipeline already uses for detail patches.
+     Honest resolution is published in G.demMeta (surfaced in the UI, no fabrication). */
+  const DEM_BASE_Z = 12;                        // 36.8 m/px basin-wide (121 tiles — streamable)
+  const DEM_FINE_Z = 14;                        // 9.2 m/px over the delta cores
+  /* fine-DEM windows = the low-lying, populated, flood-exposed delta cores.
+     Kept ~10 km each (≈30-40 tiles) so the whole overlay stays within bandwidth. */
+  const DEM_FINE_WINDOWS = [
+    { lon: 108.10, lat: 15.885, r: 0.05 },      // Ái Nghĩa · Vu Gia lowland
+    { lon: 108.26, lat: 15.90, r: 0.06 },       // Vĩnh Điện · Điện Bàn · Câu Lâu
+    { lon: 108.328, lat: 15.878, r: 0.045 },    // Hội An
+    { lon: 108.21, lat: 16.03, r: 0.05 },       // Đà Nẵng · Cẩm Lệ
+  ];
   async function loadDEM(timeoutMs) {
-    const st = await stitch(
-      (z, x, y) => `https://s3.amazonaws.com/elevation-tiles-prod/terrarium/${z}/${x}/${y}.png`,
-      11, timeoutMs
-    );
+    const url = (z, x, y) => `https://s3.amazonaws.com/elevation-tiles-prod/terrarium/${z}/${x}/${y}.png`;
+    let st = await stitch(url, DEM_BASE_Z, timeoutMs);
+    if (!st.ok) st = await stitch(url, 11, timeoutMs);   // graceful coarser fallback
     if (!st.ok) return false;
-    const { data, width } = st.ctx.getImageData(0, 0, st.canvas.width, st.canvas.height);
-    G._dem = { st, data, width, height: st.canvas.height };
-    G.hasDEM = true;
+    const baseImg = st.ctx.getImageData(0, 0, st.canvas.width, st.canvas.height);
+    G._dem = { st, data: baseImg.data, width: st.canvas.width, height: st.canvas.height };
+    G._demFine = [];
+    const baseMppx = 156543.03 * Math.cos((LAT0 + LAT1) / 2 * Math.PI / 180) / Math.pow(2, st.z);
+    G.demMeta = { baseZ: st.z, baseMppx, fineZ: null, fineMppx: null, source: "AWS Terrarium (SRTM/Mapzen)" };
+    G.hasDEM = true;                              // ← base is enough to boot; mark ready NOW
+
+    // fine-DEM overlay over the delta: load in the BACKGROUND so it never delays boot.
+    // Terrain rebuilds from it when ready (a no-op if the app already settled — elevAt
+    // just starts returning finer values for subsequent samples).
+    (async () => {
+      for (const w of DEM_FINE_WINDOWS) {
+        try {
+          const fst = await stitchWindow(url, DEM_FINE_Z, w.lon - w.r, w.lat - w.r, w.lon + w.r, w.lat + w.r, timeoutMs);
+          if (fst && fst.ok) {
+            const img = fst.ctx.getImageData(0, 0, fst.canvas.width, fst.canvas.height);
+            G._demFine.push({ st: fst, data: img.data, width: fst.canvas.width, height: fst.canvas.height,
+              lon0: w.lon - w.r, lat0: w.lat - w.r, lon1: w.lon + w.r, lat1: w.lat + w.r });
+          }
+        } catch (e) { /* keep base */ }
+      }
+      if (G._demFine.length) {
+        G.demMeta.fineZ = DEM_FINE_Z;
+        G.demMeta.fineMppx = 156543.03 * Math.cos((LAT0 + LAT1) / 2 * Math.PI / 180) / Math.pow(2, DEM_FINE_Z);
+        FT.bus && FT.bus.emit && FT.bus.emit("demRefined");
+      }
+    })();
     return true;
   }
 
-  /* elevation (m) at km coords, bilinear over the stitched DEM */
-  G.elevAt = function (xKm, yKm) {
-    const d = G._dem;
-    if (!d) return 0;
-    const [lon, lat] = G.km2ll(xKm, yKm);
+  /* stitch a lon/lat window at zoom z (used for fine-DEM + imagery detail patches) */
+  async function stitchWindow(urlFn, z, lonA, latA, lonB, latB, timeoutMs) {
+    const x0 = Math.floor(lon2t(lonA, z)), x1 = Math.floor(lon2t(lonB, z));
+    const y0 = Math.floor(lat2t(latB, z)), y1 = Math.floor(lat2t(latA, z));
+    const nx = x1 - x0 + 1, ny = y1 - y0 + 1;
+    if (nx * ny > 260) return { ok: false };     // guard bandwidth/memory
+    const cv = document.createElement("canvas");
+    cv.width = nx * 256; cv.height = ny * 256;
+    const ctx = cv.getContext("2d");
+    const jobs = [];
+    for (let ty = y0; ty <= y1; ty++)
+      for (let tx = x0; tx <= x1; tx++)
+        jobs.push(loadImage(urlFn(z, tx, ty), timeoutMs).then((img) => { if (img) ctx.drawImage(img, (tx - x0) * 256, (ty - y0) * 256); return !!img; }));
+    const got = await Promise.all(jobs);
+    return { canvas: cv, ctx, x0, y0, z, nx, ny, ok: got.filter(Boolean).length >= jobs.length * 0.8 };
+  }
+
+  /* bilinear terrarium sample over a stitched {data,width,height,st} block */
+  function sampleDEM(d, lon, lat) {
     const [px, py] = llToStitchPx(d.st, lon, lat);
     const x0 = Math.max(0, Math.min(d.width - 2, Math.floor(px)));
     const y0 = Math.max(0, Math.min(d.height - 2, Math.floor(py)));
@@ -96,6 +149,21 @@
     };
     const a = at(x0, y0), b = at(x0 + 1, y0), c = at(x0, y0 + 1), e = at(x0 + 1, y0 + 1);
     return a + (b - a) * fx + (c - a + (e - b - (c - a)) * fx) * fy;
+  }
+
+  /* elevation (m) at km coords — fine overlay where available, else base */
+  G.elevAt = function (xKm, yKm) {
+    const d = G._dem;
+    if (!d) return 0;
+    const [lon, lat] = G.km2ll(xKm, yKm);
+    const fine = G._demFine;
+    if (fine) {
+      for (let i = 0; i < fine.length; i++) {
+        const f = fine[i];
+        if (lon >= f.lon0 && lon <= f.lon1 && lat >= f.lat0 && lat <= f.lat1) return sampleDEM(f, lon, lat);
+      }
+    }
+    return sampleDEM(d, lon, lat);
   };
 
   /* ---------- imagery (Esri World Imagery) ---------- */

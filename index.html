@@ -17,7 +17,7 @@
   <meta property="og:locale" content="vi_VN" />
   <meta name="twitter:card" content="summary_large_image" />
   <link rel="canonical" href="https://app.skylabs.vn/" />
-  <link rel="stylesheet" href="./styles.css?v=125" />
+  <link rel="stylesheet" href="./styles.css?v=126" />
 </head>
 <body>
   <div id="app" class="app">
@@ -227,6 +227,9 @@
           <div class="metricRow"><span>NSE</span><strong>≥0.80 <em data-i18n="metrics.pending">· chưa đo</em></strong></div>
           <div class="metricRow"><span>KGE</span><strong>≥0.75 <em data-i18n="metrics.pending">· chưa đo</em></strong></div>
           <div class="metricRow"><span data-i18n="metrics.selftest">Tự kiểm định vật lý</span><strong>4/4 <em data-i18n="metrics.measured">· đã đo mỗi lần khởi động</em></strong></div>
+          <!-- genuinely MEASURED (not thresholds): DEM ground resolution + SWE numerical mass closure -->
+          <div class="metricRow"><span data-i18n="metrics.dem">Độ phân giải DEM</span><strong id="metricDem">— <em data-i18n="metrics.measured2">· đo thật</em></strong></div>
+          <div class="metricRow"><span data-i18n="metrics.mass">Bảo toàn khối (SWE)</span><strong id="metricMass">— <em data-i18n="metrics.measured2">· đo thật</em></strong></div>
         </div>
         <div class="surrogateChip">
           <span data-i18n="metrics.surrogate">Surrogate FNO/DeepONet</span>
@@ -250,7 +253,7 @@
         </div>
         <div class="stageMeta">
           <span id="fpsMeter">60 fps</span>
-          <span id="gridMeta">SWE 144² · Δt 2.5 s</span>
+          <span id="gridMeta">SWE 144² · Manning n</span>
         </div>
       </div>
 
@@ -516,28 +519,29 @@
     }
   </script>
 
-  <script src="./js/core.js?v=125"></script>
-  <script src="./js/geo.js?v=125"></script>
-  <script src="./js/data.js?v=125"></script>
-  <script src="./js/hydro.js?v=125"></script>
-  <script src="./js/decision.js?v=125"></script>
-  <script src="./js/roles.js?v=125"></script>
-  <script src="./js/world.js?v=125"></script>
-  <script src="./js/forecast.js?v=125"></script>
-  <script src="./js/alerts.js?v=125"></script>
-  <script src="./js/domain.js?v=125"></script>
-  <script src="./js/reports.js?v=125"></script>
-  <script src="./js/traffic.js?v=125"></script>
-  <script src="./js/zones.js?v=125"></script>
-  <script src="./js/charts.js?v=125"></script>
-  <script src="./js/map2d.js?v=125"></script>
-  <script src="./js/scene3d.js?v=125"></script>
-  <script src="./js/record.js?v=125"></script>
-  <script src="./js/grounding.js?v=125"></script>
-  <script src="./js/explainability.js?v=125"></script>
-  <script src="./js/ui.js?v=125"></script>
-  <script src="./js/opsui.js?v=125"></script>
-  <script src="./js/main.js?v=125"></script>
-  <script src="./js/shell.js?v=125"></script>
+  <script src="./js/core.js?v=126"></script>
+  <script src="./js/geo.js?v=126"></script>
+  <script src="./js/data.js?v=126"></script>
+  <script src="./js/hydro.js?v=126"></script>
+  <script src="./js/decision.js?v=126"></script>
+  <script src="./js/roles.js?v=126"></script>
+  <script src="./js/world.js?v=126"></script>
+  <script src="./js/forecast.js?v=126"></script>
+  <script src="./js/alerts.js?v=126"></script>
+  <script src="./js/domain.js?v=126"></script>
+  <script src="./js/reports.js?v=126"></script>
+  <script src="./js/traffic.js?v=126"></script>
+  <script src="./js/zones.js?v=126"></script>
+  <script src="./js/charts.js?v=126"></script>
+  <script src="./js/map2d.js?v=126"></script>
+  <script src="./js/scene3d.js?v=126"></script>
+  <script src="./js/record.js?v=126"></script>
+  <script src="./js/grounding.js?v=126"></script>
+  <script src="./js/lifecycle.js?v=126"></script>
+  <script src="./js/explainability.js?v=126"></script>
+  <script src="./js/ui.js?v=126"></script>
+  <script src="./js/opsui.js?v=126"></script>
+  <script src="./js/main.js?v=126"></script>
+  <script src="./js/shell.js?v=126"></script>
 </body>
 </html>

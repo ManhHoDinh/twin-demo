@@ -11,7 +11,7 @@
 
 | Dữ liệu | Nguồn (URL trong code) | Dùng cho | Code |
 |---|---|---|---|
-| **Địa hình DEM** | AWS Terrain Tiles (Terrarium, s3 `elevation-tiles-prod`), z10–11 | Mesh địa hình 3D 384², nền cao độ 2D, độ sâu ngập, dòng chảy SWE | `js/geo.js` → `loadDEM`, `G.elevAt` |
+| **Địa hình DEM** | AWS Terrarium (s3 `elevation-tiles-prod`): **z12 ≈ 37 m/px** toàn lưu vực + **lớp phủ z14 ≈ 9 m/px** trên 4 lõi đồng bằng (Ái Nghĩa · Vĩnh Điện–Câu Lâu · Hội An · Cẩm Lệ). Đây là **giới hạn thật** của nguồn: z15 over-zoom ra dữ liệu rác. Sai số đứng ±vài mét (nguồn SRTM/Mapzen). Độ chính xác 0,1 m cần **LiDAR đo đạc** — không có nguồn stream web. `G.demMeta` công bố m/px thật, hiện ở panel Ngưỡng. | `js/geo.js` → `loadDEM`, `G.elevAt`, `demMeta` |
 | **Ảnh vệ tinh** | Esri World Imagery — z12 toàn miền, z14 5 cửa sổ đô thị, live-tile theo khung nhìn tới **z20** (~0,15 m/px) | Drape 3D, nền 2D, phát hiện nhà (pixel sáng ít sắc), lớp chi tiết cận cảnh | `js/geo.js` → `loadImagery`, `DETAIL_WINDOWS`, `G.detailPatches`, `G.tile("img")` |
 | **Bản đồ đường (raster)** | Esri World_Transportation (mọi cấp đường + tên đường ở z cao) | Đường thật nướng vào nền 2D/3D; hẻm hiện ở zoom sâu | `js/geo.js` → `addTransportLayer`, `G.tile("rd")` |
 | **Nhãn địa danh (raster)** | Esri World_Boundaries_and_Places | Tên địa danh thật trên live-tiles 2D + lớp detail 3D | `js/geo.js` → `G.tile("pl")` |
@@ -29,7 +29,7 @@ Bbox miền: **107,55–108,45°E / 15,30–16,16°N** (~96 × 95,5 km), quy đ�
 |---|---|---|
 | **Mưa & cưỡng bức khí tượng** | Chuỗi mưa giải tích theo kịch bản (pulse chuẩn hoá ×9,5), gắn nhãn "GenCast/GraphCast + IMERG hiệu chỉnh" để minh hoạ pipeline của bài báo — số liệu KHÔNG phải tái phân tích thật | `js/data.js` → `SCENARIOS`, `js/hydro.js` |
 | **Thủy văn & vận hành hồ** | Mô hình giải tích T−24→+48 h: runoff (gain 30, lag riêng từng trạm), routing hồ, 2 chính sách (Rule tĩnh vs FloodTwin MPC cắt đỉnh), ensemble quantile q05–q95; thông số hồ plausible theo công bố, KHÔNG phải telemetry | `js/hydro.js` |
-| **Trường ngập 2D** | SWE virtual-pipes 144², CHỈ động trên đồng bằng (<28 m), đồng hoá mực trạm dọc hành lang sông, cap `floodCap` = max anomaly trạm +0,6 m | `js/world.js` |
+| **Trường ngập 2D** | SWE height-field ("virtual pipes", Mei 2007) 144² (~667 m/ô), CHỈ động trên đồng bằng (<28 m). **Ma sát Manning thật** (n = 0,032 lòng sông · 0,06 bãi · 0,08 đô thị; Chow 1959) thay hệ số tắt dần cũ. **Bảo toàn khối được CHỨNG MINH ≤0,01%** — sổ cái khối lượng (rain/bndFlux/assim/infil) + kiểm thử `tests/physics-conservation.mjs` đo `\|V−(V₀+∑nguồn−∑rò)\|/V ≤ 1e-4` qua trọn vòng lũ (thực đo ~3·10⁻⁵ %). Đồng hoá mực trạm dọc hành lang sông (số hạng `assim` trong sổ cái). **Giới hạn:** 0,01% là bảo toàn SỐ HỌC của solver — độ chính xác diện ngập vật lý bị chặn bởi sai số DEM+mưa (mô hình lũ tốt nhất thế giới đạt CSI 0,7–0,9). | `js/world.js` → `substep`, `massError` |
 | **Dân số** | Trường gaussian quanh đô thị, tổng khớp dân số thật từng thành phố | `js/world.js` → `buildPop` |
 | **Giao thông** | Nhu cầu OD tổng hợp giữa hub, Dijkstra theo thời gian, đường đóng ≥30 cm, xe reroute | `js/traffic.js` |
 | **Nhà ngoài vùng có OSM** | Suy từ pixel ảnh vệ tinh (sáng + ít sắc), xoay theo hướng đường gần nhất; trong 5 cửa sổ đô thị lấy mẫu ảnh z14 ~18 m | `js/scene3d.js` → `buildCities` |
