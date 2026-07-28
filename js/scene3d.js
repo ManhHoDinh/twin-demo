@@ -1236,7 +1236,7 @@
   S3.setCamera = function (preset) {
     const c = CAMS[preset];
     if (!c || !camera) return;
-    startFly(c.pos.slice(), c.tgt.slice(), { intent: preset, selection: null, emit: false });
+    startFly(c.pos.slice(), c.tgt.slice(), { intent: preset, selection: null });
     FT.state.camPreset = preset;
   };
 

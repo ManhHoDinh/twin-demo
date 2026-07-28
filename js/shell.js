@@ -507,6 +507,15 @@
       xKm: FT.data.DOMAIN.sizeKm / 2,
       yKm: FT.data.DOMAIN.sizeKm / 2,
     });
+    const cameraIntentName = (intent) => ({
+      overview: "toàn cảnh lưu vực",
+      delta: "hạ lưu",
+      dams: "bậc thang hồ",
+      hoian: "Hội An",
+      asset: "vị trí đã chọn",
+      district: "khu vực đã chọn",
+      street: "vị trí đường phố",
+    })[intent] || "camera 3D";
     const locate = () => {
       const s3 = FT.scene3d || {};
       if (!s3.flyToSelection) {
@@ -543,10 +552,10 @@
     document.body.appendChild(status);
     FT.dom.earthNav = wrap;
     FT.dom.earthCameraStatus = status;
-    FT.bus.on("camera.fly.start", (ev) => say(ev && ev.intent === "overview" ? "Đang về toàn cảnh lưu vực" : "Đang bay tới vị trí đã chọn"));
+    FT.bus.on("camera.fly.start", (ev) => say(`Đang bay tới ${cameraIntentName(ev && ev.intent)}`));
     FT.bus.on("camera.fly.settled", (ev) => {
       if (ev && ev.status === "cancelled") say("Đã hủy di chuyển camera");
-      else say(ev && ev.intent === "overview" ? "Toàn cảnh lưu vực đã sẵn sàng" : "Camera 3D đã ổn định");
+      else say(`${cameraIntentName(ev && ev.intent)} đã sẵn sàng`);
     });
   }
 

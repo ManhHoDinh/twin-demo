@@ -121,6 +121,41 @@ async function earthControls(browser) {
       Number.isFinite(result.state.tilt);
   });
 
+  await check('Earth camera presets emit one lifecycle and meaningful status', async (d) => {
+    const result = await page.evaluate(async () => {
+      const FT = window.FT;
+      const events = [];
+      const capture = (type) => (payload) => events.push({ type, payload });
+      FT.bus.on('camera.fly.start', capture('start'));
+      FT.bus.on('camera.fly.settled', capture('settled'));
+      document.querySelector('#camPresets button[data-cam="delta"]').click();
+      await new Promise((resolve, reject) => {
+        const deadline = window.setTimeout(() => reject(new Error('preset camera.fly.settled timeout')), 3000);
+        FT.bus.on('camera.fly.settled', () => {
+          window.clearTimeout(deadline);
+          window.setTimeout(resolve, 250);
+        });
+      });
+      return {
+        events,
+        state: FT.scene3d.cameraState(),
+        status: document.getElementById('earthCameraStatus')?.textContent || '',
+      };
+    });
+    d(result);
+    const start = result.events.filter((event) => event.type === 'start' && event.payload?.intent === 'delta');
+    const settled = result.events.filter((event) => event.type === 'settled' && event.payload?.intent === 'delta');
+    return start.length === 1 &&
+      settled.length === 1 &&
+      start[0].payload?.view === '3d' &&
+      settled[0].payload?.view === '3d' &&
+      settled[0].payload?.status === 'settled' &&
+      result.state &&
+      Number.isFinite(result.state.distance) &&
+      result.state.distance > 0 &&
+      /hạ lưu/i.test(result.status);
+  });
+
   await check('Earth zoom-in changes 3D camera distance and status', async (d) => {
     const before = await cameraState(page);
     await page.getByRole('button', { name: /Phóng to/i }).click();
