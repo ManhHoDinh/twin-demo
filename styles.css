@@ -1573,7 +1573,7 @@ body.geoshell .geoFloat #timelinePanel { display: block; }
 .earthCameraStatus {
   position: fixed;
   right: 58px;
-  bottom: calc(26px + var(--geoTimelineH, 191px) + 276px);
+  bottom: calc(26px + var(--geoTimelineH, 191px) + 360px);
   z-index: 44;
   max-width: 220px;
   padding: 6px 9px;
@@ -1588,14 +1588,14 @@ body.geoshell .geoFloat #timelinePanel { display: block; }
 .earthLayerLabel {
   position: fixed;
   right: 58px;
-  bottom: calc(26px + var(--geoTimelineH, 191px) + 330px);
+  bottom: calc(26px + var(--geoTimelineH, 191px) + 414px);
   z-index: 44;
   display: grid;
-  grid-template-columns: auto 1fr;
-  grid-template-areas: "flag time" "note note";
+  grid-template-columns: 1fr;
+  grid-template-areas: "flag" "time" "note";
   gap: 2px 7px;
   align-items: center;
-  max-width: 330px;
+  max-width: 150px;
   padding: 7px 9px;
   border: 1px solid rgba(82,235,255,.48);
   border-left: 4px solid rgba(82,235,255,.92);
@@ -1891,7 +1891,7 @@ body.mode-split #labels3d { width: 50%; }
     right: 76px;
     bottom: calc(40px + env(safe-area-inset-bottom) + var(--geoTimelineH, 236px) + 84px);
     width: auto;
-    max-height: min(44vh, 210px);
+    max-height: min(40vh, 174px);
     transform: none;
   }
   .earthPlaceHead { padding: 8px 9px; }
@@ -1911,6 +1911,9 @@ body.geoshell #waterBadge {
 body.geoshell .geoViewCtl {
   left: 280px;
   bottom: calc(26px + var(--geoTimelineH, 191px) + 10px);
+}
+@media (min-width: 901px) {
+  body.geoshell.place-sheet-open .geoViewCtl { left: 8px; }
 }
 body.geoshell #btnFocus { display: none; }            /* superseded by mode rail */
 /* water badge compact styling in shell */
