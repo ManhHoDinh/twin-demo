@@ -103,6 +103,7 @@ See the [allowed dependency edges](03-engine-contract-catalog.md#allowed-depende
 | `16-performance-targets.md` | Performance targets | Not yet created |
 | `17-engineering-risks-and-open-questions.md` | Risks and open questions | Not yet created |
 | `18-requirement-traceability.md` | Requirement traceability | Not yet created |
+| `19-survey-grade-twin-feasibility.md` | **Survey-grade twin — feasibility and implementation path.** Answers the "0.1 m terrain / 0.01% water" request with numbers: what each figure means, which is achievable (mass conservation — shipped, measured), which is not (physical extent accuracy at 0.01%), data/compute cost per resolution, reference 2D-SWE architecture, calibration plan and P0–P6 build order. Closing R-01 is exactly this work. | Written |
 
 ## Next
 
