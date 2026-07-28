@@ -633,6 +633,10 @@
       const waterOn = !FT.state || !FT.state.layers || FT.state.layers.water !== false;
       layer.innerHTML = `<b>MÔ PHỎNG NGẬP</b><span>${rel} · ${clock.hm} · ${scenName}</span><small>Nền vệ tinh/bản đồ nền, không trực tiếp${waterOn ? "" : " · lớp ngập đang tắt"}</small>`;
     };
+    const updateLayerAfterChange = () => {
+      if (window.queueMicrotask) window.queueMicrotask(updateLayer);
+      else window.requestAnimationFrame(updateLayer);
+    };
     const runActive = (action, msg, fn) => {
       try {
         const renderer = FT.navigation && FT.navigation.activeRenderer ? FT.navigation.activeRenderer() : (FT.scene3d || {});
@@ -703,8 +707,8 @@
     FT.bus.on("scrubbed", updateLayer);
     FT.bus.on("hydroRebuilt", updateLayer);
     FT.bus.on("lang", updateLayer);
-    const sc = $("scenarioSelect"); if (sc) sc.addEventListener("change", updateLayer);
-    document.querySelectorAll(".toggle input").forEach((input) => input.addEventListener("change", updateLayer));
+    const sc = $("scenarioSelect"); if (sc) sc.addEventListener("change", updateLayerAfterChange);
+    document.querySelectorAll(".toggle input").forEach((input) => input.addEventListener("change", updateLayerAfterChange));
     updateLayer();
   }
 

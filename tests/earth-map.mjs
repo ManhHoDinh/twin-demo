@@ -401,6 +401,43 @@ async function earthControls(browser) {
       colorsDistinct(result.twoClose.permanentWaterColor, result.twoClose.simulatedWaterColor);
   });
 
+  await check('Earth layer label follows the real water layer toggle after state changes', async (d) => {
+    const result = await page.evaluate(async () => {
+      const cb = document.querySelector('input[data-layer="water"]');
+      const label = document.querySelector('.earthLayerLabel');
+      if (!cb || !label) return { missing: { checkbox: !cb, label: !label } };
+      const waitFrame = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const read = () => ({
+        checked: cb.checked,
+        state: window.FT.state.layers.water,
+        text: label.textContent || '',
+      });
+      if (!cb.checked) {
+        cb.checked = true;
+        cb.dispatchEvent(new Event('change', { bubbles: true }));
+        await waitFrame();
+      }
+      cb.checked = false;
+      cb.dispatchEvent(new Event('change', { bubbles: true }));
+      await waitFrame();
+      const off = read();
+      cb.checked = true;
+      cb.dispatchEvent(new Event('change', { bubbles: true }));
+      await waitFrame();
+      const on = read();
+      return { off, on };
+    });
+    d(result);
+    return result.off &&
+      result.on &&
+      result.off.checked === false &&
+      result.off.state === false &&
+      /lớp ngập đang tắt/i.test(result.off.text) &&
+      result.on.checked === true &&
+      result.on.state === true &&
+      !/lớp ngập đang tắt/i.test(result.on.text);
+  });
+
   await check('Command palette routes zones and active alerts through shared navigation without dropping UI events', async (d) => {
     const result = await page.evaluate(() => {
       const FT = window.FT;
