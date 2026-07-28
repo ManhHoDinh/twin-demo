@@ -1299,7 +1299,14 @@ body.geoshell .stageCanvasWrap {
   position: absolute; inset: 0; width: 100%; height: 100%;
   border-radius: 0; border: 0;
 }
-body.geoshell #timelinePanel { display: none; }        /* re-hosted into floating timeline dock */
+/* The timeline is re-hosted into the floating dock: hide it only while it is still in the
+   classic grid. Once shell.js adopts it into a .geoFloat it must render, otherwise the
+   transport (play/pause, scrubber, clock) is invisible and the operator cannot drive the
+   simulation at all. A blanket `#timelinePanel{display:none}` also defeats the inline
+   `style.display=""` shell.js sets on adopt, because removing an inline style cannot
+   override a stylesheet rule. */
+body.geoshell #timelinePanel { display: none; }
+body.geoshell .geoFloat #timelinePanel { display: block; }
 
 /* ---- shared floating surface chrome ---- */
 .geoFloat {
@@ -1469,7 +1476,7 @@ body.geoshell #timelinePanel { display: none; }        /* re-hosted into floatin
   border: 0; box-shadow: 0 8px 24px rgba(47,134,255,.5); transition: transform .14s;
 }
 .aiLauncher:hover { transform: scale(1.06); }
-.geoAI { right: 60px; bottom: 92px; width: 372px; max-height: calc(100vh - 250px); z-index: 52; }
+.geoAI { right: 60px; bottom: calc(26px + var(--geoTimelineH, 191px) + 10px); width: 372px; max-height: calc(100vh - 250px); z-index: 52; }
 .geoAI .gfBody { max-height: calc(100vh - 300px); }
 .geoAI.hidden-chrome { transform: translateY(16px); opacity: 0; pointer-events: none; }
 
@@ -1505,8 +1512,12 @@ body.geoshell #timelinePanel { display: none; }        /* re-hosted into floatin
 .geoDrawer .drawerPane.active { display: block; }
 
 /* ---- FLOATING VIEW CONTROL (bottom-left) + MODE RAIL (right) ---- */
+/* Sits ABOVE the timeline dock, not behind it. Both used to be pinned at bottom:26px, and
+   the centred 1080px timeline (z-index 43) covered the whole view control (z-index 42), so
+   the 2D/3D switch and camera presets were unclickable even though they measured visible.
+   The offset clears the expanded timeline; `--geoTimelineH` tracks its height. */
 .geoViewCtl {
-  position: fixed; left: 74px; bottom: 26px; z-index: 42;
+  position: fixed; left: 74px; bottom: calc(26px + var(--geoTimelineH, 236px) + 10px); z-index: 44;
   display: flex; align-items: center; gap: 8px; padding: 6px 8px;
   background: linear-gradient(180deg, rgba(16,38,58,.82), rgba(9,22,36,.86));
   border: 1px solid var(--line-strong); border-radius: 12px;
@@ -1611,7 +1622,10 @@ body.geoshell #waterBadge {
   position: fixed; left: 74px; top: 62px; right: auto; bottom: auto; z-index: 42;
   flex-direction: row; flex-wrap: wrap; gap: 4px 12px; max-width: 320px;
 }
-body.geoshell .geoViewCtl { bottom: 84px; }           /* sit ABOVE the floating timeline */
+body.geoshell .geoViewCtl {
+  left: 280px;
+  bottom: calc(26px + var(--geoTimelineH, 191px) + 10px);
+}
 body.geoshell #btnFocus { display: none; }            /* superseded by mode rail */
 /* water badge compact styling in shell */
 body.geoshell #waterBadge span { font-size: 10px; }
@@ -1709,7 +1723,7 @@ body.geoshell .geoActions .actGroup { flex: 0 0 auto; }
 /* Water badge = map-summary stats → anchor bottom-left, just above the view control,
    clear of the vertically-centred dock and of the top chrme band. */
 body.geoshell #waterBadge {
-  top: auto; bottom: 150px; left: 74px; right: auto; z-index: 42;
+  top: auto; bottom: calc(26px + var(--geoTimelineH, 191px) + 10px); left: 74px; right: auto; z-index: 42;
   flex-direction: row; flex-wrap: wrap; gap: 2px 12px; max-width: 340px;
   padding: 6px 11px; background: linear-gradient(180deg, rgba(16,38,58,.82), rgba(9,22,36,.86));
   border: 1px solid var(--line-strong); border-radius: 11px; backdrop-filter: blur(12px);
@@ -1724,3 +1738,38 @@ body.geoshell .geoFlyout { top: 76px; }
 
 /* measured mass-conservation metric turns green when within the ≤0.01% target */
 .metricRow strong.metricGood { color: var(--ok); }
+
+/* Mobile geoshell: keep the primary controls inside the viewport while secondary
+   command-bar actions remain reachable by horizontal scroll. */
+@media (max-width: 900px) {
+  body.geoshell .cmdBar {
+    gap: 6px; overflow-x: auto; overflow-y: hidden; scrollbar-width: none;
+  }
+  body.geoshell .cmdBar::-webkit-scrollbar,
+  body.geoshell .geoViewCtl::-webkit-scrollbar { display: none; }
+  body.geoshell .cmdBar .cmdBrand { flex: 0 0 34px; padding-right: 0; }
+  body.geoshell .cmdBar .cmdBrand > b,
+  body.geoshell .cmdBar .cmdBrand .cmdBasin,
+  body.geoshell .cmdBar .cmdSearch,
+  body.geoshell .cmdBar .cmdSep { display: none; }
+  body.geoshell .cmdBar .scenarioSelect {
+    flex: 0 0 96px; min-width: 96px;
+  }
+  body.geoshell .cmdBar .scenarioSelect select { width: 96px; min-height: 40px; }
+  body.geoshell .cmdBar #policyToggle {
+    flex: 0 0 138px; min-width: 138px;
+  }
+  body.geoshell .cmdBar #policyToggle button {
+    min-height: 40px; padding: 8px 6px;
+  }
+
+  body.geoshell .geoViewCtl {
+    left: 8px; right: 8px;
+    bottom: calc(40px + var(--geoTimelineH, 236px) + 8px);
+    max-width: none; overflow-x: auto; scrollbar-width: none;
+  }
+  body.geoshell .geoViewCtl .viewTabs,
+  body.geoshell .geoViewCtl .camPresets { flex: 0 0 auto; }
+  body.geoshell .geoViewCtl .viewTabs button,
+  body.geoshell .geoViewCtl .camPresets button { min-height: 40px; }
+}

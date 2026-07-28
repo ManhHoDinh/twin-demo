@@ -69,8 +69,7 @@
   }
 
   /* ---------- DEM (terrarium encoding: h = R*256 + G + B/256 − 32768) ----------
-     Base grid at z13 (≈18 m/px — the finest zoom the Terrarium source serves with
-     REAL, coherent data over this basin; z15 over-zooms into decode garbage). A z14
+     Base grid at z12 (≈37 m/px basin-wide). A z14
      fine-DEM overlay (≈9 m/px) covers the populated Vu Gia–Thu Bồn delta, where flood
      depth/extent actually matter. elevAt() samples the fine overlay where available,
      else the base — same pattern the imagery pipeline already uses for detail patches.
@@ -87,7 +86,10 @@
   ];
   async function loadDEM(timeoutMs) {
     const url = (z, x, y) => `https://s3.amazonaws.com/elevation-tiles-prod/terrarium/${z}/${x}/${y}.png`;
-    let st = await stitch(url, DEM_BASE_Z, timeoutMs);
+    // The basin spans 121 z12 tiles. Image timers start while requests are still queued
+    // behind the browser's per-origin connection limit, so the generic 12 s tile timeout
+    // incorrectly forced a z11 fallback before queued z12 requests could start.
+    let st = await stitch(url, DEM_BASE_Z, Math.max(timeoutMs, 45000));
     if (!st.ok) st = await stitch(url, 11, timeoutMs);   // graceful coarser fallback
     if (!st.ok) return false;
     const baseImg = st.ctx.getImageData(0, 0, st.canvas.width, st.canvas.height);

@@ -75,6 +75,7 @@ This workspace is the single source of truth for *what the product knows*, *what
 | [01-workflow-catalog.md](03-operations/01-workflow-catalog.md) | 12 operational workflows, step by step |
 | [02-decision-trees.md](03-operations/02-decision-trees.md) | Formal decision trees and thresholds |
 | [03-communication-protocols.md](03-operations/03-communication-protocols.md) | Notification matrix, message templates, acknowledgement |
+| [04-workflow-specifications.md](03-operations/04-workflow-specifications.md) | Implementation-ready spec of the ten end-to-end workflows: full schema per workflow, decision-lifecycle classes, map-executable, seven-perspective review |
 
 ### 04 — Decision support & simulation
 | Doc | Contains |

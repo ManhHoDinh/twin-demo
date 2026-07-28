@@ -4,6 +4,12 @@ Twelve workflows covering the full operating envelope, from a quiet Tuesday to a
 
 Authority in [decision rights](../02-stakeholders/02-decision-rights-raci.md) · thresholds in [decision trees](02-decision-trees.md) · messaging in [communication protocols](03-communication-protocols.md).
 
+This catalog is the *overview* layer. The implementation-ready *specification* layer, with
+the full per-workflow schema (actors, goals, inputs, outputs, entities, state transitions,
+decision points, approvals, data sources, visualisations, interactions, failure cases, audit
+trail, KPIs, acceptance criteria) and the decision-lifecycle classes, is in
+[workflow specifications](04-workflow-specifications.md) §0.3 maps the two together.
+
 ---
 
 ## WF-01 — Daily operation (dry / normal)

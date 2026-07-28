@@ -26,9 +26,9 @@ const p = await b.newPage({ viewport: { width: 1280, height: 800 } });
 const errs = []; p.on('pageerror', (e) => errs.push(e.message));
 try {
   await p.goto(`http://127.0.0.1:${port}/`, { waitUntil: 'load', timeout: 30000 });
-  // wait for world init (DEM base + settle can take ~10-15s on a cold tile fetch)
+  // A cold basin-wide z12 DEM fetch is 121 tiles and may queue behind per-origin limits.
   let ready = false;
-  for (let i = 0; i < 40 && !ready; i++) { await sleep(500); ready = await p.evaluate(() => !!(window.FT && FT.world && FT.world.ready && FT.hydro)); }
+  for (let i = 0; i < 120 && !ready; i++) { await sleep(500); ready = await p.evaluate(() => !!(window.FT && FT.world && FT.world.ready && FT.hydro)); }
   ok('world/solver initialised', ready);
 
   // Manning roughness field is physical: channel < floodplain, urban highest

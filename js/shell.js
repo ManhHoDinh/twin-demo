@@ -507,6 +507,12 @@
     fp.adopt("timelinePanel");
     const tp = $("timelinePanel"); if (tp) tp.style.display = "";
     fp.show("expanded");
+    const syncHeight = () => {
+      const height = Math.ceil(fp.node.getBoundingClientRect().height);
+      if (height) document.documentElement.style.setProperty("--geoTimelineH", height + "px");
+    };
+    requestAnimationFrame(syncHeight);
+    if (window.ResizeObserver) new ResizeObserver(syncHeight).observe(fp.node);
     key("t", "Thu/mở dòng thời gian", () => fp.toggleCollapse(), "Bản đồ");
     // Space / arrows already handled by existing ui.js keydown — don't double-bind
   }

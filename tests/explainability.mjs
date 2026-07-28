@@ -568,9 +568,15 @@ async function explainabilityContract(browser, base) {
       };
     });
     d(r);
+    const governedLinks = new Set([
+      'https://info.skylabs.vn/visualisation-science.html#depth',
+      'https://info.skylabs.vn/visualisation-science.html#wet-dry',
+      'https://info.skylabs.vn/simulation-engines.html#hydrology-engine',
+      'https://info.skylabs.vn/simulation-engines.html#reservoir-engine',
+    ]);
     return r.exists && r.role === 'complementary' && r.labelledBy === r.heading
       && r.closeType === 'button' && !!r.closeLabel && r.live === 'polite' && r.sections
-      && r.href === 'https://info.skylabs.vn/scientific-architecture.html#scientific-chain';
+      && governedLinks.has(r.href);
   });
 
   await check('real pointer selection handles blank points and named entities without replacing existing actions', async (d) => {
@@ -601,6 +607,28 @@ async function explainabilityContract(browser, base) {
       && selected.gauge.selection.kind === 'gauge' && legacy.gauge.includes(selected.gauge.selection.id)
       && selected.reservoir.selection.kind === 'reservoir' && legacy.reservoir.includes(selected.reservoir.selection.id)
       && selected.zone.selection.kind === 'zone' && legacy.zone.includes(selected.zone.selection.id);
+  });
+
+  await check('inspector links each supported selection to the matching public science section', async (d) => {
+    const links = await page.evaluate(() => {
+      const selectors = {
+        point: { kind: 'point', xKm: 48, yKm: 54 },
+        gauge: { kind: 'gauge', id: window.FT.data.GAUGES[0].id },
+        reservoir: { kind: 'reservoir', id: window.FT.data.RESERVOIRS[0].id },
+        zone: { kind: 'zone', id: window.FT.data.ZONES[0].id },
+        road: { kind: 'road', id: 'road:0' },
+      };
+      return Object.fromEntries(Object.entries(selectors).map(([kind, selector]) => {
+        window.FT.explain.select(selector);
+        return [kind, document.getElementById('explainDocsLink').href];
+      }));
+    });
+    d(links);
+    return links.point === 'https://info.skylabs.vn/visualisation-science.html#depth'
+      && links.gauge === 'https://info.skylabs.vn/simulation-engines.html#hydrology-engine'
+      && links.reservoir === 'https://info.skylabs.vn/simulation-engines.html#reservoir-engine'
+      && links.zone === 'https://info.skylabs.vn/visualisation-science.html#wet-dry'
+      && links.road === 'https://info.skylabs.vn/visualisation-science.html#wet-dry';
   });
 
   await check('real touch selection resolves a stable road selector', async (d) => {

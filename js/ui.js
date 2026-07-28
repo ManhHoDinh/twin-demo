@@ -153,6 +153,16 @@
     return localPair(QUANTITY_LABELS[key], key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()));
   }
 
+  function explanationDocsHref(selection) {
+    const targets = {
+      gauge: "https://info.skylabs.vn/simulation-engines.html#hydrology-engine",
+      reservoir: "https://info.skylabs.vn/simulation-engines.html#reservoir-engine",
+      zone: "https://info.skylabs.vn/visualisation-science.html#wet-dry",
+      road: "https://info.skylabs.vn/visualisation-science.html#wet-dry",
+    };
+    return targets[selection.kind] || "https://info.skylabs.vn/visualisation-science.html#depth";
+  }
+
   function isVisible(element) {
     if (!element || !document.contains(element)) return false;
     const style = getComputedStyle(element);
@@ -189,6 +199,7 @@
       : `${t("explain.selection.feature")} ${selection.id}`);
     el.explainTitle.textContent = t("explain.title");
     el.explainClose.setAttribute("aria-label", t("explain.close"));
+    el.explainDocsLink.href = explanationDocsHref(selection);
     el.explainSummary.textContent = `${subject} · ${t("explain.valid")} ${contract.valid_time.iso}`;
     el.explainStatus.textContent = `${t("explain.status")}: ${enumLabel(contract.data_health.status)} · ${t("explain.issue")} ${contract.issue_time.iso}`;
 
@@ -633,7 +644,7 @@
       "floodedArea", "peopleExposed", "modalScrim", "modalTitle", "modalBody", "modalClose",
       "toasts", "zoneList", "zonesSummary", "kpiZonesValue",
       "explainInspector", "explainTitle", "explainClose", "explainSummary", "explainStatus",
-      "explainQuantities", "explainSources", "explainConfidence", "explainAssumptions", "explainLimitations", "explainDegradation",
+      "explainQuantities", "explainSources", "explainConfidence", "explainAssumptions", "explainLimitations", "explainDegradation", "explainDocsLink",
     ].forEach((id) => (el[id] = $(id)));
 
     FT.bus.on("explainOrigin", (origin) => {

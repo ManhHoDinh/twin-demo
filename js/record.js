@@ -12,7 +12,7 @@
   const R = (FT.record = {});
 
   const SCHEMA_VERSION = "1.0.0";
-  const APP_VERSION = "v126";   // must equal the js?v=NN asset query in index.html (verify-record.mjs check 1)
+  const APP_VERSION = "v127";   // must equal the js?v=NN asset query in index.html (verify-record.mjs check 1)
   const MODEL_VERSION = "hydro-analytic-1 + swe-288-1";
   const PROMPT_VERSION = "none";          /* no model call in this build, ui.js §brief */
   const DATA_VERSION = "vgtb-2026-07";

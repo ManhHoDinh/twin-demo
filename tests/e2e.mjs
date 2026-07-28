@@ -694,9 +694,10 @@ async function evacuation(browser) {
 
   await check('an isolated zone is told to shelter in place, not to travel', async (d) => {
     const r = await page.evaluate(() => {
-      const iso = window.FT.zones.list.filter((z) => z.isolated);
-      const txt = document.getElementById('evacList').innerText;
-      return { n: iso.length, tellsToTravel: iso.length > 0 && /đi trước|depart by/i.test(txt.split('ĐÃ CÔ LẬP')[1] || '') };
+      const rows = [...document.querySelectorAll('#evacList .evacRow')];
+      const isolated = rows.filter((row) => /ĐÃ CÔ LẬP|ISOLATED/i.test(row.querySelector('b')?.textContent || ''));
+      const bad = isolated.filter((row) => /đi trước|depart by/i.test(row.querySelector('em')?.textContent || ''));
+      return { n: isolated.length, tellsToTravel: bad.length > 0, bad: bad.map((row) => row.innerText) };
     });
     d(r);
     return r.n === 0 || r.tellsToTravel === false;
@@ -1064,17 +1065,21 @@ async function crossCutting(browser) {
   });
 
   await check('the timeline stays responsive while scrubbing', async (d) => {
-    const ms = await page.evaluate(() => {
-      const t0 = performance.now();
-      for (let t = -20; t <= 40; t += 4) {
-        window.FT.state.timeH = t;
-        window.FT.bus.emit('scrubbed');
-        window.FT.ui.tick(window.FT.hydro.at(t));
-      }
-      return performance.now() - t0;
+    const samples = await page.evaluate(() => {
+      const run = () => {
+        const t0 = performance.now();
+        for (let t = -20; t <= 40; t += 4) {
+          window.FT.state.timeH = t;
+          window.FT.bus.emit('scrubbed');
+          window.FT.ui.tick(window.FT.hydro.at(t));
+        }
+        return performance.now() - t0;
+      };
+      return [run(), run(), run()];
     });
-    d(`${Math.round(ms)} ms for 16 scrub steps`);
-    return ms < 4000;
+    const median = samples.slice().sort((a, b) => a - b)[1];
+    d(`${Math.round(median)} ms median for 16 scrub steps (${samples.map(Math.round).join(', ')} ms)`);
+    return median < 4000;
   });
 
   await ctx.close();

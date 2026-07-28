@@ -9,11 +9,12 @@
     "e2e": "node tests/e2e.mjs",
     "e2e:quick": "node tests/e2e.mjs --quick",
     "docs:engineering": "node tests/docs-engineering-verify.mjs",
+    "docs:workflow": "node tests/workflow-spec-verify.mjs",
     "test:explainability": "node tests/explainability.mjs",
     "shell": "node tests/shell-smoke.mjs && node tests/shell-interactions.mjs && node tests/shell-layout.mjs",
     "shell:layout": "node tests/shell-layout.mjs",
     "physics": "node tests/physics-conservation.mjs",
-    "test": "npm run docs:engineering && npm run test:explainability && node tests/e2e.mjs && node tests/ux-audit.mjs && npm run shell && npm run physics",
+    "test": "npm run docs:engineering && npm run docs:workflow && npm run test:explainability && node tests/e2e.mjs && node tests/ux-audit.mjs && npm run shell && npm run physics",
     "ux": "node tests/ux-audit.mjs",
     "ux:strict": "node tests/ux-audit.mjs --strict"
   },

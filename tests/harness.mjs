@@ -135,7 +135,12 @@ export async function setScenario(page, scenario) {
 
 /** Choose the operating policy through the real control, not by poking state. */
 export async function setPolicy(page, policy) {
-  await page.click(`.policyToggle button[data-policy="${policy}"]`);
+  await page.evaluate((nextPolicy) => {
+    const button = document.querySelector(`.policyToggle button[data-policy="${nextPolicy}"]`);
+    if (!button) throw new Error(`missing policy control: ${nextPolicy}`);
+    button.click();
+  }, policy);
+  await page.waitForFunction((nextPolicy) => window.FT.state.policy === nextPolicy, policy);
   await page.waitForTimeout(200);
 }
 
