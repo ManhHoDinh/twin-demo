@@ -29,8 +29,21 @@ async function map2dCameraState(page) {
   return page.evaluate(() => window.FT?.map2d?.cameraState?.() || null);
 }
 
+async function waitFrame(page) {
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+}
+
 function changed(a, b, key, epsilon = 0.01) {
   return a && b && Number.isFinite(a[key]) && Number.isFinite(b[key]) && Math.abs(a[key] - b[key]) > epsilon;
+}
+
+async function tabToEarthAction(page, action) {
+  for (let i = 0; i < 80; i++) {
+    await page.keyboard.press('Tab');
+    const active = await page.evaluate(() => document.activeElement?.dataset?.earthAction || null);
+    if (active === action) return active;
+  }
+  return page.evaluate(() => document.activeElement?.dataset?.earthAction || null);
 }
 
 async function waitForCamera(page, predicate, arg, timeout = 5000) {
@@ -646,6 +659,191 @@ async function earthControls(browser) {
       ['gauge', 'point', 'road'].every((kind) => result[kind].routeVisible === false && result[kind].routeHiddenAttr === true) &&
       result.road.bodyPointerEvents === 'auto' &&
       result.road.bodyHitInside === true;
+  });
+
+  await check('Earth responsive sheet preserves map context, keyboard controls, and reduced motion', async (d) => {
+    const outcomes = [];
+    for (const viewport of [
+      { name: 'mobile', width: 390, height: 844 },
+      { name: 'desktop', width: 1440, height: 900 },
+    ]) {
+      await page.setViewportSize({ width: viewport.width, height: viewport.height });
+      await waitFrame(page);
+      await page.emulateMedia({ reducedMotion: 'reduce' });
+      await page.evaluate(async () => {
+        const wait = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        document.querySelector('#viewTabs button[data-view="3d"]').click();
+        await wait();
+        const canvas = document.getElementById('canvas3d');
+        canvas.focus({ preventScroll: true });
+        window.FT.bus.emit('explainOrigin', { element: canvas, moveFocus: false });
+        window.FT.explain.select({ kind: 'point', xKm: 58, yKm: 63 });
+        await wait();
+      });
+
+      const reduced = await page.evaluate(async () => {
+        const started = performance.now();
+        window.FT.scene3d.flyToSelection({ kind: 'point', xKm: 58, yKm: 63 }, { intent: 'asset' });
+        await new Promise((resolve, reject) => {
+          const deadline = window.setTimeout(() => reject(new Error('reduced motion settle timeout')), 700);
+          window.FT.bus.on('camera.fly.settled', (ev) => {
+            if (ev && ev.view === '3d') {
+              window.clearTimeout(deadline);
+              resolve();
+            }
+          });
+        });
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+        const animated = [...document.querySelectorAll('.earthNav, #earthCameraStatus, .earthLayerLabel, #earthPlaceSheet')]
+          .map((el) => {
+            const cs = getComputedStyle(el);
+            return { selector: el.id ? `#${el.id}` : `.${el.classList[0]}`, animation: cs.animationName, transition: cs.transitionDuration };
+          });
+        return {
+          settleMs: Math.round(performance.now() - started),
+          animated,
+        };
+      });
+
+      const before3d = await cameraState(page);
+      const keyboard3d = [];
+      for (const action of ['zoom-in', 'zoom-out', 'north', 'tilt', 'locate']) {
+        await page.evaluate(() => document.body.focus({ preventScroll: true }));
+        const activeAction = await tabToEarthAction(page, action);
+        const before = await cameraState(page);
+        if (activeAction === action) {
+          await page.locator(`[data-earth-action="${action}"]`).press(action === 'zoom-out' || action === 'tilt' ? 'Space' : 'Enter');
+          await waitFrame(page);
+        }
+        const after = await cameraState(page);
+        keyboard3d.push({ action, before, after, active: await page.evaluate(() => document.activeElement?.dataset?.earthAction || null) });
+      }
+      const after3d = await cameraState(page);
+
+      const layout = await page.evaluate(({ width, height }) => {
+        const rect = (selector) => {
+          const el = document.querySelector(selector);
+          if (!el) return null;
+          const cs = getComputedStyle(el);
+          if (el.hidden || cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0') return null;
+          const r = el.getBoundingClientRect();
+          return {
+            left: r.left,
+            top: r.top,
+            right: r.right,
+            bottom: r.bottom,
+            width: r.width,
+            height: r.height,
+            maxHeight: cs.maxHeight,
+          };
+        };
+        const overlaps = (a, b, gap = 1) => !!a && !!b && !(a.right <= b.left + gap || b.right <= a.left + gap || a.bottom <= b.top + gap || b.bottom <= a.top + gap);
+        const sheet = rect('#earthPlaceSheet');
+        const nav = rect('.earthNav');
+        const controls = [...document.querySelectorAll('[data-earth-action]')].map((el) => {
+          const r = el.getBoundingClientRect();
+          return { action: el.dataset.earthAction, width: r.width, height: r.height, top: r.top, bottom: r.bottom };
+        });
+        const target = window.FT.scene3d.selectionTarget?.({ kind: 'point', xKm: 58, yKm: 63 }) || null;
+        const blockers = ['.cmdBar', '.geoOpsStrip', '.geoTimeline'].map((selector) => ({ selector, box: rect(selector) }));
+        return {
+          viewport: { width, height },
+          sheet,
+          nav,
+          controls,
+          target,
+          collisions: blockers.filter((item) => overlaps(sheet, item.box)).map((item) => item.selector),
+          sheetNavOverlap: overlaps(sheet, nav),
+          mapContextHeight: sheet ? Math.max(0, sheet.top - 150) : 0,
+        };
+      }, viewport);
+
+      await page.evaluate(() => {
+        const canvas = document.getElementById('canvas3d');
+        canvas.focus({ preventScroll: true });
+      });
+      await page.keyboard.press('Escape');
+      await waitFrame(page);
+      const escape3d = await page.evaluate(() => ({
+        hidden: document.getElementById('earthPlaceSheet')?.hidden,
+        activeId: document.activeElement?.id || null,
+      }));
+
+      await page.evaluate(async () => {
+        const wait = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        document.querySelector('#viewTabs button[data-view="2d"]').click();
+        await wait();
+        const canvas = document.getElementById('canvas2d');
+        canvas.focus({ preventScroll: true });
+        window.FT.bus.emit('explainOrigin', { element: canvas, moveFocus: false });
+        window.FT.explain.select({ kind: 'point', xKm: 58, yKm: 63 });
+        await wait();
+      });
+      const before2d = await map2dCameraState(page);
+      const cursorBefore = await page.evaluate(() => window.FT.map2d.keyboardCursor);
+      await page.keyboard.press('ArrowRight');
+      await page.keyboard.press('ArrowDown');
+      await page.keyboard.press('Enter');
+      await waitFrame(page);
+      const cursorAfter = await page.evaluate(() => window.FT.map2d.keyboardCursor);
+      const after2d = await map2dCameraState(page);
+      await page.keyboard.press('Escape');
+      await waitFrame(page);
+      const escape2d = await page.evaluate(() => ({
+        hidden: document.getElementById('earthPlaceSheet')?.hidden,
+        activeId: document.activeElement?.id || null,
+      }));
+
+      outcomes.push({ viewport, layout, reduced, before3d, keyboard3d, after3d, before2d, after2d, cursorBefore, cursorAfter, escape3d, escape2d });
+      await page.emulateMedia({ reducedMotion: null });
+    }
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.emulateMedia({ reducedMotion: null });
+    await waitFrame(page);
+    d(outcomes);
+    return outcomes.every((outcome) => {
+      const mobile = outcome.viewport.name === 'mobile';
+      const sheet = outcome.layout.sheet;
+      const target = outcome.layout.target;
+      const controlsOk = outcome.layout.controls.length === ACTIONS.length &&
+        outcome.layout.controls.every((control) => control.width >= (mobile ? 44 : 40) && control.height >= (mobile ? 44 : 40));
+      const sheetFits = sheet &&
+        sheet.left >= -1 &&
+        sheet.top >= -1 &&
+        sheet.right <= outcome.viewport.width + 1 &&
+        sheet.bottom <= outcome.viewport.height + 1 &&
+        (!mobile || sheet.height <= outcome.viewport.height * 0.44 + 8);
+      const mapContextOk = !mobile ||
+        outcome.layout.mapContextHeight >= 160 ||
+        (target && sheet && (target.y < sheet.top - 16 || target.x < sheet.left - 16 || target.x > sheet.right + 16));
+      const navKeyboardOk = outcome.keyboard3d.every(({ action, before, after, active }) => {
+        if (active !== action || !before || !after) return false;
+        if (action === 'zoom-in') return after.distance < before.distance;
+        if (action === 'zoom-out') return after.distance > before.distance;
+        if (action === 'north') return Math.abs(after.bearing) <= Math.abs(before.bearing) + 0.5;
+        if (action === 'tilt') return Math.abs(after.tilt - before.tilt) > 0.5;
+        if (action === 'locate') return Math.hypot(after.target.x - 58, after.target.y - 63) < 1.2;
+        return false;
+      });
+      const arrowOk = outcome.cursorAfter.visible &&
+        (outcome.cursorAfter.xKm !== outcome.cursorBefore.xKm || outcome.cursorAfter.yKm !== outcome.cursorBefore.yKm) &&
+        outcome.after2d &&
+        outcome.before2d &&
+        Number.isFinite(outcome.after2d.scale);
+      return controlsOk &&
+        sheetFits &&
+        outcome.layout.collisions.length === 0 &&
+        outcome.layout.sheetNavOverlap === false &&
+        mapContextOk &&
+        outcome.escape3d.hidden === true &&
+        outcome.escape3d.activeId === 'canvas3d' &&
+        outcome.escape2d.hidden === true &&
+        outcome.escape2d.activeId === 'canvas2d' &&
+        navKeyboardOk &&
+        arrowOk &&
+        outcome.reduced.settleMs <= 220 &&
+        outcome.reduced.animated.every((item) => item.animation === 'none' && /^0(?:s|ms)(?:,\s*0(?:s|ms))*$/.test(item.transition));
+    });
   });
 
   await check('Earth place Orbit action performs a real 3D orbit distinct from fixed fly-to', async (d) => {

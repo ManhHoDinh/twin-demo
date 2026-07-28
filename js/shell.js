@@ -879,13 +879,24 @@
       } },
       { action: "locate", label: "Định vị", icon: "⌖", run: locate },
     ];
+    let suppressKeyboardClickUntil = 0;
     defs.forEach((def) => {
       const b = el("button", "earthNavBtn", def.icon);
       b.type = "button";
       b.dataset.earthAction = def.action;
       b.title = def.label;
       b.setAttribute("aria-label", def.label);
-      b.addEventListener("click", def.run);
+      b.addEventListener("keydown", (ev) => {
+        if (ev.key !== "Enter" && ev.key !== " ") return;
+        ev.preventDefault();
+        ev.stopPropagation();
+        suppressKeyboardClickUntil = performance.now() + 250;
+        def.run();
+      });
+      b.addEventListener("click", (ev) => {
+        if (ev.detail === 0 && performance.now() < suppressKeyboardClickUntil) return;
+        def.run();
+      });
       wrap.appendChild(b);
     });
     document.body.appendChild(wrap);

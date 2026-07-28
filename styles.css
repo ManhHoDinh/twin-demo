@@ -1540,7 +1540,7 @@ body.geoshell .geoFloat #timelinePanel { display: block; }
 .earthNav {
   position: fixed;
   right: 58px;
-  bottom: calc(26px + var(--geoTimelineH, 191px) + 10px);
+  bottom: calc(26px + var(--geoTimelineH, 191px) + 88px);
   z-index: 44;
   display: grid;
   gap: 6px;
@@ -1573,7 +1573,7 @@ body.geoshell .geoFloat #timelinePanel { display: block; }
 .earthCameraStatus {
   position: fixed;
   right: 58px;
-  bottom: calc(26px + var(--geoTimelineH, 191px) + 244px);
+  bottom: calc(26px + var(--geoTimelineH, 191px) + 276px);
   z-index: 44;
   max-width: 220px;
   padding: 6px 9px;
@@ -1588,7 +1588,7 @@ body.geoshell .geoFloat #timelinePanel { display: block; }
 .earthLayerLabel {
   position: fixed;
   right: 58px;
-  bottom: calc(26px + var(--geoTimelineH, 191px) + 306px);
+  bottom: calc(26px + var(--geoTimelineH, 191px) + 330px);
   z-index: 44;
   display: grid;
   grid-template-columns: auto 1fr;
@@ -1633,11 +1633,12 @@ body.geoshell .geoFloat #timelinePanel { display: block; }
 }
 .earthPlaceSheet {
   position: fixed;
-  right: 108px;
+  left: auto;
+  right: 180px;
   bottom: calc(26px + var(--geoTimelineH, 191px) + 10px);
   z-index: 49;
   width: min(500px, calc(100vw - 180px));
-  max-height: min(48vh, 420px);
+  max-height: min(32vh, 260px);
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   overflow: hidden;
@@ -1774,7 +1775,12 @@ body.geoshell .geoFloat #timelinePanel { display: block; }
   .earthNav,
   .earthCameraStatus,
   .earthLayerLabel,
-  .earthPlaceSheet { transition: none; }
+  .earthPlaceSheet {
+    animation: none !important;
+    animation-duration: 0s !important;
+    transition: none !important;
+    transition-duration: 0s !important;
+  }
 }
 
 /* ---- STATUS RIBBON (2px → hover) ---- */
@@ -1858,31 +1864,38 @@ body.mode-split #labels3d { width: 50%; }
   .geoModeRail { display: none; }
   .geoViewCtl { left: 8px; bottom: 88px; }
   .earthNav {
-    left: 8px;
-    right: auto;
-    bottom: calc(40px + var(--geoTimelineH, 236px) + 62px);
-    grid-auto-flow: column;
+    left: auto;
+    right: max(8px, env(safe-area-inset-right));
+    bottom: calc(40px + env(safe-area-inset-bottom) + var(--geoTimelineH, 236px) + 8px);
+    grid-auto-flow: row;
+    grid-template-columns: 1fr;
   }
   .earthCameraStatus {
-    left: 8px;
-    right: auto;
-    bottom: calc(40px + var(--geoTimelineH, 236px) + 120px);
-    max-width: min(260px, calc(100vw - 16px));
-  }
-  .earthLayerLabel {
-    left: 8px;
-    right: 8px;
-    bottom: calc(40px + var(--geoTimelineH, 236px) + 172px);
+    left: max(8px, env(safe-area-inset-left));
+    right: 76px;
+    bottom: calc(40px + env(safe-area-inset-bottom) + var(--geoTimelineH, 236px) + 318px);
     max-width: none;
   }
+  .earthLayerLabel {
+    left: max(8px, env(safe-area-inset-left));
+    right: 76px;
+    bottom: calc(40px + env(safe-area-inset-bottom) + var(--geoTimelineH, 236px) + 370px);
+    max-width: none;
+    padding: 6px 8px;
+  }
+  .earthLayerLabel b,
+  .earthLayerLabel span,
+  .earthLayerLabel small { font-size: 11px; }
   .earthPlaceSheet {
-    left: 8px;
-    right: 8px;
-    bottom: calc(40px + var(--geoTimelineH, 236px) + 8px);
+    left: max(8px, env(safe-area-inset-left));
+    right: 76px;
+    bottom: calc(40px + env(safe-area-inset-bottom) + var(--geoTimelineH, 236px) + 84px);
     width: auto;
-    max-height: min(58vh, 460px);
+    max-height: min(44vh, 210px);
     transform: none;
   }
+  .earthPlaceHead { padding: 8px 9px; }
+  .earthPlaceBody { padding: 9px; gap: 8px; }
   .earthPlaceRow { grid-template-columns: 1fr; gap: 2px; }
   .earthPlaceActions button { flex: 1 1 130px; }
   .geoTimeline { left: 8px; right: 8px; width: auto !important; transform: none; bottom: 40px; }

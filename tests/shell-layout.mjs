@@ -25,13 +25,16 @@ const SELS = [
   '.geoTimeline', '#waterBadge', '.aiLauncher',
   '[data-panel="decision"]', '[data-panel="inspector"]', '[data-panel="ai"]', '[data-panel="alerts"]',
 ];
+const EARTH_SELS = ['.earthNav', '.earthLayerLabel', '#earthCameraStatus', '#earthPlaceSheet'];
+const EARTH_BLOCKERS = ['.cmdBar', '.geoOpsStrip', '.geoTimeline'];
+const EARTH_SHEET_BLOCKERS = ['.geoViewCtl'];
 
 async function collisions(page) {
   return page.evaluate((sels) => {
     const box = (s) => {
       const n = document.querySelector(s); if (!n) return null;
       const cs = getComputedStyle(n);
-      if (cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0' || cs.pointerEvents === 'none') return null;
+      if (cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0' || (s !== '#earthPlaceSheet' && cs.pointerEvents === 'none')) return null;
       const r = n.getBoundingClientRect(); if (r.width === 0 || r.height === 0) return null;
       return { s, l: r.left, t: r.top, r: r.right, b: r.bottom };
     };
@@ -43,6 +46,35 @@ async function collisions(page) {
     const off = bs.filter((x) => x.l < -2 || x.t < -2 || x.r > innerWidth + 2 || x.b > innerHeight + 2).map((x) => x.s);
     return { c, off };
   }, SELS);
+}
+
+async function earthChrome(page) {
+  return page.evaluate(({ earthSels, blockers, sheetBlockers }) => {
+    const box = (s) => {
+      const n = document.querySelector(s); if (!n) return null;
+      const cs = getComputedStyle(n);
+      if (n.hidden || cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0') return null;
+      const r = n.getBoundingClientRect(); if (r.width === 0 || r.height === 0) return null;
+      return { s, l: r.left, t: r.top, r: r.right, b: r.bottom, w: r.width, h: r.height };
+    };
+    const ov = (A, B) => !!A && !!B && !(A.r <= B.l + 1 || B.r <= A.l + 1 || A.b <= B.t + 1 || B.b <= A.t + 1);
+    const earth = earthSels.map(box).filter(Boolean);
+    const block = blockers.map(box).filter(Boolean);
+    const sheet = earth.find((item) => item.s === '#earthPlaceSheet');
+    const sheetBlock = sheetBlockers.map(box).filter(Boolean);
+    const collisions = [];
+    for (let i = 0; i < earth.length; i++) {
+      for (let j = i + 1; j < earth.length; j++) if (ov(earth[i], earth[j])) collisions.push(`${earth[i].s}∩${earth[j].s}`);
+      for (const b of block) if (ov(earth[i], b)) collisions.push(`${earth[i].s}∩${b.s}`);
+    }
+    for (const b of sheetBlock) if (ov(sheet, b)) collisions.push(`#earthPlaceSheet∩${b.s}`);
+    const off = earth.filter((x) => x.l < -2 || x.t < -2 || x.r > innerWidth + 2 || x.b > innerHeight + 2).map((x) => x.s);
+    const controls = [...document.querySelectorAll('[data-earth-action]')].map((n) => {
+      const r = n.getBoundingClientRect();
+      return { action: n.dataset.earthAction, w: Math.round(r.width), h: Math.round(r.height) };
+    });
+    return { earth, collisions, off, controls };
+  }, { earthSels: EARTH_SELS, blockers: EARTH_BLOCKERS, sheetBlockers: EARTH_SHEET_BLOCKERS });
 }
 
 const b = await launchGpu({ headless: true });
@@ -84,6 +116,48 @@ try {
       .map((n) => (n.textContent || '').slice(0, 16)).slice(0, 6));
     ok(`${w}×${h} top chrome: no clipped text`, clipped.length === 0, clipped.join(' | '));
 
+    await p.evaluate(() => {
+      const canvas = document.getElementById('canvas3d');
+      window.FT.bus.emit('explainOrigin', { element: canvas, moveFocus: false });
+      const contract = window.FT.explain.select({ kind: 'point', xKm: 58, yKm: 63 });
+      window.FT.bus.emit('explainSelection', contract);
+      const sheet = document.getElementById('earthPlaceSheet');
+      if (sheet) {
+        sheet.hidden = false;
+        document.body.classList.add('place-sheet-open');
+      }
+    });
+    await sleep(250);
+    const earth = await earthChrome(p);
+    ok(`${w}×${h} earth chrome: inventory visible`, EARTH_SELS.every((sel) => earth.earth.some((item) => item.s === sel)), JSON.stringify(earth.earth));
+    ok(`${w}×${h} earth chrome: no command/ops/timeline collisions`, earth.collisions.length === 0, earth.collisions.join(', '));
+    ok(`${w}×${h} earth chrome: nothing off-screen`, earth.off.length === 0, earth.off.join(', '));
+    ok(`${w}×${h} earth controls: targets ≥40px`, earth.controls.length === 5 && earth.controls.every((c) => c.w >= 40 && c.h >= 40), JSON.stringify(earth.controls));
+
+    await p.close();
+  }
+
+  for (const [w, h] of [[390, 844]]) {
+    const p = await b.newPage({ viewport: { width: w, height: h } });
+    await p.goto(`http://127.0.0.1:${port}/`, { waitUntil: 'load', timeout: 30000 });
+    await sleep(2800);
+    await p.evaluate(() => {
+      const canvas = document.getElementById('canvas3d');
+      window.FT.bus.emit('explainOrigin', { element: canvas, moveFocus: false });
+      const contract = window.FT.explain.select({ kind: 'point', xKm: 58, yKm: 63 });
+      window.FT.bus.emit('explainSelection', contract);
+      const sheet = document.getElementById('earthPlaceSheet');
+      if (sheet) {
+        sheet.hidden = false;
+        document.body.classList.add('place-sheet-open');
+      }
+    });
+    await sleep(250);
+    const earth = await earthChrome(p);
+    ok(`${w}×${h} earth chrome: inventory visible`, EARTH_SELS.every((sel) => earth.earth.some((item) => item.s === sel)), JSON.stringify(earth.earth));
+    ok(`${w}×${h} earth chrome: no command/ops/timeline collisions`, earth.collisions.length === 0, earth.collisions.join(', '));
+    ok(`${w}×${h} earth chrome: nothing off-screen`, earth.off.length === 0, earth.off.join(', '));
+    ok(`${w}×${h} earth controls: targets ≥44px`, earth.controls.length === 5 && earth.controls.every((c) => c.w >= 44 && c.h >= 44), JSON.stringify(earth.controls));
     await p.close();
   }
 

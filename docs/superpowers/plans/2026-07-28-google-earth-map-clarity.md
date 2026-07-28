@@ -395,26 +395,26 @@ git commit -m "feat: add Earth-style place inspection"
 - Modify: `styles.css`
 - Modify: `docs/superpowers/plans/2026-07-28-google-earth-map-clarity.md`
 
-- [ ] **Step 1: Add failing mobile non-occlusion and keyboard tests**
+- [x] **Step 1: Add failing mobile non-occlusion and keyboard tests**
 
 At 390x844, select an object and assert the place sheet fits the viewport, the selected
 marker target remains outside the sheet, Earth controls remain reachable, and Escape closes
 the sheet and restores focus to the map. Test `+`, `-`, north, tilt, locate, and arrow-key pan.
 
-- [ ] **Step 2: Run and verify RED**
+- [x] **Step 2: Run and verify RED**
 
 Run: `node tests/earth-map.mjs`
 
 Expected: FAIL on mobile placement or keyboard behavior until responsive rules are complete.
 
-- [ ] **Step 3: Implement mobile and reduced-motion rules**
+- [x] **Step 3: Implement mobile and reduced-motion rules**
 
 Use a draggable-height bottom sheet with a default maximum of 44vh, a compact right-side
 control rail, safe-area offsets, and a map padding calculation that keeps the selected point
 above the sheet. Under `prefers-reduced-motion`, camera transitions complete immediately and
 selection feedback uses a static ring.
 
-- [ ] **Step 4: Update shell collision coverage**
+- [x] **Step 4: Update shell collision coverage**
 
 Add `.earthNav`, `.earthLayerLabel`, `#earthCameraStatus`, and `#earthPlaceSheet` to the shell
 layout inventory. Assert they do not overlap the command bar, persistent operations strip,
