@@ -566,6 +566,88 @@ async function earthControls(browser) {
       result.escapeResult.activeId === 'canvas2d';
   });
 
+  await check('Earth place sheet surfaces explainability contract failures explicitly', async (d) => {
+    const result = await page.evaluate(async () => {
+      const FT = window.FT;
+      const waitFrame = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const original = FT.explain.forEntity;
+      const gauge = FT.data.GAUGES[0];
+      const canvas = document.getElementById('canvas2d');
+      canvas.focus({ preventScroll: true });
+      FT.bus.emit('explainOrigin', { element: canvas, moveFocus: false });
+      FT.explain.forEntity = () => { throw new TypeError('normalized contract unavailable for test'); };
+      try {
+        FT.bus.emit('explainSelection', { selection: { kind: 'gauge', id: gauge.id } });
+        await waitFrame();
+        const sheet = document.getElementById('earthPlaceSheet');
+        const observed = sheet?.querySelector('[data-place-section="observed"]')?.textContent || '';
+        const simulated = sheet?.querySelector('[data-place-section="simulated"]')?.textContent || '';
+        return {
+          hidden: sheet?.hidden,
+          kind: sheet?.dataset.placeKind,
+          name: document.querySelector('#earthPlaceSheet [data-place-field="name"]')?.textContent || '',
+          observed,
+          simulated,
+          fullText: sheet?.textContent || '',
+        };
+      } finally {
+        FT.explain.forEntity = original;
+      }
+    });
+    d(result);
+    return result.hidden === false &&
+      result.kind === 'gauge' &&
+      /lỗi|failure|contract|explainability|data-contract|normalized/i.test(result.fullText) &&
+      /normalized contract unavailable for test/.test(result.fullText) &&
+      !result.observed.includes('Không có số đo hiện tại') &&
+      !/Đại lượng mô phỏng chưa được tính|Simulated quantity not computed/i.test(result.simulated);
+  });
+
+  await check('Earth place sheet hides unsupported route action while preserving road detail and scroll hit target', async (d) => {
+    const result = await page.evaluate(async () => {
+      const FT = window.FT;
+      const waitFrame = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const visible = (el) => !!el && !el.hidden && getComputedStyle(el).display !== 'none' && getComputedStyle(el).visibility !== 'hidden';
+      const read = () => {
+        const sheet = document.getElementById('earthPlaceSheet');
+        const route = sheet?.querySelector('[data-place-action="route"]');
+        const body = sheet?.querySelector('.earthPlaceBody');
+        const bodyRect = body?.getBoundingClientRect();
+        const hit = bodyRect ? document.elementFromPoint(bodyRect.left + bodyRect.width / 2, bodyRect.top + Math.min(18, bodyRect.height / 2)) : null;
+        return {
+          hidden: sheet?.hidden,
+          kind: sheet?.dataset.placeKind,
+          name: document.querySelector('#earthPlaceSheet [data-place-field="name"]')?.textContent || '',
+          routeVisible: visible(route),
+          routeHiddenAttr: route?.hidden,
+          bodyPointerEvents: body ? getComputedStyle(body).pointerEvents : null,
+          bodyHitClass: hit?.className || '',
+          bodyHitInside: !!(hit && body && body.contains(hit)),
+        };
+      };
+      const outputs = {};
+      FT.explain.select({ kind: 'gauge', id: FT.data.GAUGES[0].id });
+      await waitFrame();
+      outputs.gauge = read();
+      FT.explain.select({ kind: 'point', xKm: 16.2, yKm: 72.8 });
+      await waitFrame();
+      outputs.point = read();
+      FT.explain.select({ kind: 'road', id: 'road:0' });
+      await waitFrame();
+      outputs.road = read();
+      return outputs;
+    });
+    d(result);
+    return ['gauge', 'point', 'road'].every((kind) => result[kind]?.hidden === false) &&
+      result.gauge.kind === 'gauge' &&
+      result.point.kind === 'point' &&
+      result.road.kind === 'road' &&
+      result.road.name.trim().length > 0 &&
+      ['gauge', 'point', 'road'].every((kind) => result[kind].routeVisible === false && result[kind].routeHiddenAttr === true) &&
+      result.road.bodyPointerEvents === 'auto' &&
+      result.road.bodyHitInside === true;
+  });
+
   await check('Earth place Orbit action performs a real 3D orbit distinct from fixed fly-to', async (d) => {
     const result = await page.evaluate(async () => {
       const FT = window.FT;

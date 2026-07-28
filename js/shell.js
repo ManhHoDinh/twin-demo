@@ -411,7 +411,6 @@
         if (action === "fly") FT.navigation && FT.navigation.flyToSelection(activePlaceSelection, { intent: "asset" });
         else if (action === "zoom") FT.navigation && FT.navigation.flyToSelection(activePlaceSelection, { intent: "street" });
         else if (action === "orbit" && FT.state && FT.state.view === "3d") FT.navigation && FT.navigation.orbitSelection && FT.navigation.orbitSelection(activePlaceSelection);
-        else if (action === "route") panels.drawer && panels.drawer.show("expanded");
       });
       actions.appendChild(button);
     });
@@ -428,11 +427,6 @@
     });
     FT.bus.on("explainSelection", (contract) => {
       if (!contract) {
-        activePlaceSelection = null;
-        closePlaceSheet();
-        return;
-      }
-      if (contract.selection && contract.selection.kind === "road") {
         activePlaceSelection = null;
         closePlaceSheet();
         return;

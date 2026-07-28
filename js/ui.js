@@ -167,8 +167,37 @@
   function placeName(selection) {
     if (!selection) return "—";
     if (selection.name) return selection.name;
+    if (selection.kind === "gauge") {
+      const g = D.GAUGES.find((item) => item.id === selection.id);
+      if (g) return g.name;
+    }
+    if (selection.kind === "reservoir") {
+      const r = D.RESERVOIRS.find((item) => item.id === selection.id);
+      if (r) return r.name;
+    }
+    if (selection.kind === "zone") {
+      const z = D.ZONES.find((item) => item.id === selection.id);
+      if (z) return z.name;
+    }
     if (selection.kind === "point") return `${FT.state.lang === "vi" ? "Ô lưới" : "Grid cell"} ${selection.cell_id || ""}`.trim();
     return selection.id || selection.kind;
+  }
+
+  function selectionWithCoordinates(selection) {
+    if (!selection || selection.xKm != null || selection.yKm != null) return selection;
+    if (selection.kind === "gauge") {
+      const g = D.GAUGES.find((item) => item.id === selection.id);
+      return g ? { ...selection, name: g.name, xKm: g.x, yKm: g.y } : selection;
+    }
+    if (selection.kind === "reservoir") {
+      const r = D.RESERVOIRS.find((item) => item.id === selection.id);
+      return r ? { ...selection, name: r.name, xKm: r.x, yKm: r.y } : selection;
+    }
+    if (selection.kind === "zone") {
+      const z = D.ZONES.find((item) => item.id === selection.id);
+      return z ? { ...selection, name: z.name, xKm: z.x, yKm: z.y } : selection;
+    }
+    return selection;
   }
 
   function placeCoordinates(selection) {
@@ -203,14 +232,21 @@
   }
 
   function contractFromSelection(selection) {
-    if (!selection) return null;
+    if (!selection) return { contract: null, error: null };
     try {
-      if (selection.contract && selection.selection && Array.isArray(selection.quantities)) return selection;
-      if (selection.kind === "point") return FT.explain && FT.explain.atPoint ? FT.explain.atPoint(selection.xKm, selection.yKm) : null;
-      return FT.explain && FT.explain.forEntity ? FT.explain.forEntity(selection.kind, selection.id) : null;
+      if (selection.contract && selection.selection && Array.isArray(selection.quantities)) return { contract: selection, error: null };
+      const contract = selection.kind === "point"
+        ? FT.explain && FT.explain.atPoint ? FT.explain.atPoint(selection.xKm, selection.yKm) : null
+        : FT.explain && FT.explain.forEntity ? FT.explain.forEntity(selection.kind, selection.id) : null;
+      return { contract, error: null };
     } catch (e) {
-      console.warn("[placeDetail]", e);
-      return null;
+      return {
+        contract: null,
+        error: {
+          category: e && e.name ? e.name : "ContractError",
+          message: e && e.message ? e.message : String(e || "Unknown explainability contract failure"),
+        },
+      };
     }
   }
 
@@ -220,8 +256,10 @@
   }
 
   UI.placeDetail = function (selection, snap) {
-    const contract = contractFromSelection(selection);
-    const sel = contract && contract.selection || selection || {};
+    const resolved = contractFromSelection(selection);
+    const contract = resolved.contract;
+    const contractError = resolved.error;
+    const sel = contract && contract.selection || selectionWithCoordinates(selection) || {};
     const kind = sel.kind || "point";
     const observedKeys = {
       gauge: ["gauge_stage", "gauge_trend_3h", "alert_level"],
@@ -245,7 +283,10 @@
     const uncertainty = simulatedQ && simulatedQ.uncertainty
       ? `${enumLabel(simulatedQ.uncertainty.type)} · ${enumLabel(simulatedQ.uncertainty.reason)}`
       : (FT.state.lang === "vi" ? "Giới hạn: chưa có mô hình bất định được kiểm định" : "Limitation: no validated uncertainty model");
-    const canRoute = !!(FT.traffic && FT.traffic.findRoute && (kind === "zone" || kind === "road"));
+    const canRoute = false;
+    const errorText = contractError
+      ? `${FT.state.lang === "vi" ? "Lỗi hợp đồng dữ liệu giải thích" : "Explainability data-contract failure"} · ${contractError.category}: ${contractError.message}`
+      : null;
     return {
       id: sel.id || `${kind}:${Number.isFinite(sel.xKm) ? U.fmt(sel.xKm, 2) : "na"}:${Number.isFinite(sel.yKm) ? U.fmt(sel.yKm, 2) : "na"}`,
       kind,
@@ -255,18 +296,18 @@
       observed: {
         available: !!observedQ,
         label: "HIỆN TRẠNG",
-        value: observedQ ? `${quantityLabel(observedQ.key)}: ${formatQuantityValue(observedQ)}` : "Không có số đo hiện tại",
+        value: errorText || (observedQ ? `${quantityLabel(observedQ.key)}: ${formatQuantityValue(observedQ)}` : "Không có số đo hiện tại"),
         timestamp: observedQ ? (observedQ.valid_time && observedQ.valid_time.iso || contract.valid_time.iso) : null,
-        source: observedQ ? `${sourceLabel(observedQ.source_id)} [${observedQ.source_id}] · ${enumLabel(observedQ.provenance || source && source.provenance)}` : "—",
-        freshness: observedQ ? freshnessText(observedQ, contract) : "Không có số đo hiện tại",
+        source: errorText ? "explainability/data-contract" : observedQ ? `${sourceLabel(observedQ.source_id)} [${observedQ.source_id}] · ${enumLabel(observedQ.provenance || source && source.provenance)}` : "—",
+        freshness: errorText || (observedQ ? freshnessText(observedQ, contract) : "Không có số đo hiện tại"),
       },
       simulated: {
         available: !!simulatedQ,
         label: "MÔ PHỎNG",
-        value: simulatedQ ? `${quantityLabel(simulatedQ.key)}: ${formatQuantityValue(simulatedQ)}` : (FT.state.lang === "vi" ? "Đại lượng mô phỏng chưa được tính" : "Simulated quantity not computed"),
+        value: errorText || (simulatedQ ? `${quantityLabel(simulatedQ.key)}: ${formatQuantityValue(simulatedQ)}` : (FT.state.lang === "vi" ? "Đại lượng mô phỏng chưa được tính" : "Simulated quantity not computed")),
         timeLabel: rel,
         lifecycle,
-        uncertainty,
+        uncertainty: errorText || uncertainty,
       },
       actions: {
         canRoute,
@@ -279,6 +320,7 @@
         xKm: sel.xKm,
         yKm: sel.yKm,
       },
+      contractError,
       contract,
       snap: snap || (H && H.at ? H.at(timeH) : null),
     };
