@@ -243,6 +243,36 @@
   };
   FT.navigation = Navigation;
 
+  function emitSelectionFocus(selection) {
+    if (!selection) return;
+    if (selection.kind === "zone") FT.bus.emit("zoneSelected", selection.id);
+    else if (selection.kind === "gauge") {
+      FT.state.selectedGauge = selection.id;
+      FT.bus.emit("gaugeSelected", selection.id);
+    } else if (selection.kind === "reservoir") {
+      FT.bus.emit("reservoirFocus", selection.id);
+    }
+  }
+
+  function focusSelection(selection, options) {
+    emitSelectionFocus(selection);
+    return FT.navigation && FT.navigation.flyToSelection &&
+      FT.navigation.flyToSelection(selection, options || {});
+  }
+
+  function alarmTargetSelection(alarm) {
+    if (!alarm) return null;
+    if (alarm.kind === "gauge") return resolveSelection({ kind: "gauge", id: alarm.subject });
+    if (alarm.kind === "res" || alarm.kind === "dam" || alarm.kind === "buffer") return resolveSelection({ kind: "reservoir", id: alarm.subject });
+    if (alarm.kind === "zone") return resolveSelection({ kind: "zone", id: alarm.subject });
+    if (alarm.kind === "isolation") {
+      const means = alarm.means || "";
+      const zone = (FT.data.ZONES || []).find((item) => means.includes(item.name));
+      return zone ? resolveSelection({ kind: "zone", id: zone.id }) : null;
+    }
+    return null;
+  }
+
   /* ======================================================================
      Auto-hide chrome while manipulating the map
      ====================================================================== */
@@ -464,6 +494,27 @@
         FT.bus.emit("reservoirFocus", r.id);
         FT.navigation && FT.navigation.flyToSelection({ kind: "reservoir", id: r.id }, { intent: "asset" });
       } }));
+      // zones
+      (FT.data && FT.data.ZONES || []).forEach((z) => {
+        const selection = { kind: "zone", id: z.id };
+        cmds.push({ g: "Khu vực", ico: "▦", label: z.name || z.id, selection, run: () => focusSelection(selection, { intent: "district" }) });
+      });
+      // active alerts
+      const activeAlarms = FT.alarms && FT.alarms.active ? FT.alarms.active() : [];
+      activeAlarms.forEach((alarm) => {
+        const selection = alarmTargetSelection(alarm);
+        if (!selection) return;
+        cmds.push({
+          g: "Cảnh báo",
+          ico: "!",
+          label: alarm.what || `${alarm.kind}: ${alarm.subject}`,
+          selection: { kind: selection.kind, id: selection.id },
+          run: () => {
+            panels.alerts && panels.alerts.show("expanded");
+            focusSelection({ kind: selection.kind, id: selection.id }, { intent: selection.kind === "zone" ? "district" : "asset" });
+          },
+        });
+      });
       // actions
       cmds.push({ g: "Lệnh", ico: "▶", label: "Phát / Dừng mô phỏng", key: "Space", run: () => $("btnPlay") && $("btnPlay").click() });
       cmds.push({ g: "Lệnh", ico: "🎬", label: "Trình diễn tự động", run: () => $("btnTour") && $("btnTour").click() });

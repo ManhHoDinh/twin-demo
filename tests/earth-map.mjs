@@ -345,6 +345,55 @@ async function earthControls(browser) {
       result.after.scale !== result.during.scale;
   });
 
+  await check('Command palette routes zones and active alerts through shared navigation without dropping UI events', async (d) => {
+    const result = await page.evaluate(() => {
+      const FT = window.FT;
+      const catalog = FT.palette.catalog();
+      const zoneDef = FT.data.ZONES[0];
+      const activeAlarms = FT.alarms.active();
+      const zoneEntry = catalog.find((item) => item.g === 'Khu vực' && item.selection?.kind === 'zone' && item.selection.id === zoneDef.id);
+      const alertEntry = catalog.find((item) => item.g === 'Cảnh báo' && item.selection);
+      const calls = [];
+      const emissions = [];
+      const originalFly = FT.navigation.flyToSelection;
+      FT.navigation.flyToSelection = (selection, options) => {
+        calls.push({ selection, options });
+        return true;
+      };
+      FT.bus.on('zoneSelected', (id) => emissions.push({ type: 'zoneSelected', id }));
+      FT.bus.on('gaugeSelected', (id) => emissions.push({ type: 'gaugeSelected', id }));
+      FT.bus.on('reservoirFocus', (id) => emissions.push({ type: 'reservoirFocus', id }));
+      try {
+        if (zoneEntry) zoneEntry.run();
+        if (alertEntry) alertEntry.run();
+      } finally {
+        FT.navigation.flyToSelection = originalFly;
+      }
+      return {
+        zoneCount: catalog.filter((item) => item.g === 'Khu vực' && item.selection?.kind === 'zone').length,
+        dataZoneCount: FT.data.ZONES.length,
+        activeAlarmCount: activeAlarms.length,
+        alertCount: catalog.filter((item) => item.g === 'Cảnh báo').length,
+        zoneEntry: zoneEntry && { label: zoneEntry.label, selection: zoneEntry.selection },
+        alertEntry: alertEntry && { label: alertEntry.label, selection: alertEntry.selection },
+        calls,
+        emissions,
+        alertsPanelMode: FT.panels?.alerts?.mode || null,
+      };
+    });
+    d(result);
+    const zoneCall = result.calls.find((call) => call.selection?.kind === 'zone' && call.selection.id === result.zoneEntry?.selection?.id);
+    const alertCall = result.alertEntry && result.calls.find((call) => call.selection?.kind === result.alertEntry.selection.kind && call.selection.id === result.alertEntry.selection.id);
+    const alertUiPreserved = !result.alertEntry ||
+      result.alertsPanelMode !== 'hidden' ||
+      result.emissions.some((event) => event.id === result.alertEntry.selection.id);
+    return result.zoneCount === result.dataZoneCount &&
+      result.zoneEntry &&
+      zoneCall?.options?.intent === 'district' &&
+      result.emissions.some((event) => event.type === 'zoneSelected' && event.id === result.zoneEntry.selection.id) &&
+      (result.activeAlarmCount === 0 || (result.alertCount > 0 && result.alertEntry && alertCall && alertUiPreserved));
+  });
+
   await ctx.close();
 }
 
