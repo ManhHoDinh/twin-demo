@@ -1537,6 +1537,58 @@ body.geoshell .geoFloat #timelinePanel { display: block; }
 .modeBtn { width: 38px; height: 38px; display: grid; place-items: center; border: 1px solid transparent; background: transparent; color: var(--ink-1); border-radius: 10px; font-size: 16px; }
 .modeBtn:hover { background: rgba(89,227,216,.1); color: var(--cyan); }
 .modeBtn.active { background: var(--accent-soft); color: var(--accent); }
+.earthNav {
+  position: fixed;
+  right: 58px;
+  bottom: calc(26px + var(--geoTimelineH, 191px) + 10px);
+  z-index: 44;
+  display: grid;
+  gap: 6px;
+  padding: 6px;
+  background: linear-gradient(180deg, rgba(16,38,58,.82), rgba(9,22,36,.86));
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(14px);
+  transition: opacity .18s, transform .18s;
+}
+.earthNavBtn {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(148,196,234,.24);
+  border-radius: 10px;
+  background: rgba(9,24,38,.78);
+  color: var(--ink-0);
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1;
+}
+.earthNavBtn:hover { border-color: var(--cyan); color: var(--cyan); background: rgba(89,227,216,.1); }
+.earthNavBtn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.earthCameraStatus {
+  position: fixed;
+  right: 58px;
+  bottom: calc(26px + var(--geoTimelineH, 191px) + 244px);
+  z-index: 44;
+  max-width: 220px;
+  padding: 6px 9px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: rgba(7,19,32,.76);
+  color: var(--ink-1);
+  font-size: 11px;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(12px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .earthNav,
+  .earthCameraStatus { transition: none; }
+}
 
 /* ---- STATUS RIBBON (2px → hover) ---- */
 .geoRibbon {
@@ -1559,14 +1611,18 @@ body.mode-fullscreen .cmdBar,
 body.mode-fullscreen .geoDock,
 body.mode-fullscreen .geoRibbon,
 body.mode-fullscreen .geoViewCtl,
-body.mode-fullscreen .geoModeRail { opacity: 0; pointer-events: none; }
+body.mode-fullscreen .geoModeRail,
+body.mode-fullscreen .earthNav,
+body.mode-fullscreen .earthCameraStatus { opacity: 0; pointer-events: none; transition: none; }
 body.mode-focus .geoFloat:not(.geoTimeline) { opacity: 0; pointer-events: none; }
 body.mode-immersive .cmdBar,
 body.mode-immersive .geoDock,
 body.mode-immersive .geoRibbon,
 body.mode-immersive .geoViewCtl,
 body.mode-immersive .geoModeRail,
-body.mode-immersive .geoFloat:not(.geoTimeline) { opacity: 0; pointer-events: none; }
+body.mode-immersive .earthNav,
+body.mode-immersive .earthCameraStatus,
+body.mode-immersive .geoFloat:not(.geoTimeline) { opacity: 0; pointer-events: none; transition: none; }
 body.mode-immersive #canvas2d { opacity: 0; }
 body.mode-present { font-size: 15px; }
 body.mode-present .geoFloat { transform: scale(1.04); }
@@ -1612,6 +1668,18 @@ body.mode-split #labels3d { width: 50%; }
   }
   .geoModeRail { display: none; }
   .geoViewCtl { left: 8px; bottom: 88px; }
+  .earthNav {
+    left: 8px;
+    right: auto;
+    bottom: calc(40px + var(--geoTimelineH, 236px) + 62px);
+    grid-auto-flow: column;
+  }
+  .earthCameraStatus {
+    left: 8px;
+    right: auto;
+    bottom: calc(40px + var(--geoTimelineH, 236px) + 120px);
+    max-width: min(260px, calc(100vw - 16px));
+  }
   .geoTimeline { left: 8px; right: 8px; width: auto !important; transform: none; bottom: 40px; }
   .cheatGrid { grid-template-columns: 1fr; }
 }

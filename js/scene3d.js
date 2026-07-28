@@ -14,7 +14,7 @@
   let cityMesh, rainPts, rainVel;
   let damGroup, dams = [], gaugeGroup, gauges = [];
   let labelWrap, labels = [];
-  let flyFrom = null, flyTo = null, flyT = 1;
+  let flyFrom = null, flyTo = null, flyT = 1, activeFly = null;
   let skyClear = null, skyStorm = null, skyTmp = null;
   const tmpV = { v: null };
   let clock = 0;
@@ -33,6 +33,7 @@
     dams: { pos: [8, 22, 62], tgt: [30, 2, 42] },
     hoian: { pos: [94, 9, 66], tgt: [86, 0, 40] },
   };
+  const CAMERA_DISTANCES = { overview: 120, district: 46, asset: 16, street: 5.5 };
 
   /* ============ terrain ============ */
   const imTmp = [0, 0, 0];
@@ -981,6 +982,81 @@
     });
   }
 
+  function reducedMotion() {
+    return window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  }
+
+  function cameraVector() {
+    if (!camera || !controls) return null;
+    return camera.position.clone().sub(controls.target);
+  }
+
+  function settleFly(status) {
+    if (!activeFly) return;
+    const meta = activeFly;
+    activeFly = null;
+    flyFrom = null;
+    flyTo = null;
+    flyT = 1;
+    if (FT.bus && meta.emit !== false) {
+      FT.bus.emit("camera.fly.settled", {
+        selection: meta.selection || null,
+        intent: meta.intent || "overview",
+        view: "3d",
+        status: status || "settled",
+      });
+    }
+  }
+
+  function cancelFly() {
+    if (!activeFly) return;
+    settleFly("cancelled");
+  }
+
+  function startFly(pos, tgt, meta) {
+    if (!camera || !controls || !pos || !tgt) return false;
+    cancelFly();
+    const intent = meta && meta.intent || "overview";
+    flyFrom = { pos: camera.position.clone(), tgt: controls.target.clone() };
+    flyTo = { pos, tgt };
+    flyT = reducedMotion() ? 0.985 : 0;
+    activeFly = {
+      selection: meta && meta.selection || null,
+      intent,
+      emit: !meta || meta.emit !== false,
+    };
+    if (FT.bus && activeFly.emit) {
+      FT.bus.emit("camera.fly.start", {
+        selection: activeFly.selection,
+        intent,
+        view: "3d",
+      });
+    }
+    return true;
+  }
+
+  function pointFromSelection(selection) {
+    if (!selection || typeof selection !== "object") return null;
+    if (selection.kind === "point") {
+      const x = +selection.xKm, y = +selection.yKm;
+      if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || y < 0 || x > SZ || y > SZ) return null;
+      return { x, y };
+    }
+    if (selection.kind === "reservoir") {
+      const r = D.RESERVOIRS.find((item) => item.id === selection.id);
+      return r ? { x: r.x, y: r.y } : null;
+    }
+    if (selection.kind === "gauge") {
+      const g = D.GAUGES.find((item) => item.id === selection.id);
+      return g ? { x: g.x, y: g.y } : null;
+    }
+    if (selection.kind === "zone") {
+      const z = D.ZONES.find((item) => item.id === selection.id);
+      return z ? { x: z.x, y: z.y } : null;
+    }
+    return null;
+  }
+
   /* ============ dynamic close-zoom detail (live slippy tiles draped on terrain — Google-Earth style) ============ */
   const DQ = { mesh: null, cv: null, ctx: null, tex: null, N: 64, acc: 9, key: "", pending: 0 };
   function ensureDetail() {
@@ -1116,6 +1192,7 @@
     controls.minDistance = 1.2;
     controls.maxDistance = 220;
     controls.target.set(...CAMS.overview.tgt);
+    controls.addEventListener("start", cancelFly);
     raycaster = new THREE.Raycaster();
     rayPointer = new THREE.Vector2();
 
@@ -1159,10 +1236,23 @@
   S3.setCamera = function (preset) {
     const c = CAMS[preset];
     if (!c || !camera) return;
-    flyFrom = { pos: camera.position.clone(), tgt: controls.target.clone() };
-    flyTo = c;
-    flyT = 0;
+    startFly(c.pos.slice(), c.tgt.slice(), { intent: preset, selection: null, emit: false });
     FT.state.camPreset = preset;
+  };
+
+  S3.cameraState = function () {
+    if (!camera || !controls) return null;
+    const v = cameraVector();
+    if (!v) return null;
+    const horizontal = Math.hypot(v.x, v.z);
+    const distance = v.length();
+    return {
+      distance,
+      bearing: Math.atan2(v.x, v.z) * 180 / Math.PI,
+      tilt: Math.atan2(horizontal, Math.max(0.0001, v.y)) * 180 / Math.PI,
+      target: { x: controls.target.x, y: controls.target.z, z: controls.target.y },
+      position: { x: camera.position.x, y: camera.position.z, z: camera.position.y },
+    };
   };
 
   S3.selectionTarget = function (selection) {
@@ -1217,11 +1307,71 @@
 
   /* fly close to a world point (zone drill-down) */
   S3.flyToPoint = function (xKm, yKm) {
-    if (!camera) return;
-    const te = elevToY(Math.max(1, terrAt(xKm, yKm)));
-    flyFrom = { pos: camera.position.clone(), tgt: controls.target.clone() };
-    flyTo = { pos: [xKm + 7.5, te + 7, yKm + 9.2], tgt: [xKm, te, yKm] };
-    flyT = 0;
+    return S3.flyToSelection({ kind: "point", xKm, yKm }, { intent: "asset" });
+  };
+
+  S3.flyToSelection = function (selection, options) {
+    if (!camera || !controls) return false;
+    const point = pointFromSelection(selection);
+    if (!point) return false;
+    const intent = options && options.intent || (selection.kind === "point" ? "asset" : "district");
+    const dist = CAMERA_DISTANCES[intent] || CAMERA_DISTANCES.asset;
+    const te = elevToY(Math.max(1, terrAt(point.x, point.y))) * scene.scale.y;
+    const tilt = intent === "street" ? 55 : intent === "overview" ? 48 : 60;
+    const vertical = Math.max(2.8, Math.cos(tilt * Math.PI / 180) * dist);
+    const horizontal = Math.max(1.2, Math.sin(tilt * Math.PI / 180) * dist);
+    const bearing = -38 * Math.PI / 180;
+    const pos = [
+      point.x + Math.sin(bearing) * horizontal,
+      te + vertical,
+      point.y + Math.cos(bearing) * horizontal,
+    ];
+    const tgt = [point.x, te, point.y];
+    return startFly(pos, tgt, { selection, intent });
+  };
+
+  S3.zoomStep = function (direction) {
+    if (!camera || !controls) return false;
+    cancelFly();
+    const v = cameraVector();
+    if (!v) return false;
+    const factor = direction === "out" || direction < 0 ? 1.38 : 0.72;
+    const next = U.clamp(v.length() * factor, controls.minDistance || 1.2, controls.maxDistance || 220);
+    v.setLength(next);
+    camera.position.copy(controls.target).add(v);
+    controls.update();
+    return true;
+  };
+
+  S3.resetNorth = function () {
+    if (!camera || !controls) return false;
+    cancelFly();
+    const v = cameraVector();
+    if (!v) return false;
+    const horizontal = Math.hypot(v.x, v.z) || 1;
+    camera.position.set(controls.target.x, controls.target.y + v.y, controls.target.z + horizontal);
+    controls.update();
+    return true;
+  };
+
+  S3.toggleTilt = function () {
+    if (!camera || !controls) return false;
+    cancelFly();
+    const v = cameraVector();
+    if (!v) return false;
+    const dist = U.clamp(v.length(), controls.minDistance || 1.2, controls.maxDistance || 220);
+    const bearing = Math.atan2(v.x, v.z);
+    const current = Math.atan2(Math.hypot(v.x, v.z), Math.max(0.0001, v.y)) * 180 / Math.PI;
+    const nextTilt = current > 47 ? 32 : 64;
+    const nextV = Math.cos(nextTilt * Math.PI / 180) * dist;
+    const nextH = Math.sin(nextTilt * Math.PI / 180) * dist;
+    camera.position.set(
+      controls.target.x + Math.sin(bearing) * nextH,
+      controls.target.y + nextV,
+      controls.target.z + Math.cos(bearing) * nextH
+    );
+    controls.update();
+    return true;
   };
 
   S3.render = function (dtReal, snap) {
@@ -1240,6 +1390,7 @@
         U.lerp(flyFrom.tgt.y, flyTo.tgt[1], e),
         U.lerp(flyFrom.tgt.z, flyTo.tgt[2], e)
       );
+      if (flyT >= 1) settleFly("settled");
     }
     controls.update();
     /* storm atmosphere: sky darkens & visibility closes in with rain intensity */
