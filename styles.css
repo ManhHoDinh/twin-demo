@@ -1585,9 +1585,56 @@ body.geoshell .geoFloat #timelinePanel { display: block; }
   box-shadow: var(--shadow);
   backdrop-filter: blur(12px);
 }
+.earthLayerLabel {
+  position: fixed;
+  right: 58px;
+  bottom: calc(26px + var(--geoTimelineH, 191px) + 306px);
+  z-index: 44;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas: "flag time" "note note";
+  gap: 2px 7px;
+  align-items: center;
+  max-width: 330px;
+  padding: 7px 9px;
+  border: 1px solid rgba(82,235,255,.48);
+  border-left: 4px solid rgba(82,235,255,.92);
+  border-radius: 8px;
+  background:
+    repeating-linear-gradient(135deg, rgba(82,235,255,.09) 0 5px, transparent 5px 10px),
+    rgba(5,16,28,.86);
+  color: var(--ink-0);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(12px);
+  text-shadow: 0 1px 2px rgba(0,0,0,.75);
+}
+.earthLayerLabel b {
+  grid-area: flag;
+  font-size: 11px;
+  letter-spacing: .55px;
+  color: #9ff4ff;
+  white-space: nowrap;
+}
+.earthLayerLabel span {
+  grid-area: time;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-0);
+}
+.earthLayerLabel small {
+  grid-area: note;
+  font-size: 11px;
+  line-height: 1.25;
+  color: var(--ink-1);
+}
 @media (prefers-reduced-motion: reduce) {
   .earthNav,
-  .earthCameraStatus { transition: none; }
+  .earthCameraStatus,
+  .earthLayerLabel { transition: none; }
 }
 
 /* ---- STATUS RIBBON (2px → hover) ---- */
@@ -1613,7 +1660,8 @@ body.mode-fullscreen .geoRibbon,
 body.mode-fullscreen .geoViewCtl,
 body.mode-fullscreen .geoModeRail,
 body.mode-fullscreen .earthNav,
-body.mode-fullscreen .earthCameraStatus { opacity: 0; pointer-events: none; transition: none; }
+body.mode-fullscreen .earthCameraStatus,
+body.mode-fullscreen .earthLayerLabel { opacity: 0; pointer-events: none; transition: none; }
 body.mode-focus .geoFloat:not(.geoTimeline) { opacity: 0; pointer-events: none; }
 body.mode-immersive .cmdBar,
 body.mode-immersive .geoDock,
@@ -1622,6 +1670,7 @@ body.mode-immersive .geoViewCtl,
 body.mode-immersive .geoModeRail,
 body.mode-immersive .earthNav,
 body.mode-immersive .earthCameraStatus,
+body.mode-immersive .earthLayerLabel,
 body.mode-immersive .geoFloat:not(.geoTimeline) { opacity: 0; pointer-events: none; transition: none; }
 body.mode-immersive #canvas2d { opacity: 0; }
 body.mode-present { font-size: 15px; }
@@ -1679,6 +1728,12 @@ body.mode-split #labels3d { width: 50%; }
     right: auto;
     bottom: calc(40px + var(--geoTimelineH, 236px) + 120px);
     max-width: min(260px, calc(100vw - 16px));
+  }
+  .earthLayerLabel {
+    left: 8px;
+    right: 8px;
+    bottom: calc(40px + var(--geoTimelineH, 236px) + 172px);
+    max-width: none;
   }
   .geoTimeline { left: 8px; right: 8px; width: auto !important; transform: none; bottom: 40px; }
   .cheatGrid { grid-template-columns: 1fr; }

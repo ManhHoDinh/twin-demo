@@ -21,6 +21,14 @@
   let pointerDownX = 0, pointerDownY = 0, pointerMoved = 0, selectionPointerId = null;
 
   const S3 = (FT.scene3d = {});
+  const WATER_STYLE = {
+    permanentWaterColor: "#0d4868",
+    simulatedWaterColor: "#56d2f6",
+    simulatedCloseOpacity: 0.54,
+    simulatedFarOpacity: 0.9,
+    boundaryOpacity: 0.76,
+    flowOpacity: 0.78,
+  };
 
   /* vertical transform: plains readable, mountains imposing (96 km real domain) */
   function elevToY(m) { return m <= 25 ? m * 0.02 : 0.5 + (m - 25) * 0.007; }
@@ -166,8 +174,10 @@
     waterGeo = new THREE.BufferGeometry();
     const pos = new Float32Array(WN * WN * 3);
     const depth = new Float32Array(WN * WN);
+    const base = new Float32Array(WN * WN);
     const flow = new Float32Array(WN * WN * 2);
     const over = new Float32Array(WN * WN);                // 1 = floodplain (sediment-laden when flooded)
+    const permanent = new Float32Array(WN * WN);           // 1 = sea / normal river water, not simulated overbank
     wSampX = new Float32Array(WN); wSampY = new Float32Array(WN);
     for (let i = 0; i < WN; i++) { wSampX[i] = (i / (WN - 1)) * (N - 1); wSampY[i] = wSampX[i]; }
     for (let iy = 0; iy < WN; iy++) {
@@ -176,6 +186,7 @@
         pos[o] = (ix / (WN - 1)) * SZk; pos[o + 1] = 0; pos[o + 2] = (iy / (WN - 1)) * SZk;
         const ks = Math.round(wSampY[iy]) * N + Math.round(wSampX[ix]);
         over[k] = !W.sea[ks] && W.riverDist[ks] > 0.9 ? 1 : 0;
+        permanent[k] = W.sea[ks] || W.hBase[ks] > 0.025 || W.riverDist[ks] < 0.42 ? 1 : 0;
       }
     }
     const idx = [];
@@ -187,8 +198,10 @@
     }
     waterGeo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
     waterGeo.setAttribute("aDepth", new THREE.BufferAttribute(depth, 1));
+    waterGeo.setAttribute("aBase", new THREE.BufferAttribute(base, 1));
     waterGeo.setAttribute("aFlow", new THREE.BufferAttribute(flow, 2));
     waterGeo.setAttribute("aOver", new THREE.BufferAttribute(over, 1));
+    waterGeo.setAttribute("aPermanent", new THREE.BufferAttribute(permanent, 1));
     waterGeo.setIndex(idx);
 
     waterMat = new THREE.ShaderMaterial({
@@ -197,17 +210,23 @@
       uniforms: { uTime: { value: 0 }, uGhost: { value: 0 } },
       vertexShader: `
         attribute float aDepth;
+        attribute float aBase;
         attribute vec2 aFlow;
         attribute float aOver;
+        attribute float aPermanent;
         varying float vDepth;
+        varying float vBase;
         varying vec2 vFlow;
         varying float vOver;
+        varying float vPermanent;
         varying vec3 vPos;
         varying vec3 vView;
         void main() {
           vDepth = aDepth;
+          vBase = aBase;
           vFlow = aFlow;
           vOver = aOver;
+          vPermanent = aPermanent;
           vPos = position;
           vec4 mv = modelViewMatrix * vec4(position, 1.0);
           vView = -mv.xyz;
@@ -217,13 +236,17 @@
         uniform float uTime;
         uniform float uGhost;
         varying float vDepth;
+        varying float vBase;
         varying vec2 vFlow;
         varying float vOver;
+        varying float vPermanent;
         varying vec3 vPos;
         varying vec3 vView;
         void main() {
           if (vDepth < 0.015) discard;
           float spd = length(vFlow);
+          float simDepth = max(0.0, vDepth - vBase);
+          float simulated = smoothstep(0.025, 0.09, simDepth);
           /* shimmer advected along flow */
           vec2 fdir = spd > 0.01 ? vFlow / spd : vec2(0.7, 0.7);
           float phase = dot(vPos.xz, fdir) * 3.6 - uTime * (0.8 + spd * 2.2);
@@ -240,9 +263,11 @@
           col = mix(col, c3, step(0.5, vDepth));
           col = mix(col, c4, step(1.0, vDepth));
           col = mix(col, c5, step(2.0, vDepth));
+          vec3 natural = vec3(0.05, 0.28, 0.41);
+          col = mix(natural, col, simulated);
           /* overbank floodwater carries sediment — mix toward muddy ochre */
           vec3 mud = vec3(0.42, 0.33, 0.20);
-          float mudF = vOver * smoothstep(0.08, 0.6, vDepth) * 0.65;
+          float mudF = vOver * simulated * smoothstep(0.08, 0.6, simDepth) * 0.46;
           col = mix(col, mud, mudF);
           col += shimmer * 0.06;
           /* fresnel rim */
@@ -253,9 +278,11 @@
           foam += smoothstep(2.5, 3.8, spd) * 0.4;
           foam += smoothstep(0.75, 0.95, fract(shimmer + spd * 0.5)) * smoothstep(2.2, 3.4, spd) * 0.25;
           col = mix(col, vec3(0.88, 0.95, 1.0), clamp(foam, 0.0, 0.75));
-          float alpha = clamp(0.25 + vDepth * 0.55, 0.0, 0.92);
+          float alpha = mix(0.64, clamp(0.25 + vDepth * 0.55, 0.0, 0.90), simulated);
           /* cận cảnh: nước nông trong hơn để lộ nền đất/đường thật bên dưới */
-          alpha *= 1.0 - uGhost * (1.0 - smoothstep(0.3, 1.2, vDepth)) * 0.38;
+          alpha *= 1.0 - uGhost * simulated * 0.40;
+          float cue = max(foam, smoothstep(1.2, 3.0, spd) * simulated);
+          alpha = max(alpha, cue * 0.76);
           gl_FragColor = vec4(col, alpha);
         }`,
     });
@@ -268,8 +295,9 @@
     const N = W.N;
     const pos = waterGeo.attributes.position.array;
     const dep = waterGeo.attributes.aDepth.array;
+    const base = waterGeo.attributes.aBase.array;
     const flow = waterGeo.attributes.aFlow.array;
-    const T = W.terrain, Hh = W.h, Uu = W.u, Vv = W.v;
+    const T = W.terrain, Hh = W.h, Bb = W.hBase, Uu = W.u, Vv = W.v;
     for (let iy = 0; iy < WN; iy++) {
       const fy = wSampY[iy];
       const y0 = fy | 0, y1 = Math.min(N - 1, y0 + 1), ty = fy - y0;
@@ -280,6 +308,7 @@
         const w00 = (1 - tx) * (1 - ty), w10 = tx * (1 - ty), w01 = (1 - tx) * ty, w11 = tx * ty;
         const a = r0 + x0, b = r0 + x1, c = r1 + x0, d = r1 + x1;
         const h = Hh[a] * w00 + Hh[b] * w10 + Hh[c] * w01 + Hh[d] * w11;
+        const hb = Bb[a] * w00 + Bb[b] * w10 + Bb[c] * w01 + Bb[d] * w11;
         const t = T[a] * w00 + T[b] * w10 + T[c] * w01 + T[d] * w11;
         const k = iy * WN + ix, o = k * 3;
         if (h > 0.02) {
@@ -289,12 +318,14 @@
           pos[o + 1] = elevToY(t) - 0.05;
           dep[k] = 0;
         }
+        base[k] = hb;
         flow[k * 2] = Uu[a] * w00 + Uu[b] * w10 + Uu[c] * w01 + Uu[d] * w11;
         flow[k * 2 + 1] = Vv[a] * w00 + Vv[b] * w10 + Vv[c] * w01 + Vv[d] * w11;
       }
     }
     waterGeo.attributes.position.needsUpdate = true;
     waterGeo.attributes.aDepth.needsUpdate = true;
+    waterGeo.attributes.aBase.needsUpdate = true;
     waterGeo.attributes.aFlow.needsUpdate = true;
   }
 
@@ -1252,6 +1283,22 @@
       tilt: Math.atan2(horizontal, Math.max(0.0001, v.y)) * 180 / Math.PI,
       target: { x: controls.target.x, y: controls.target.z, z: controls.target.y },
       position: { x: camera.position.x, y: camera.position.z, z: camera.position.y },
+    };
+  };
+
+  S3.waterPresentation = function () {
+    const ghost = waterMat && waterMat.uniforms && waterMat.uniforms.uGhost ? waterMat.uniforms.uGhost.value : 0;
+    const closeOpacity = WATER_STYLE.simulatedFarOpacity * (1 - U.clamp(ghost, 0, 1) * 0.40);
+    return {
+      permanentWaterColor: WATER_STYLE.permanentWaterColor,
+      simulatedWaterColor: WATER_STYLE.simulatedWaterColor,
+      closeOpacity,
+      farOpacity: WATER_STYLE.simulatedFarOpacity,
+      simulatedFillOpacity: closeOpacity,
+      boundaryOpacity: WATER_STYLE.boundaryOpacity,
+      flowOpacity: WATER_STYLE.flowOpacity,
+      ghost: U.clamp(ghost, 0, 1),
+      mode: "presentation-metadata",
     };
   };
 

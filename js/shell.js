@@ -619,8 +619,20 @@
     status.id = "earthCameraStatus";
     status.setAttribute("role", "status");
     status.setAttribute("aria-live", "polite");
+    const layer = el("div", "earthLayerLabel");
+    layer.setAttribute("role", "status");
+    layer.setAttribute("aria-live", "polite");
 
     const say = (msg) => { status.textContent = msg; };
+    const updateLayer = () => {
+      const timeH = FT.state && Number.isFinite(FT.state.timeH) ? FT.state.timeH : 0;
+      const clock = FT.util && FT.util.clock ? FT.util.clock(timeH) : { hm: "--:--" };
+      const rel = FT.util && FT.util.rel ? FT.util.rel(timeH) : `T${timeH >= 0 ? "+" : "-"}${Math.abs(Math.round(timeH))}h`;
+      const scen = FT.data && FT.data.SCENARIOS && FT.state ? FT.data.SCENARIOS[FT.state.scenario] : null;
+      const scenName = scen && FT.i18n ? FT.i18n.t(scen.key) : "kịch bản";
+      const waterOn = !FT.state || !FT.state.layers || FT.state.layers.water !== false;
+      layer.innerHTML = `<b>MÔ PHỎNG NGẬP</b><span>${rel} · ${clock.hm} · ${scenName}</span><small>Nền vệ tinh/bản đồ nền, không trực tiếp${waterOn ? "" : " · lớp ngập đang tắt"}</small>`;
+    };
     const runActive = (action, msg, fn) => {
       try {
         const renderer = FT.navigation && FT.navigation.activeRenderer ? FT.navigation.activeRenderer() : (FT.scene3d || {});
@@ -678,13 +690,22 @@
     });
     document.body.appendChild(wrap);
     document.body.appendChild(status);
+    document.body.appendChild(layer);
     FT.dom.earthNav = wrap;
     FT.dom.earthCameraStatus = status;
+    FT.dom.earthLayerLabel = layer;
     FT.bus.on("camera.fly.start", (ev) => say(`Đang bay tới ${cameraIntentName(ev && ev.intent)}`));
     FT.bus.on("camera.fly.settled", (ev) => {
       if (ev && ev.status === "cancelled") say("Đã hủy di chuyển camera");
       else say(`${cameraIntentName(ev && ev.intent)} đã sẵn sàng`);
+      updateLayer();
     });
+    FT.bus.on("scrubbed", updateLayer);
+    FT.bus.on("hydroRebuilt", updateLayer);
+    FT.bus.on("lang", updateLayer);
+    const sc = $("scenarioSelect"); if (sc) sc.addEventListener("change", updateLayer);
+    document.querySelectorAll(".toggle input").forEach((input) => input.addEventListener("change", updateLayer));
+    updateLayer();
   }
 
   /* ---------- Mode rail ---------- */

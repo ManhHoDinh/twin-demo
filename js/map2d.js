@@ -10,6 +10,7 @@
   let cw = 0, ch = 0, dpr = 1;
   let base = null;                                  // offscreen basemap
   let waterCv = null, waterCtx = null, waterImg = null, waterStamp = 0;
+  let waterEdgeCv = null, waterEdgeCtx = null, waterEdgeImg = null;
   let pipStamp = 0;
   const cam = { x: SZ / 2, y: SZ / 2, scale: 14 };  // px per km (logical px)
   let minScale = 10;
@@ -21,6 +22,14 @@
   let prng;
 
   const M = (FT.map2d = {});
+  const WATER_STYLE = {
+    permanentWaterColor: "#0b3f61",
+    simulatedWaterColor: "#56a8e4",
+    simulatedCloseOpacity: 0.5,
+    simulatedFarOpacity: 1,
+    boundaryOpacity: 0.78,
+    flowOpacity: 0.74,
+  };
 
   /* ---------- transforms ---------- */
   const sx = (xKm) => (xKm - cam.x) * cam.scale * dpr + cw / 2;
@@ -149,21 +158,46 @@
       waterCv.width = N; waterCv.height = N;
       waterCtx = waterCv.getContext("2d");
       waterImg = waterCtx.createImageData(N, N);
+      waterEdgeCv = document.createElement("canvas");
+      waterEdgeCv.width = N; waterEdgeCv.height = N;
+      waterEdgeCtx = waterEdgeCv.getContext("2d");
+      waterEdgeImg = waterEdgeCtx.createImageData(N, N);
     }
     const d = waterImg.data;
+    const e = waterEdgeImg.data;
     const stormy = snap.rain > 40;
+    const edgeAlpha = Math.round(WATER_STYLE.boundaryOpacity * 255);
     for (let k = 0; k < N * N; k++) {
       const o = k * 4;
+      e[o + 3] = 0;
       if (W.sea[k]) {
-        d[o] = stormy ? 40 : 26; d[o + 1] = stormy ? 68 : 74; d[o + 2] = stormy ? 96 : 128; d[o + 3] = 200;
+        d[o] = stormy ? 24 : 11; d[o + 1] = stormy ? 60 : 63; d[o + 2] = stormy ? 84 : 97; d[o + 3] = 214;
         continue;
       }
       const h = W.h[k];
-      if (h < 0.02) { d[o + 3] = 0; continue; }
-      U.depthColor(h, dcol);
-      d[o] = dcol[0]; d[o + 1] = dcol[1]; d[o + 2] = dcol[2]; d[o + 3] = (dcol[3] * 255) | 0;
+      const baseH = W.hBase[k] || 0;
+      const simH = Math.max(0, h - baseH);
+      if (simH >= 0.02) {
+        U.depthColor(simH, dcol);
+        d[o] = dcol[0]; d[o + 1] = dcol[1]; d[o + 2] = dcol[2]; d[o + 3] = (dcol[3] * 255) | 0;
+      } else if (h >= 0.02 || W.riverDist[k] < 0.42) {
+        d[o] = 11; d[o + 1] = 63; d[o + 2] = 97; d[o + 3] = 188;
+      } else {
+        d[o + 3] = 0;
+      }
+      if (simH >= 0.06) {
+        const x = k % N, y = (k / N) | 0;
+        const left = x > 0 ? Math.max(0, W.h[k - 1] - (W.hBase[k - 1] || 0)) : 0;
+        const right = x < N - 1 ? Math.max(0, W.h[k + 1] - (W.hBase[k + 1] || 0)) : 0;
+        const up = y > 0 ? Math.max(0, W.h[k - N] - (W.hBase[k - N] || 0)) : 0;
+        const down = y < N - 1 ? Math.max(0, W.h[k + N] - (W.hBase[k + N] || 0)) : 0;
+        if (left < 0.035 || right < 0.035 || up < 0.035 || down < 0.035) {
+          e[o] = 82; e[o + 1] = 235; e[o + 2] = 255; e[o + 3] = edgeAlpha;
+        }
+      }
     }
     waterCtx.putImageData(waterImg, 0, 0);
+    waterEdgeCtx.putImageData(waterEdgeImg, 0, 0);
   }
 
   /* ---------- live slippy-tile layer: every m² & every real road on deep zoom ---------- */
@@ -1065,9 +1099,11 @@
       const now = performance.now();
       if (now - waterStamp > 150 || !waterCv) { buildWater(snap); waterStamp = now; }
       /* at street-level zoom, let the real map read through the (sim-res) water */
-      ctx.globalAlpha = U.clamp((1000 / cam.scale) / 8, 0.5, 1);
+      const waterAlpha = U.clamp((1000 / cam.scale) / 8, WATER_STYLE.simulatedCloseOpacity, 1);
+      ctx.globalAlpha = waterAlpha;
       ctx.drawImage(waterCv, x0, y0, wpx, wpx);
       ctx.globalAlpha = 1;
+      if (waterEdgeCv) ctx.drawImage(waterEdgeCv, x0, y0, wpx, wpx);
     }
     if (FT.state.layers.impact) drawImpact();
     drawRivers();
@@ -1082,7 +1118,14 @@
         const X = sx(px[i]), Y = sy(py[i]);
         if (X < 0 || X > cw || Y < 0 || Y > ch) continue;
         const L = U.clamp(sp * 3, 1.2, 7) * dpr;
-        ctx.strokeStyle = `rgba(190,235,255,${U.clamp(pa[i] * U.clamp(sp * 0.5, 0.1, 0.55), 0.04, 0.5)})`;
+        ctx.strokeStyle = `rgba(3,12,22,${U.clamp(pa[i] * 0.52, 0.2, 0.56)})`;
+        ctx.lineWidth = 2.4 * dpr;
+        ctx.beginPath();
+        ctx.moveTo(X, Y);
+        ctx.lineTo(X - (vel[0] / sp) * L, Y - (vel[1] / sp) * L);
+        ctx.stroke();
+        ctx.strokeStyle = `rgba(158,244,255,${U.clamp(pa[i] * U.clamp(sp * 0.62, 0.18, WATER_STYLE.flowOpacity), 0.12, WATER_STYLE.flowOpacity)})`;
+        ctx.lineWidth = 1.1 * dpr;
         ctx.beginPath();
         ctx.moveTo(X, Y);
         ctx.lineTo(X - (vel[0] / sp) * L, Y - (vel[1] / sp) * L);
@@ -1104,6 +1147,21 @@
   Object.defineProperty(M, "keyboardCursor", { enumerable: true, get() { return { ...keyboardCursor }; } });
 
   M.cameraState = cameraState;
+
+  M.waterPresentation = function () {
+    const closeAlpha = U.clamp((1000 / cam.scale) / 8, WATER_STYLE.simulatedCloseOpacity, 1);
+    return {
+      permanentWaterColor: WATER_STYLE.permanentWaterColor,
+      simulatedWaterColor: WATER_STYLE.simulatedWaterColor,
+      closeOpacity: closeAlpha,
+      farOpacity: WATER_STYLE.simulatedFarOpacity,
+      simulatedFillOpacity: closeAlpha,
+      boundaryOpacity: WATER_STYLE.boundaryOpacity,
+      flowOpacity: WATER_STYLE.flowOpacity,
+      metresPerPixel: 1000 / cam.scale,
+      mode: "presentation-metadata",
+    };
+  };
 
   M.zoomStep = function (direction) {
     if (!cw || !ch) return false;

@@ -345,6 +345,62 @@ async function earthControls(browser) {
       result.after.scale !== result.during.scale;
   });
 
+  await check('Earth water presentation distinguishes simulated inundation from satellite context', async (d) => {
+    const result = await page.evaluate(async () => {
+      const FT = window.FT;
+      FT.state.playing = false;
+      FT.state.timeH = 6;
+      FT.bus.emit('scrubbed');
+      FT.world.updateRoadDepths();
+      FT.zones.stepStats(true);
+      const snap = FT.hydro.at(FT.state.timeH);
+      for (let i = 0; i < 3; i++) FT.ui.tick(snap);
+      document.querySelector('#viewTabs button[data-view="3d"]').click();
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const threeBefore = FT.scene3d.waterPresentation?.();
+      FT.scene3d.flyToSelection({ kind: 'point', xKm: 78, yKm: 36 }, { intent: 'street' });
+      await new Promise((resolve, reject) => {
+        const deadline = window.setTimeout(() => reject(new Error('3D close camera timeout')), 3000);
+        FT.bus.on('camera.fly.settled', (ev) => {
+          if (ev && ev.view === '3d') {
+            window.clearTimeout(deadline);
+            window.setTimeout(resolve, 160);
+          }
+        });
+      });
+      const threeClose = FT.scene3d.waterPresentation?.();
+      document.querySelector('#viewTabs button[data-view="2d"]').click();
+      FT.map2d.flyToSelection({ kind: 'point', xKm: 78, yKm: 36 }, { intent: 'street' });
+      await new Promise((resolve) => setTimeout(resolve, 900));
+      const twoClose = FT.map2d.waterPresentation?.();
+      const label = document.querySelector('.earthLayerLabel');
+      const rect = label?.getBoundingClientRect();
+      return {
+        labelText: label?.textContent || '',
+        labelVisible: !!label && rect.width > 20 && rect.height > 14 && getComputedStyle(label).visibility !== 'hidden',
+        threeBefore,
+        threeClose,
+        twoClose,
+        timeH: FT.state.timeH,
+      };
+    });
+    d(result);
+    const colorsDistinct = (a, b) => a && b && String(a).toLowerCase() !== String(b).toLowerCase();
+    return /MÔ PHỎNG/i.test(result.labelText) &&
+      /T[+-]\s*\d/i.test(result.labelText) &&
+      result.labelVisible &&
+      result.threeBefore &&
+      result.threeClose &&
+      result.twoClose &&
+      result.threeClose.closeOpacity < result.threeBefore.farOpacity &&
+      result.threeClose.boundaryOpacity >= 0.72 &&
+      result.threeClose.flowOpacity >= 0.72 &&
+      result.threeClose.simulatedFillOpacity < 1 &&
+      result.twoClose.simulatedFillOpacity < 1 &&
+      colorsDistinct(result.threeClose.permanentWaterColor, result.threeClose.simulatedWaterColor) &&
+      colorsDistinct(result.twoClose.permanentWaterColor, result.twoClose.simulatedWaterColor);
+  });
+
   await check('Command palette routes zones and active alerts through shared navigation without dropping UI events', async (d) => {
     const result = await page.evaluate(() => {
       const FT = window.FT;
