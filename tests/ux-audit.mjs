@@ -149,15 +149,28 @@ async function layoutLaw(page) {
   await must('the application is still usable at 1366×768', async (d) => {
     await page.setViewportSize({ width: 1366, height: 768 });
     await page.waitForTimeout(600);
+    /* Map-first geospatial shell (js/shell.js): the persistent rails/opsBar were re-housed
+       into floating, always-visible chrome (command bar, action toolbar, ops-signal strip,
+       icon dock) and a floating timeline — the map now owns the viewport. This check keeps
+       its ORIGINAL INTENT ("at a small resolution the operator still has: the map, the
+       persistent decision chrome, and the timeline") but tests it against the shell surfaces.
+       When the shell is off (?classic / __NO_SHELL) it falls back to the legacy rail check. */
     const r = await page.evaluate(() => {
-      const need = ['opsBar', 'railLeft', 'railRight', 'timelinePanel'];
-      return need.map((id) => {
-        const el = document.getElementById(id);
-        if (!el) return { id, ok: false, why: 'missing' };
-        const cs = getComputedStyle(el);
-        const rect = el.getBoundingClientRect();
-        return { id, ok: cs.display !== 'none' && rect.width > 40, w: Math.round(rect.width) };
-      });
+      const on = document.body.classList.contains('geoshell');
+      const vis = (sel, byId) => {
+        const el = byId ? document.getElementById(sel) : document.querySelector(sel);
+        if (!el) return { sel, ok: false, why: 'missing' };
+        const cs = getComputedStyle(el); const rect = el.getBoundingClientRect();
+        return { sel, ok: cs.display !== 'none' && cs.visibility !== 'hidden' && rect.width > 40, w: Math.round(rect.width) };
+      };
+      if (!on) return ['opsBar', 'railLeft', 'railRight', 'timelinePanel'].map((id) => vis(id, true));
+      // map-first equivalents: map fills viewport + persistent chrome + timeline present
+      const map = document.getElementById('stageWrap');
+      const cov = map ? (map.getBoundingClientRect().width * map.getBoundingClientRect().height) / (innerWidth * innerHeight) : 0;
+      return [
+        { sel: 'map>=80%', ok: cov >= 0.8, w: Math.round(cov * 100) },
+        vis('.cmdBar'), vis('.geoActions'), vis('.geoOpsStrip'), vis('.geoDock'), vis('.geoTimeline'),
+      ];
     });
     d(r.filter((x) => !x.ok));
     return r.every((x) => x.ok);
@@ -181,13 +194,31 @@ async function layoutLaw(page) {
     return r.every((x) => x.visible);
   });
 
-  await should('the rails do not require scrolling to reach the decision package', async (d) => {
+  await should('the decision package is reachable without page scrolling', async (d) => {
+    /* Intent: the MPC decision package must be reachable without scrolling the page.
+       Map-first shell: the package lives in the floating Decision panel (auto-raises on a
+       new proposal). We assert it is summonable and, once shown, sits fully within the
+       viewport. Legacy rail path is used when the shell is off. */
     const r = await page.evaluate(() => {
-      const rail = document.getElementById('railRight');
+      const on = document.body.classList.contains('geoshell');
       const card = document.getElementById('mpcCard');
-      if (!rail || !card || card.hidden) return { skip: true };
-      const rr = rail.getBoundingClientRect(), cr = card.getBoundingClientRect();
-      return { skip: false, needsScroll: cr.top > rr.bottom || cr.bottom < rr.top, scrollH: rail.scrollHeight, clientH: rail.clientHeight };
+      if (!card || card.hidden) return { skip: true };
+      if (!on) {
+        const rail = document.getElementById('railRight');
+        if (!rail) return { skip: true };
+        const rr = rail.getBoundingClientRect(), cr = card.getBoundingClientRect();
+        return { skip: false, needsScroll: cr.top > rr.bottom || cr.bottom < rr.top };
+      }
+      const panel = window.FT && FT.panels && FT.panels.decision;
+      if (panel) panel.show('expanded');
+      const cr = card.getBoundingClientRect();
+      // Intent = reachable without scrolling the PAGE. The floating Decision panel never
+      // moves page scroll (body doesn't scroll in the shell); a tall package scrolls WITHIN
+      // the panel, which is fine. So: the panel's entry point must be on-screen and the card
+      // must start within the viewport (its top visible), not that the whole card fits.
+      const pageScrolls = document.documentElement.scrollHeight > innerHeight + 2;
+      const cardReachable = cr.left >= 0 && cr.right <= innerWidth + 2 && cr.top >= 0 && cr.top <= innerHeight - 40;
+      return { skip: false, needsScroll: pageScrolls || !cardReachable, cardTop: Math.round(cr.top) };
     });
     d(r);
     return r.skip || !r.needsScroll;
