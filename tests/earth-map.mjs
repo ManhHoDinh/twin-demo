@@ -728,6 +728,75 @@ async function earthControls(browser) {
       (result.activeAlarmCount === 0 || (result.alertCount > 0 && result.alertEntry && alertCall && alertUiPreserved));
   });
 
+  await check('Command palette gauge and reservoir entries use canonical normalized selection', async (d) => {
+    const result = await page.evaluate(() => {
+      const FT = window.FT;
+      const catalog = FT.palette.catalog();
+      const gaugeDef = FT.data.GAUGES[0];
+      const reservoirDef = FT.data.RESERVOIRS[0];
+      const gaugeEntry = catalog.find((item) => item.g === 'Trạm' && item.label === gaugeDef.name);
+      const reservoirEntry = catalog.find((item) => item.g === 'Hồ chứa' && item.label === reservoirDef.name);
+      const calls = [];
+      const emissions = [];
+      const originalFly = FT.navigation.flyToSelection;
+      FT.navigation.flyToSelection = (selection, options) => {
+        calls.push({ selection, options });
+        return true;
+      };
+      FT.bus.on('gaugeSelected', (id) => emissions.push({ type: 'gaugeSelected', id }));
+      FT.bus.on('reservoirFocus', (id) => emissions.push({ type: 'reservoirFocus', id }));
+      try {
+        if (gaugeEntry) gaugeEntry.run();
+        var afterGauge = {
+          current: FT.explain.current && FT.explain.current.selection,
+          sheetHidden: document.getElementById('earthPlaceSheet')?.hidden,
+          sheetKind: document.getElementById('earthPlaceSheet')?.dataset.placeKind,
+          sheetName: document.querySelector('#earthPlaceSheet [data-place-field="name"]')?.textContent || '',
+          selectedGauge: FT.state.selectedGauge,
+        };
+        if (reservoirEntry) reservoirEntry.run();
+        var afterReservoir = {
+          current: FT.explain.current && FT.explain.current.selection,
+          sheetHidden: document.getElementById('earthPlaceSheet')?.hidden,
+          sheetKind: document.getElementById('earthPlaceSheet')?.dataset.placeKind,
+          sheetName: document.querySelector('#earthPlaceSheet [data-place-field="name"]')?.textContent || '',
+        };
+      } finally {
+        FT.navigation.flyToSelection = originalFly;
+      }
+      return {
+        gaugeEntry: gaugeEntry && { label: gaugeEntry.label },
+        reservoirEntry: reservoirEntry && { label: reservoirEntry.label },
+        gaugeId: gaugeDef.id,
+        reservoirId: reservoirDef.id,
+        afterGauge,
+        afterReservoir,
+        calls,
+        emissions,
+      };
+    });
+    d(result);
+    const gaugeCall = result.calls.find((call) => call.selection?.kind === 'gauge' && call.selection.id === result.gaugeId);
+    const reservoirCall = result.calls.find((call) => call.selection?.kind === 'reservoir' && call.selection.id === result.reservoirId);
+    return result.gaugeEntry &&
+      result.reservoirEntry &&
+      result.afterGauge?.current?.kind === 'gauge' &&
+      result.afterGauge?.current?.id === result.gaugeId &&
+      result.afterGauge?.sheetHidden === false &&
+      result.afterGauge?.sheetKind === 'gauge' &&
+      result.afterGauge?.sheetName === result.gaugeEntry.label &&
+      result.afterGauge?.selectedGauge === result.gaugeId &&
+      result.afterReservoir?.current?.kind === 'reservoir' &&
+      result.afterReservoir?.current?.id === result.reservoirId &&
+      result.afterReservoir?.sheetHidden === false &&
+      result.afterReservoir?.sheetKind === 'reservoir' &&
+      result.afterReservoir?.sheetName === result.reservoirEntry.label &&
+      gaugeCall?.options?.intent === 'asset' &&
+      reservoirCall?.options?.intent === 'asset' &&
+      result.emissions.some((event) => event.type === 'gaugeSelected' && event.id === result.gaugeId) &&
+      result.emissions.some((event) => event.type === 'reservoirFocus' && event.id === result.reservoirId);
+  });
+
   await ctx.close();
 }
 

@@ -690,14 +690,11 @@
         .forEach(([n, c, k]) => cmds.push({ g: "Camera", ico: "◎", label: n, key: k, run: () => camPreset(c) }));
       // gauges
       (FT.data && FT.data.GAUGES || []).forEach((g) => cmds.push({ g: "Trạm", ico: "◈", label: g.name || g.id, run: () => {
-        FT.state.selectedGauge = g.id;
-        FT.bus.emit("gaugeSelected", g.id);
-        FT.navigation && FT.navigation.flyToSelection({ kind: "gauge", id: g.id }, { intent: "asset" });
+        focusSelection({ kind: "gauge", id: g.id }, { intent: "asset" });
       } }));
       // reservoirs
       (FT.data && FT.data.RESERVOIRS || []).forEach((r) => cmds.push({ g: "Hồ chứa", ico: "▨", label: r.name || r.id, run: () => {
-        FT.bus.emit("reservoirFocus", r.id);
-        FT.navigation && FT.navigation.flyToSelection({ kind: "reservoir", id: r.id }, { intent: "asset" });
+        focusSelection({ kind: "reservoir", id: r.id }, { intent: "asset" });
       } }));
       // zones
       (FT.data && FT.data.ZONES || []).forEach((z) => {
