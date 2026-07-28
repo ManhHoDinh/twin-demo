@@ -1451,7 +1451,8 @@ body.geoshell #timelinePanel { display: none; }        /* re-hosted into floatin
   border: 0; box-shadow: 0 8px 24px rgba(47,134,255,.5); transition: transform .14s;
 }
 .aiLauncher:hover { transform: scale(1.06); }
-.geoAI { right: 16px; bottom: 60px; width: 380px; z-index: 52; }
+.geoAI { right: 60px; bottom: 92px; width: 372px; max-height: calc(100vh - 250px); z-index: 52; }
+.geoAI .gfBody { max-height: calc(100vh - 300px); }
 .geoAI.hidden-chrome { transform: translateY(16px); opacity: 0; pointer-events: none; }
 
 /* ---- FLOATING TIMELINE (bottom) ---- */
@@ -1498,7 +1499,7 @@ body.geoshell #timelinePanel { display: none; }        /* re-hosted into floatin
 .geoViewCtl .viewTabs button,
 .geoViewCtl .camPresets button { min-height: 32px; }
 .geoModeRail {
-  position: fixed; right: 8px; bottom: 88px; z-index: 42;
+  position: fixed; right: 8px; bottom: 120px; z-index: 42;
   display: flex; flex-direction: column; gap: 4px; padding: 5px;
   background: linear-gradient(180deg, rgba(16,38,58,.82), rgba(9,22,36,.86));
   border: 1px solid var(--line-strong); border-radius: 13px;
@@ -1661,4 +1662,44 @@ body.geoshell .geoActions .actLabel { font-size: 11px; }
 .geoOpsStrip .opsStripMode {
   font-size: 11px; font-weight: 700; letter-spacing: .4px; color: var(--warn);
   white-space: nowrap; padding-right: 4px; border-right: 1px solid var(--line);
+}
+
+/* ==========================================================================
+   Visual-slop fixes: right-lane collisions, action-toolbar clipping, flyout overlap
+   ========================================================================== */
+/* Right-context lane starts BELOW the top chrome band (command bar + action toolbar +
+   ops strip all live in the top ~145px), so nothing in that band ever overlaps them. */
+body.geoshell .geoInspector,
+body.geoshell .geoDecision,
+body.geoshell .geoAlerts { top: 150px; max-height: calc(100vh - 182px); }
+body.geoshell .geoInspector .gfBody,
+body.geoshell .geoDecision .gfBody,
+body.geoshell .geoAlerts .gfBody { max-height: calc(100vh - 236px); }
+/* the priority pill follows the lane */
+body.geoshell .decisionPill { top: 150px; }
+
+/* Action toolbar must not slide under the right-context panels (was clipping "Báo cáo…").
+   Cap its right extent to leave the 384px right lane clear. */
+body.geoshell .geoActions { max-width: min(760px, calc(100vw - 96px - 400px)); overflow-x: auto; scrollbar-width: none; }
+body.geoshell .geoActions::-webkit-scrollbar { display: none; }
+/* keep the group labels on one line — no awkward two-line wrap */
+body.geoshell .geoActions .actLabel { white-space: nowrap; }
+body.geoshell .geoActions .actGroup { flex: 0 0 auto; }
+
+/* Water badge moves to bottom-left (near the view control) so it stops colliding with
+   the dock flyouts, which open top-left from the icon dock. */
+/* Water badge = map-summary stats → anchor bottom-left, just above the view control,
+   clear of the vertically-centred dock and of the top chrme band. */
+body.geoshell #waterBadge {
+  top: auto; bottom: 150px; left: 74px; right: auto; z-index: 42;
+  flex-direction: row; flex-wrap: wrap; gap: 2px 12px; max-width: 340px;
+  padding: 6px 11px; background: linear-gradient(180deg, rgba(16,38,58,.82), rgba(9,22,36,.86));
+  border: 1px solid var(--line-strong); border-radius: 11px; backdrop-filter: blur(12px);
+}
+body.geoshell .geoFlyout { z-index: 45; }
+body.geoshell .geoFlyout { top: 76px; }
+
+/* On short screens, right panels + AI must not collide: push AI launcher/panel clear */
+@media (max-height: 800px) {
+  body.geoshell .geoInspector, body.geoshell .geoDecision, body.geoshell .geoAlerts { max-height: calc(100vh - 110px); }
 }

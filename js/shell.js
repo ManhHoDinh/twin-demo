@@ -74,6 +74,18 @@
       return this;
     }
     show(mode) {
+      // Right-lane coordination: only ONE primary right-context panel is open at a
+      // time (Inspector ⇄ Decision), so they never overlap. Newest wins; the other
+      // yields unless the operator pinned it. (Palantir/ArcGIS single-context pattern.)
+      if (this.opts.rightLane && !this.floating) {
+        Object.values(panels).forEach((pp) => {
+          if (pp === this || !pp.opts.rightLane || pp.mode === "hidden" || pp.pinned || pp.floating) return;
+          pp.hide();
+          // if it refused to hide (e.g. pending decision keeps its pill), it will have
+          // minimised itself; force it out of the lane visually so there is no overlap.
+          if (pp.mode !== "hidden") pp.node.classList.add("hidden-chrome");
+        });
+      }
       this.node.style.display = "";
       // force reflow so the transition runs
       void this.node.offsetWidth;
@@ -501,7 +513,7 @@
 
   /* ---------- Inspector (contextual, right) ---------- */
   function buildInspector() {
-    const fp = new FloatingPanel("inspector", { cls: "geoInspector", title: "Thông tin đối tượng", label: "Inspector", role: "complementary", pinnable: true });
+    const fp = new FloatingPanel("inspector", { cls: "geoInspector", title: "Thông tin đối tượng", label: "Inspector", role: "complementary", pinnable: true, rightLane: true });
     panels.inspector = fp;
     // homes for reused DOM (gauge panel is the richest; zone/res detail rendered by existing modal/render)
     const gauge = document.querySelector(".gaugePanel");
@@ -532,7 +544,7 @@
     };
     const fp = new FloatingPanel("decision", {
       cls: "geoDecision", title: "Quyết định vận hành · liên hồ", label: "Quyết định vận hành",
-      role: "dialog", pinnable: true,
+      role: "dialog", pinnable: true, rightLane: true,
       canHide: () => { if (pending()) { minimizePill(true); return false; } return true; },
       // when a proposal is live, bring the package into view (it's what matters, not the res list)
       onShow: (self) => {
@@ -574,7 +586,7 @@
 
   /* ---------- Alert stack ---------- */
   function buildAlerts() {
-    const fp = new FloatingPanel("alerts", { cls: "geoAlerts", title: "Cảnh báo · thông báo", label: "Cảnh báo", role: "log", pinnable: true });
+    const fp = new FloatingPanel("alerts", { cls: "geoAlerts", title: "Cảnh báo · thông báo", label: "Cảnh báo", role: "log", pinnable: true, rightLane: true });
     fp.adopt(document.querySelector(".alarmPanel"));
     panels.alerts = fp;
     key("n", "Cảnh báo", () => fp.toggle(), "Cảnh báo");
@@ -593,7 +605,9 @@
     fp.adopt(document.querySelector(".llmPanel"));
     panels.ai = fp;
     const launch = el("button", "aiLauncher", "✦"); launch.type = "button"; launch.title = "Trợ lý AI (⌘J)"; launch.setAttribute("aria-label", "Trợ lý AI");
-    launch.addEventListener("click", () => { fp.toggle(); launch.style.display = fp.mode === "hidden" ? "" : "none"; });
+    launch.addEventListener("click", () => fp.toggle());
+    // launcher hides whenever the panel is open, by ANY path (click, ⌘J, palette) — no overlap
+    fp.opts.onShow = () => { launch.style.display = "none"; };
     fp.opts.onHide = () => { launch.style.display = ""; };
     document.body.appendChild(launch);
     FT.dom.aiLaunch = launch;
