@@ -20,7 +20,7 @@ The request bundles two numbers that behave very differently.
 
 | Request | Physical meaning | Verdict |
 |---|---|---|
-| Terrain accurate to **0.1 m** | Vertical/horizontal error of the elevation surface vs. surveyed ground truth | **Achievable — but not from web tiles.** Requires airborne LiDAR. |
+| Terrain accurate to **0.1 m** | Vertical/horizontal error of the elevation surface vs. surveyed ground truth | **Achievable over scoped urban windows** (commissioned LiDAR, §6/P6) — **not** basin-wide, and not from web tiles (§2.3). Note: the published models of this basin reached useful skill *without* it (§4.4). |
 | Water spread accurate to **0.01%** | Ambiguous. Two readings: (a) the solver conserves mass to 0.01%; (b) predicted flood extent/depth is within 0.01% of observed. | (a) **Achievable and already shipped.** (b) **Not achievable by anyone** — see §4. |
 
 Conflating (a) and (b) is the single most common way a flood product overstates itself.
@@ -169,6 +169,37 @@ Tracked in the product as a design target, explicitly **not trained** (see the m
 
 ---
 
+## 4.4 Prior art for THIS basin — what already worked (and what it cost)
+
+Before commissioning anything, note that operational, peer-reviewed hydraulic models of
+Vu Gia–Thu Bồn already exist. They are the realistic benchmark, and they materially change
+the recommended first step.
+
+| Study | Model | Terrain / geometry input | Calibration gauges | Reported skill |
+|---|---|---|---|---|
+| Loi et al., *Sensors* **20**(6):1667 (2020) — real-time flood EWS, VGTB ([PMC7147717](https://pmc.ncbi.nlm.nih.gov/articles/PMC7147717/)) | SWAT → **HEC-RAS** unsteady, RAS Mapper depth grids | "precise DTM combining river channels and inundation areas" — **source/resolution not documented**; **no LiDAR mentioned** | **Nông Sơn** (discharge), **Cầu Lâu** (water level) | SWAT Q: R² 0.93/0.92, NSE 0.92/0.91, PBIAS −0.64/3.77 (cal/val). **HEC-RAS stage at Cầu Lâu: R² 0.82/0.85, NSE 0.63/0.66, PBIAS 5.5/6.20** |
+| Flood-hazard assessment, VGTB, *Water Practice & Technology* **19**(10) (2024) | MIKE NAM → **MIKE 11 / MIKE FLOOD** 1D-2D | **785 surveyed river cross-sections**, ~400 m spacing, mainstems + 17 tributaries (309 km); offshore tidal BC from Global Tidal Model | **Thanh Mỹ**, **Nông Sơn** | 1D-2D coupled inundation mapping |
+
+**Three conclusions that change the plan:**
+
+1. **Validated results here were achieved WITHOUT LiDAR.** Channel conveyance came from
+   **surveyed cross-sections**, not a 0.1 m surface. For in-channel and overbank routing,
+   accurate *bathymetry* dominates accuracy far more than floodplain DEM resolution — and
+   bathymetry is exactly what the shipped demo lacks (channels are synthetically carved).
+2. **Realistic skill is now quantified for this basin.** Stage NSE ≈ **0.63–0.66** at Cầu Lâu
+   in a published operational system — a useful, honest yardstick. It is nowhere near
+   "0.01% error", and it is the number a serious proposal should be benchmarked against.
+3. **The calibration gauges already exist in this product.** `js/data.js` carries **Ái Nghĩa,
+   Câu Lâu, Giao Thủy, Cẩm Lệ** plus **Thạnh Mỹ** and **Nông Sơn** — the same stations these
+   studies calibrate on. A hindcast is therefore a *data-acquisition* task, not a
+   re-architecture task.
+
+**Revised P0 (see §6):** acquire **surveyed cross-sections + gauge time series**, not LiDAR.
+LiDAR becomes worthwhile only for floodplain/urban micro-topography (street-level depth in
+Hội An), i.e. a later, geographically-scoped phase — not a basin-wide prerequisite.
+
+---
+
 ## 5. Calibration and validation plan (non-optional)
 
 A survey-grade model that has not been calibrated is not survey-grade.
@@ -183,7 +214,10 @@ A survey-grade model that has not been calibrated is not survey-grade.
 4. **Split-sample validation** — calibrate on event A, validate on events B and C. Report
    metrics on the *validation* events, not the calibration event.
 5. **Acceptance** — CSI ≥ 0.80 (extent), stage RMSE ≤ 0.30 m, peak timing error ≤ 2 h,
-   mass conservation ≤ 0.01%.
+   mass conservation ≤ 0.01%. **Floor benchmark:** must at least match the published
+   operational result for this basin — stage **NSE ≥ 0.63, R² ≥ 0.82 at Cầu Lâu**
+   (Loi et al. 2020, §4.4). A model that cannot beat the existing literature on the same
+   river has not earned the word "validated".
 6. **Uncertainty** — ensemble over rainfall and roughness; publish depth percentiles, not a
    single deterministic surface.
 
@@ -191,18 +225,26 @@ A survey-grade model that has not been calibrated is not survey-grade.
 
 ## 6. Build order (each phase independently useful)
 
-| Phase | Deliverable | Gate |
-|---|---|---|
-| **P0** | Procure/commission LiDAR + bathymetry for the delta; independent accuracy report | vertical RMSE ≤ 0.10 m verified against RTK check points |
-| **P1** | Hydro-conditioned bare-earth DTM: breaklines, culverts/bridges burned, sinks filled | drainage-enforcement audit passes; no spurious sinks on the floodplain |
-| **P2** | Variable-resolution mesh (1–2 m urban / 5–10 m rural) + land-cover roughness field | mesh quality metrics; `n` map traceable to a published classification |
-| **P3** | 2D SWE FV solver deployment (HEC-RAS 2D / TELEMAC-2D or in-house HLLC) | analytical benchmarks pass: dam-break, wet/dry front, still-water balance |
-| **P4** | Calibration + split-sample validation per §5 | CSI ≥ 0.80, stage RMSE ≤ 0.30 m on **validation** events |
-| **P5** | Batch pipeline: forecast ensemble → depth/arrival-time grids → tiles for the twin | end-to-end run inside the forecast cycle time |
-| **P6** | Surrogate (FNO/DeepONet) trained on P3/P4 outputs, for interactive what-if | surrogate CSI within 0.05 of the full model |
+Ordered by **accuracy gained per unit cost**, informed by §4.4 — cheapest, highest-leverage
+data first. LiDAR is deliberately *late* and *scoped*, not a basin-wide prerequisite.
 
-**Phases P0–P2 are data procurement and preparation and carry most of the schedule risk.**
-No solver work can raise accuracy above the DTM it runs on.
+| Phase | Deliverable | Gate | Why here |
+|---|---|---|---|
+| **P0** | **Surveyed river cross-sections** (mainstems + main tributaries, ~400 m spacing, per §4.4) + **historical gauge time series** (Thạnh Mỹ, Nông Sơn, Ái Nghĩa, Câu Lâu) | geometry covers the modelled network; ≥ 3 events with continuous stage/Q | Channel conveyance dominates routing accuracy. This is what the published VGTB models actually used — **no LiDAR** |
+| **P1** | Replace synthetic carved channels with surveyed bathymetry in the model geometry | channel volume/conveyance reconciled against rating curves | Removes the demo's single largest physical gap |
+| **P2** | **Hindcast** an observed event end-to-end; report stage error at the same gauges the literature uses | beats or matches published benchmark (stage NSE ≥ 0.63 at Cầu Lâu) | First time this product has *any* physical validation — begins to address R-01 |
+| **P3** | Bare-earth floodplain DEM upgrade: FABDEM/Copernicus GLO-30 bias-corrected with **ICESat-2 ATL08** ground photons | vertical bias vs. ICESat-2 check points reduced; documented RMSE | Cheap, open-data accuracy gain before spending on flights |
+| **P4** | 2D SWE FV solver (HEC-RAS 2D / TELEMAC-2D or in-house HLLC), variable mesh 5–10 m floodplain | analytical benchmarks pass: dam-break, wet/dry front, still-water balance | Solver upgrade only pays off once geometry (P0–P3) is real |
+| **P5** | Full calibration + **split-sample** validation per §5; ensemble over rainfall/roughness | CSI ≥ 0.80, stage RMSE ≤ 0.30 m on **withheld** events | The gate that closes **ENG-RISK-001 / R-01** |
+| **P6** | **Scoped LiDAR** for urban micro-topography (Hội An, Vĩnh Điện cores only) + 1–2 m mesh there | vertical RMSE ≤ 0.10 m vs. RTK check points **in those windows** | Street-level depth needs it; the basin does not. This is where "0.1 m" actually lands |
+| **P7** | Batch pipeline → depth/arrival-time grids consumed by the browser twin; optional FNO surrogate | runs inside the forecast cycle; surrogate CSI within 0.05 of full model | Delivery + interactivity |
+
+**Schedule risk is concentrated in P0** (institutional data access: MONRE / Đà Nẵng DONRE /
+basin authority), not in solver engineering. **No solver work can raise accuracy above the
+geometry it runs on** — which is why P0–P3 precede P4.
+
+**Note on the "0.1 m" target:** it is met at **P6**, and only inside the surveyed urban
+windows. There is no realistic path to 0.1 m across the whole 96 × 96 km domain (§2.3).
 
 ---
 
@@ -225,7 +267,7 @@ This is the same boundary already held open as **ENG-RISK-001 / [R-01](../06-cri
 ("internal consistency, conservation and synthetic-case success are **not** physical
 validation" — status *OPEN — BLOCKS CLAIM*, see
 [`17-engineering-risks-and-open-questions.md`](17-engineering-risks-and-open-questions.md)).
-Phases P0–P4 in §6 are precisely the work that would close R-01; until they are complete and
+Phases **P0–P5** in §6 are precisely the work that would close R-01; until they are complete and
 independently reviewed, the words *validated*, *operational* and *decision-grade* remain
 unavailable to this product, and synthetic builds stay capped at LOW confidence.
 
@@ -233,12 +275,21 @@ unavailable to this product, and synthetic builds stay capped at LOW confidence.
 
 ## 8. One-paragraph answer for stakeholders
 
-> A 0.1 m-accurate 3D basin is achievable, but only with commissioned airborne LiDAR plus
-> bathymetric survey — not from any free web elevation source, and not inside a browser
-> (0.1 m over this basin is a multi-terabyte, HPC-scale problem). A 0.01% figure is
-> achievable for **numerical mass conservation** — our solver measures 10⁻⁶–10⁻⁴ % today and
-> proves it with an automated test — but **not** for physical flood-extent accuracy, where
-> the best validated models worldwide reach CSI 0.70–0.90 because rainfall, roughness and
-> terrain inputs each carry 10–50% uncertainty. The correct target to contract against is
-> CSI ≥ 0.80 and stage RMSE ≤ 0.30 m on withheld historical events, with mass conservation
-> reported separately as the solver property it is.
+> **0.1 m terrain** is achievable — but only over *surveyed urban windows* (Hội An, Vĩnh
+> Điện), via commissioned LiDAR, and not inside a browser: 0.1 m across the whole 96 × 96 km
+> domain is a multi-terabyte, HPC-scale problem (§2.3). **0.01%** is achievable for
+> **numerical mass conservation** — our solver measures 10⁻⁶–10⁻⁴ % today and proves it with
+> an automated test — but **not** for physical flood-extent accuracy, where the best
+> validated models worldwide reach CSI 0.70–0.90 because rainfall, roughness and terrain
+> inputs each carry 10–50% uncertainty.
+>
+> **The cheapest large accuracy gain is not LiDAR.** Peer-reviewed operational models of this
+> exact basin reached stage NSE ≈ 0.63–0.66 at Cầu Lâu using **surveyed river cross-sections
+> and no LiDAR at all** (§4.4). Our demo's biggest physical gap is that its channels are
+> synthetically carved. So the first investment is **bathymetry + historical gauge records**
+> (P0–P2), which also enables the first real hindcast — the step that begins to close R-01.
+> LiDAR is a later, geographically-scoped phase (P6).
+>
+> Contract against **CSI ≥ 0.80 and stage RMSE ≤ 0.30 m on withheld events**, with a floor of
+> matching the published NSE ≥ 0.63 at Cầu Lâu, and report mass conservation separately as
+> the solver property it is.
