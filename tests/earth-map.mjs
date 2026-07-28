@@ -506,9 +506,12 @@ async function earthControls(browser) {
       closeButton?.focus({ preventScroll: true });
       closeButton?.click();
       await waitFrame();
+      FT.bus.emit('lang');
+      await waitFrame();
       const closeResult = {
         hidden: document.getElementById('earthPlaceSheet')?.hidden,
         activeId: document.activeElement?.id || null,
+        legacyInspectorVisible: visible(document.getElementById('explainInspector')),
       };
 
       origin.focus({ preventScroll: true });
@@ -565,6 +568,7 @@ async function earthControls(browser) {
       !gaugeActions.zoom.disabled &&
       !gaugeActions.orbit.disabled &&
       result.closeResult.hidden === true &&
+      result.closeResult.legacyInspectorVisible === false &&
       result.closeResult.activeId === 'canvas2d' &&
       result.pointSheet.visible &&
       /điểm|point|ô lưới/i.test(result.pointSheet.type) &&

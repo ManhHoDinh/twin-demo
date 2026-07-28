@@ -459,11 +459,10 @@
       window.queueMicrotask(suppressLegacyInspector);
     });
     ["scrubbed", "hydroRebuilt", "lang", "viewChanged"].forEach((eventName) => FT.bus.on(eventName, () => {
-      if (activePlaceSelection && !sheet.hidden) {
-        suppressLegacyInspector();
-        renderPlaceSheet(false);
-        window.queueMicrotask(suppressLegacyInspector);
-      }
+      if (!activePlaceSelection) return;
+      suppressLegacyInspector();
+      if (!sheet.hidden) renderPlaceSheet(false);
+      window.queueMicrotask(suppressLegacyInspector);
     }));
     document.addEventListener("keydown", (ev) => {
       if (ev.key !== "Escape" || sheet.hidden) return;
