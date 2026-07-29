@@ -241,6 +241,12 @@
 
     <!-- ============ CENTER STAGE ============ -->
     <main class="stage">
+      <nav class="workspaceNav" id="workspaceNav" aria-label="Không gian vận hành">
+        <button type="button" data-workspace="city">Điều hành thành phố</button>
+        <button type="button" data-workspace="plant">Vận hành nhà máy</button>
+      </nav>
+      <div class="roleWorkspaceHost" id="roleWorkspaceHost" hidden></div>
+
       <div class="viewBar">
         <div class="viewTabs" id="viewTabs" role="tablist">
           <button type="button" data-view="3d" class="isActive" role="tab" aria-selected="true"><span data-i18n="view.3d">Song sinh số 3D</span></button>
@@ -524,6 +530,7 @@
   <script src="./js/geo.js?v=127"></script>
   <script src="./js/data.js?v=128"></script>
   <script src="./js/facility-registry.js?v=129"></script>
+  <script src="./js/workspaces.js?v=130"></script>
   <script src="./js/address.js?v=128"></script>
   <script src="./js/hydro.js?v=127"></script>
   <script src="./js/decision.js?v=127"></script>

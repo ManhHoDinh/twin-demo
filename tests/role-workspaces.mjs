@@ -2,11 +2,191 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { listen } from './serve.mjs';
 import { launchGpu } from './browser.mjs';
-import { step, check, usePage, bootApp, report, results, setTime, signOnRole, ROLE } from './harness.mjs';
+import { step, check, usePage, bootApp, report, results, setTime, signOnRole, ROLE, openWorkspace } from './harness.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
 let BASE = '';
+
+async function workspaceRouting(browser) {
+  step('RW · URL routed role workspaces');
+  const directCity = await bootApp(browser, BASE, { hash: '?workspace=city' });
+  usePage(directCity.page);
+
+  await check('direct city workspace route boots into dedicated host', async (detail) => {
+    const state = await directCity.page.evaluate(() => ({
+      api: !!(window.FT && window.FT.workspaces),
+      workspace: window.FT && FT.state.workspace,
+      bodyWorkspace: document.body.dataset.workspace,
+      hostHidden: document.getElementById('roleWorkspaceHost')?.hidden,
+      stageParentId: document.getElementById('stageWrap')?.parentElement?.dataset.workspaceMapSlot || null,
+      url: location.search,
+    }));
+    detail(state);
+    return state.api &&
+      state.workspace === 'city' &&
+      state.bodyWorkspace === 'city' &&
+      state.hostHidden === false &&
+      state.stageParentId === 'city' &&
+      new URLSearchParams(state.url).get('workspace') === 'city';
+  });
+  await directCity.ctx.close();
+
+  const directPlant = await bootApp(browser, BASE, { hash: '?workspace=plant&facility=a-vuong' });
+  usePage(directPlant.page);
+  await check('direct plant route preserves governed facility selection', async (detail) => {
+    const state = await directPlant.page.evaluate(() => ({
+      workspace: FT.state.workspace,
+      bodyWorkspace: document.body.dataset.workspace,
+      facility: FT.state.selectedFacilityId,
+      current: FT.workspaces.current(),
+      url: location.search,
+      hostHidden: document.getElementById('roleWorkspaceHost')?.hidden,
+      mapInSlot: document.getElementById('stageWrap')?.parentElement?.dataset.workspaceMapSlot === 'plant',
+    }));
+    detail(state);
+    return state.workspace === 'plant' &&
+      state.bodyWorkspace === 'plant' &&
+      state.facility === 'a-vuong' &&
+      state.current.facilityId === 'a-vuong' &&
+      state.hostHidden === false &&
+      state.mapInSlot &&
+      new URLSearchParams(state.url).get('facility') === 'a-vuong';
+  });
+
+  await check('API navigation synchronizes query, state and browser history', async (detail) => {
+    const before = await directPlant.page.evaluate(() => history.length);
+    await openWorkspace(directPlant.page, 'city');
+    const state = await directPlant.page.evaluate(() => ({
+      before: window.__historyBefore,
+      length: history.length,
+      workspace: FT.state.workspace,
+      bodyWorkspace: document.body.dataset.workspace,
+      current: FT.workspaces.current(),
+      search: location.search,
+      hostHidden: document.getElementById('roleWorkspaceHost').hidden,
+    }));
+    state.before = before;
+    detail(state);
+    return state.length >= before + 1 &&
+      state.workspace === 'city' &&
+      state.bodyWorkspace === 'city' &&
+      state.current.workspace === 'city' &&
+      new URLSearchParams(state.search).get('workspace') === 'city' &&
+      state.hostHidden === false;
+  });
+
+  await check('browser back and forward restore routed workspace state', async (detail) => {
+    await directPlant.page.goBack({ waitUntil: 'domcontentloaded' }).catch(() => null);
+    await directPlant.page.waitForFunction(() => document.body.dataset.workspace === 'plant');
+    const back = await directPlant.page.evaluate(() => ({
+      workspace: FT.state.workspace,
+      facility: FT.state.selectedFacilityId,
+      search: location.search,
+    }));
+    await directPlant.page.goForward({ waitUntil: 'domcontentloaded' }).catch(() => null);
+    await directPlant.page.waitForFunction(() => document.body.dataset.workspace === 'city');
+    const forward = await directPlant.page.evaluate(() => ({
+      workspace: FT.state.workspace,
+      facility: FT.state.selectedFacilityId,
+      search: location.search,
+    }));
+    detail({ back, forward });
+    return back.workspace === 'plant' &&
+      back.facility === 'a-vuong' &&
+      new URLSearchParams(back.search).get('facility') === 'a-vuong' &&
+      forward.workspace === 'city' &&
+      new URLSearchParams(forward.search).get('workspace') === 'city';
+  });
+
+  await check('map route restoration returns shared map node to original shell parent and position', async (detail) => {
+    const state = await directPlant.page.evaluate(() => {
+      const before = window.FT.workspaces.sharedMapNode;
+      window.FT.workspaces.navigate('map');
+      const stage = document.getElementById('stageWrap');
+      return {
+        sameNode: before === stage,
+        workspace: FT.state.workspace,
+        bodyWorkspace: document.body.dataset.workspace,
+        hostHidden: document.getElementById('roleWorkspaceHost').hidden,
+        parentClass: stage.parentElement.className,
+        previousClass: stage.previousElementSibling && stage.previousElementSibling.className,
+        inMapSlot: !!stage.parentElement.dataset.workspaceMapSlot,
+        search: location.search,
+      };
+    });
+    await directPlant.page.waitForFunction(() => document.body.dataset.workspace === 'map');
+    detail(state);
+    return state.sameNode &&
+      state.workspace === 'map' &&
+      state.bodyWorkspace === 'map' &&
+      state.hostHidden === true &&
+      /\bstage\b/.test(state.parentClass) &&
+      /\bviewBar\b/.test(state.previousClass || '') &&
+      state.inMapSlot === false &&
+      !new URLSearchParams(state.search).has('workspace');
+  });
+
+  await check('shared map node identity survives route switches', async (detail) => {
+    const identity = await directPlant.page.evaluate(() => {
+      const before = window.FT.workspaces.sharedMapNode;
+      window.FT.workspaces.navigate('plant', { facilityId: 'a-vuong' });
+      return {
+        sameAsStage: before === document.getElementById('stageWrap'),
+        sameApiNode: before === window.FT.workspaces.sharedMapNode,
+        workspace: FT.state.workspace,
+        mapInSlot: document.getElementById('stageWrap').parentElement.dataset.workspaceMapSlot === 'plant',
+      };
+    });
+    detail(identity);
+    return identity.sameAsStage && identity.sameApiNode && identity.workspace === 'plant' && identity.mapInSlot;
+  });
+
+  await check('workspace API exposes a read-only route snapshot and stable map node', async (detail) => {
+    const state = await directPlant.page.evaluate(() => {
+      const api = window.FT.workspaces;
+      const current = api.current();
+      const node = api.sharedMapNode;
+      try { current.workspace = 'city'; } catch {}
+      try { api.sharedMapNode = document.createElement('div'); } catch {}
+      const descriptor = Object.getOwnPropertyDescriptor(api, 'sharedMapNode');
+      return {
+        frozen: Object.isFrozen(current),
+        snapshotUnchanged: current.workspace === 'plant',
+        nodeUnchanged: api.sharedMapNode === node && node === document.getElementById('stageWrap'),
+        getterOnly: typeof descriptor.get === 'function' && descriptor.set === undefined,
+      };
+    });
+    detail(state);
+    return state.frozen &&
+      state.snapshotUnchanged &&
+      state.nodeUnchanged &&
+      state.getterOnly;
+  });
+
+  await check('invalid workspace and facility values normalize without inventing facility records', async (detail) => {
+    const state = await directPlant.page.evaluate(() => {
+      window.FT.workspaces.navigate('plant', { facilityId: 'not-real' });
+      const kept = FT.state.selectedFacilityId;
+      window.FT.workspaces.navigate('unknown', { facilityId: 'also-fake' });
+      return {
+        kept,
+        workspace: FT.state.workspace,
+        bodyWorkspace: document.body.dataset.workspace,
+        current: FT.workspaces.current(),
+        search: location.search,
+      };
+    });
+    detail(state);
+    return state.kept === 'a-vuong' &&
+      state.workspace === 'map' &&
+      state.bodyWorkspace === 'map' &&
+      state.current.workspace === 'map' &&
+      !new URLSearchParams(state.search).has('workspace');
+  });
+
+  await directPlant.ctx.close();
+}
 
 async function governedFacilityRegistry(browser) {
   step('RW · Governed municipal facility registry');
@@ -415,6 +595,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const browser = await launchGpu();
   const t0 = Date.now();
   try {
+    await workspaceRouting(browser);
     await governedFacilityRegistry(browser);
     await sharedReleaseWorkflowStore(browser);
   } finally {

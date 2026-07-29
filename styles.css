@@ -89,6 +89,101 @@ canvas { display: block; }
 .stage { grid-area: stage; }
 .statusbar { grid-area: foot; }
 
+/* ============ ROLE WORKSPACE ROUTING ============ */
+.workspaceNav {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 70;
+  display: flex;
+  gap: 6px;
+  padding: 5px;
+  background: rgba(7, 19, 32, 0.82);
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(12px);
+}
+.workspaceNav button {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--ink-1);
+  border-radius: 7px;
+  padding: 7px 10px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.workspaceNav button:hover,
+.workspaceNav button:focus-visible {
+  color: var(--ink-0);
+  border-color: var(--line-strong);
+  outline: none;
+}
+.workspaceNav button.isActive {
+  color: #04121f;
+  background: var(--cyan);
+}
+.roleWorkspaceHost {
+  position: fixed;
+  inset: 0;
+  z-index: 12;
+  overflow: hidden;
+  background: var(--bg-0);
+}
+.workspacePlaceholder {
+  min-height: 100%;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 12px;
+  padding: 68px 12px 12px;
+}
+.workspacePlaceholder > header {
+  max-width: 860px;
+  margin: 0 auto;
+  text-align: center;
+}
+.workspacePlaceholder h2 {
+  margin: 0;
+  font-size: 18px;
+}
+.workspacePlaceholder p {
+  margin: 3px 0 0;
+  color: var(--ink-2);
+}
+.workspaceMapSlot {
+  position: relative;
+  min-height: 0;
+  border: 1px solid var(--line);
+  background: #071320;
+  overflow: hidden;
+}
+body[data-workspace="city"] .roleWorkspaceHost,
+body[data-workspace="plant"] .roleWorkspaceHost { display: block; }
+body[data-workspace="city"] .roleWorkspaceHost .stageCanvasWrap,
+body[data-workspace="plant"] .roleWorkspaceHost .stageCanvasWrap {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+}
+@media (max-width: 700px) {
+  .workspaceNav {
+    left: 8px;
+    right: 8px;
+    transform: none;
+    justify-content: center;
+  }
+  .workspaceNav button {
+    flex: 1 1 0;
+    min-height: 40px;
+    padding: 7px 6px;
+  }
+  .workspacePlaceholder { padding-top: 72px; }
+}
+
 /* ============ TOP BAR ============ */
 .topbar {
   display: flex;

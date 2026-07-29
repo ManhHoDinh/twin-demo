@@ -17,6 +17,8 @@
     lang: "vi",
     scenario: "oct2020",
     policy: "rule",            // "rule" | "mpc"
+    workspace: "map",          // "map" | "city" | "plant"
+    selectedFacilityId: "a-vuong",
     mpcApproved: false,
     timeH: -6,                 // simulation time, hours relative to "now" [-24, +48]
     playing: true,
