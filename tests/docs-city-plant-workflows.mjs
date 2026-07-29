@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -134,3 +135,9 @@ if (failures.length) {
   for (const failure of failures) console.error(`- ${failure}`);
   process.exit(1);
 }
+
+const roleWorkspace = spawnSync(process.execPath, ['tests/role-workspaces.mjs'], {
+  cwd: ROOT,
+  stdio: 'inherit',
+});
+if (roleWorkspace.status !== 0) process.exit(roleWorkspace.status || 1);
