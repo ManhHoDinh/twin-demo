@@ -200,8 +200,8 @@
     return selection;
   }
 
-  function placeCoordinates(selection) {
-    if (!selection) return "—";
+  function placeLocation(selection) {
+    if (!selection) return { longitude: null, latitude: null, xKm: null, yKm: null };
     const x = Number.isFinite(selection.xKm) ? selection.xKm : null;
     const y = Number.isFinite(selection.yKm) ? selection.yKm : null;
     const ll = Number.isFinite(selection.longitude) && Number.isFinite(selection.latitude)
@@ -209,8 +209,22 @@
       : x != null && y != null && FT.geo && FT.geo.km2ll
         ? FT.geo.km2ll(x, y)
         : null;
+    return {
+      longitude: ll ? ll[0] : null,
+      latitude: ll ? ll[1] : null,
+      xKm: x,
+      yKm: y,
+    };
+  }
+
+  function placeCoordinates(selection) {
+    const location = placeLocation(selection);
+    const x = location.xKm;
+    const y = location.yKm;
     const km = x != null && y != null ? `x ${U.fmt(x, 2)} km · y ${U.fmt(y, 2)} km` : "";
-    const lonLat = ll ? `${U.fmt(ll[1], 5)}°, ${U.fmt(ll[0], 5)}°` : "";
+    const lonLat = location.longitude != null && location.latitude != null
+      ? `${U.fmt(location.latitude, 5)}°, ${U.fmt(location.longitude, 5)}°`
+      : "";
     return [lonLat, km].filter(Boolean).join(" · ") || "—";
   }
 
@@ -293,6 +307,7 @@
       name: placeName(sel),
       type: placeType(sel),
       coordinates: placeCoordinates(sel),
+      location: placeLocation(sel),
       observed: {
         available: !!observedQ,
         label: "HIỆN TRẠNG",
@@ -319,6 +334,8 @@
         id: sel.id,
         xKm: sel.xKm,
         yKm: sel.yKm,
+        longitude: sel.longitude,
+        latitude: sel.latitude,
       },
       contractError,
       contract,

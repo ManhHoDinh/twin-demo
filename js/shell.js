@@ -21,6 +21,7 @@
 
   const reduceMotion = () => window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   let placeSheet = null, placeReturnFocus = null, activePlaceSelection = null, usePlaceSurface = false;
+  let addressRequestId = 0, addressController = null, activeAddressKey = "";
 
   /* ======================================================================
      FloatingPanel — the universal state machine
@@ -308,6 +309,10 @@
 
   function closePlaceSheet() {
     if (!placeSheet || placeSheet.hidden) return;
+    addressRequestId += 1;
+    if (addressController) addressController.abort();
+    addressController = null;
+    activeAddressKey = "";
     placeSheet.hidden = true;
     document.body.classList.remove("place-sheet-open");
     restorePlaceFocus();
@@ -317,6 +322,41 @@
     const inspector = document.getElementById("explainInspector");
     if (inspector) inspector.hidden = true;
     document.body.classList.remove("explain-open");
+  }
+
+  function renderPlaceAddress(vm) {
+    const node = placeSheet && placeSheet.querySelector('[data-place-field="address"]');
+    const location = vm && vm.location;
+    if (!node || !location || !Number.isFinite(location.longitude) || !Number.isFinite(location.latitude) || !FT.address) {
+      if (node) {
+        node.textContent = "Chưa xác định được địa chỉ";
+        node.dataset.addressStatus = "unavailable";
+      }
+      return;
+    }
+    const key = `${location.latitude.toFixed(5)},${location.longitude.toFixed(5)}`;
+    if (key === activeAddressKey) return;
+    activeAddressKey = key;
+    addressRequestId += 1;
+    const requestId = addressRequestId;
+    if (addressController) addressController.abort();
+    addressController = typeof AbortController === "function" ? new AbortController() : null;
+    node.textContent = "Đang tìm địa chỉ...";
+    node.dataset.addressStatus = "loading";
+    FT.address.lookup({
+      longitude: location.longitude,
+      latitude: location.latitude,
+      signal: addressController && addressController.signal,
+    }).then((result) => {
+      if (requestId !== addressRequestId || key !== activeAddressKey || !placeSheet || placeSheet.hidden) return;
+      node.textContent = result && result.text || "Chưa xác định được địa chỉ";
+      node.dataset.addressStatus = result && result.status || "unavailable";
+    }).catch((error) => {
+      if (error && error.name === "AbortError") return;
+      if (requestId !== addressRequestId || key !== activeAddressKey || !placeSheet || placeSheet.hidden) return;
+      node.textContent = "Chưa xác định được địa chỉ";
+      node.dataset.addressStatus = "unavailable";
+    });
   }
 
   function renderPlaceSheet(moveFocus) {
@@ -370,6 +410,7 @@
     placeSheet.querySelector('[data-place-action="zoom"]').disabled = !vm.actions.canFly;
     placeSheet.hidden = false;
     document.body.classList.add("place-sheet-open");
+    renderPlaceAddress(vm);
     if (moveFocus) {
       const close = placeSheet.querySelector('[data-place-action="close"]');
       close && close.focus({ preventScroll: true });
@@ -402,7 +443,13 @@
     type.dataset.placeField = "type";
     const coordinates = el("small");
     coordinates.dataset.placeField = "coordinates";
-    summary.append(name, type, coordinates);
+    const address = el("div", "earthPlaceAddress");
+    const addressLabel = el("span", "", "Địa chỉ");
+    const addressValue = el("strong");
+    addressValue.dataset.placeField = "address";
+    addressValue.setAttribute("aria-live", "polite");
+    address.append(addressLabel, addressValue);
+    summary.append(name, type, coordinates, address);
 
     const observed = el("section", "earthPlaceSection observed");
     observed.dataset.placeSection = "observed";

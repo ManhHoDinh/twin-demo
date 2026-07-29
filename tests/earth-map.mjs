@@ -486,6 +486,51 @@ async function earthControls(browser) {
       result.requestCount === 1;
   });
 
+  await check('Place sheet shows address loading and ignores a stale lookup response', async (d) => {
+    const result = await page.evaluate(async () => {
+      const FT = window.FT;
+      const originalLookup = FT.address.lookup;
+      const pending = [];
+      const waitFrame = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const addressText = () => document.querySelector('[data-place-field="address"]')?.textContent || '';
+      FT.address.lookup = ({ longitude, latitude }) => new Promise((resolve) => {
+        pending.push({ longitude, latitude, resolve });
+      });
+      try {
+        const canvas = document.getElementById('canvas2d');
+        FT.bus.emit('explainOrigin', { element: canvas, moveFocus: false });
+        FT.explain.select({ kind: 'point', xKm: 12, yKm: 84 });
+        await waitFrame();
+        const loading = addressText();
+        FT.bus.emit('explainOrigin', { element: canvas, moveFocus: false });
+        FT.explain.select({ kind: 'point', xKm: 42, yKm: 55 });
+        await waitFrame();
+        if (pending[0]) pending[0].resolve({ status: 'resolved', text: 'Địa chỉ cũ' });
+        if (pending[1]) pending[1].resolve({ status: 'resolved', text: 'Xã Thu Bồn, Thành phố Đà Nẵng' });
+        await waitFrame();
+        await Promise.resolve();
+        const node = document.querySelector('[data-place-field="address"]');
+        return {
+          loading,
+          finalAddress: addressText(),
+          status: node?.dataset.addressStatus || '',
+          requestCount: pending.length,
+          coordinates: document.querySelector('[data-place-field="coordinates"]')?.textContent || '',
+        };
+      } finally {
+        FT.address.lookup = originalLookup;
+        FT.explain.clear();
+      }
+    });
+    d(result);
+    return /Đang tìm địa chỉ/.test(result.loading) &&
+      result.finalAddress === 'Xã Thu Bồn, Thành phố Đà Nẵng' &&
+      !/Địa chỉ cũ/.test(result.finalAddress) &&
+      result.status === 'resolved' &&
+      result.requestCount === 2 &&
+      /\d/.test(result.coordinates);
+  });
+
   await check('Earth place sheet separates observed and simulated truth for gauges and arbitrary terrain points', async (d) => {
     const result = await page.evaluate(async () => {
       const FT = window.FT;
