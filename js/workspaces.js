@@ -61,10 +61,6 @@
     return !!a && !!b && a.workspace === b.workspace && a.facilityId === b.facilityId;
   }
 
-  function clearHost() {
-    if (host) host.replaceChildren();
-  }
-
   function restoreMapNode() {
     if (!sharedMapNode || !originalMapParent) return;
     if (originalMapNext && originalMapNext.parentNode === originalMapParent) {
@@ -74,30 +70,104 @@
     }
   }
 
-  function mapSlot(workspace) {
-    return host && host.querySelector(`[data-workspace-map-slot="${workspace}"]`);
+  function restoreSharedMapForCurrentRoute() {
+    if (route.workspace === "map") {
+      restoreMapNode();
+      return;
+    }
+    const slot = mapSlot(host, route.workspace);
+    if (slot) slot.appendChild(sharedMapNode);
+    else restoreMapNode();
   }
 
-  function appendRendered(value) {
+  function mapSlot(root, workspace) {
+    return root && root.querySelector(`[data-workspace-map-slot="${workspace}"]`);
+  }
+
+  function appendRendered(target, value) {
     if (!value) return;
-    if (value instanceof Node && value !== host) host.appendChild(value);
+    if (value instanceof Node && value !== target) {
+      target.appendChild(value);
+      return;
+    }
+    if (value !== target) throw new TypeError("workspace renderer must return a Node, DocumentFragment, or render into host");
   }
 
-  function placeholder(workspace) {
+  function placeholder(workspace, error) {
     const shell = document.createElement("section");
     shell.className = "workspacePlaceholder";
+    if (error) shell.classList.add("workspaceError");
     shell.setAttribute("aria-label", workspace === "city" ? "Điều hành thành phố" : "Vận hành nhà máy");
+    if (error) shell.setAttribute("role", "alert");
     const head = document.createElement("header");
     const title = document.createElement("h2");
     title.textContent = workspace === "city" ? "Điều hành thành phố" : "Vận hành nhà máy";
     const note = document.createElement("p");
-    note.textContent = "Không gian vận hành đang chờ mô-đun dashboard.";
+    note.textContent = error ? "Không tải được mô-đun dashboard. Bản đồ vận hành vẫn khả dụng." : "Không gian vận hành đang chờ mô-đun dashboard.";
     head.append(title, note);
     const slot = document.createElement("div");
     slot.className = "workspaceMapSlot";
     slot.dataset.workspaceMapSlot = workspace;
     shell.append(head, slot);
     return shell;
+  }
+
+  function reportRenderError(workspace, error) {
+    const message = error && error.message ? error.message : String(error || "unknown renderer error");
+    console.error(`[FT.workspaces:${workspace}] renderer failed`, error);
+    if (FT.bus) FT.bus.emit("workspaceRenderError", Object.freeze({ workspace, message }));
+  }
+
+  function ensureMapSlot(target, workspace) {
+    if (mapSlot(target, workspace)) return;
+    const slot = document.createElement("div");
+    slot.className = "workspaceMapSlot";
+    slot.dataset.workspaceMapSlot = workspace;
+    target.appendChild(slot);
+  }
+
+  function prepareWorkspace(workspace, renderer) {
+    const staging = document.createElement("div");
+    staging.className = "workspaceStageBuffer";
+    const context = Object.freeze({
+      workspace,
+      facilityId: route.facilityId,
+      host: staging,
+      sharedMapNode,
+      FT,
+    });
+
+    if (typeof renderer !== "function") {
+      staging.appendChild(placeholder(workspace));
+      return { ok: true, staging };
+    }
+
+    try {
+      const before = staging.childNodes.length;
+      const value = renderer(context);
+      appendRendered(staging, value);
+      if (staging.childNodes.length === before) {
+        throw new TypeError("workspace renderer produced no content");
+      }
+      if (!sharedMapNode.isConnected || staging.contains(sharedMapNode)) {
+        throw new TypeError("workspace renderer must not move the shared map node");
+      }
+      ensureMapSlot(staging, workspace);
+      return { ok: true, staging };
+    } catch (error) {
+      restoreSharedMapForCurrentRoute();
+      reportRenderError(workspace, error);
+      staging.replaceChildren(placeholder(workspace, error));
+      return { ok: false, staging, error };
+    }
+  }
+
+  function commitWorkspace(prepared, workspace) {
+    host.hidden = false;
+    restoreMapNode();
+    host.replaceChildren(...Array.from(prepared.staging.childNodes));
+    const slot = mapSlot(host, workspace);
+    if (slot) slot.appendChild(sharedMapNode);
   }
 
   function render() {
@@ -115,30 +185,16 @@
 
     if (route.workspace === "map") {
       restoreMapNode();
-      clearHost();
+      host.replaceChildren();
       host.hidden = true;
       return;
     }
 
-    host.hidden = false;
-    clearHost();
-    const renderer = renderers.get(route.workspace);
-    const context = Object.freeze({
-      workspace: route.workspace,
-      facilityId: route.facilityId,
-      host,
-      sharedMapNode,
-      FT,
-    });
-
     // Renderer contract: renderers may either mutate context.host directly and return
     // nothing, or return a Node/DocumentFragment. They receive normalized route data.
-    const before = host.childNodes.length;
-    if (typeof renderer === "function") appendRendered(renderer(context));
-    if (!renderer || host.childNodes.length === before) host.appendChild(placeholder(route.workspace));
-
-    const slot = mapSlot(route.workspace);
-    if (slot) slot.appendChild(sharedMapNode);
+    // Rendering is staged off-DOM; the live host and map node are touched only after
+    // the candidate content has been constructed or converted to an accessible fallback.
+    commitWorkspace(prepareWorkspace(route.workspace, renderers.get(route.workspace)), route.workspace);
   }
 
   function applyRoute(next, options) {
@@ -173,8 +229,14 @@
   function register(name, renderer) {
     const workspace = normalizeWorkspace(name);
     if (workspace === "map" || typeof renderer !== "function") return false;
+    if (route.workspace === workspace) {
+      const prepared = prepareWorkspace(workspace, renderer);
+      if (!prepared.ok) return false;
+      renderers.set(workspace, renderer);
+      commitWorkspace(prepared, workspace);
+      return true;
+    }
     renderers.set(workspace, renderer);
-    if (route.workspace === workspace) render();
     return true;
   }
 

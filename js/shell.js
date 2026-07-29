@@ -24,6 +24,14 @@
   let addressRequestId = 0, addressController = null, activeAddressKey = "";
   const workspaceYieldState = new WeakMap();
 
+  function shellWorkspace() {
+    return FT.state && FT.state.workspace || "map";
+  }
+
+  function shellChromeAllowed() {
+    return shellWorkspace() === "map";
+  }
+
   /* ======================================================================
      FloatingPanel — the universal state machine
      modes: hidden · collapsed · expanded · fullscreen ; flags: floating(drag) · pinned
@@ -77,6 +85,10 @@
       return this;
     }
     show(mode) {
+      if (!shellChromeAllowed()) {
+        syncWorkspaceYield({ workspace: shellWorkspace() });
+        return this;
+      }
       // Right-lane coordination: only ONE primary right-context panel is open at a
       // time (Inspector ⇄ Decision), so they never overlap. Newest wins; the other
       // yields unless the operator pinned it. (Palantir/ArcGIS single-context pattern.)
@@ -161,6 +173,10 @@
   const MapMode = {
     current: null,
     set(m) {
+      if (!shellChromeAllowed()) {
+        syncWorkspaceYield({ workspace: shellWorkspace() });
+        return;
+      }
       MODES.forEach((x) => document.body.classList.toggle("mode-" + x, x === m && this.current !== m));
       this.current = this.current === m ? null : m;
       MODES.forEach((x) => document.body.classList.toggle("mode-" + x, x === this.current));
@@ -581,6 +597,10 @@
   }
   function initKeys() {
     document.addEventListener("keydown", (e) => {
+      if (!shellChromeAllowed() && e.key !== "Escape") {
+        syncWorkspaceYield({ workspace: shellWorkspace() });
+        return;
+      }
       // ⌘K / Esc / ? work even in fields; the rest don't
       const isPalette = matchCombo(e, "cmd+k");
       if (!isPalette && e.key !== "Escape" && inField(e)) return;
@@ -771,6 +791,10 @@
   }
 
   function opsPopover() {
+    if (!shellChromeAllowed()) {
+      syncWorkspaceYield({ workspace: shellWorkspace() });
+      return;
+    }
     // lightweight popover reusing the original ops fields (moved in, restored on close)
     let pop = $("opsPopover");
     if (pop) { pop.remove(); return; }
@@ -849,8 +873,22 @@
       cmds.push({ g: "Lệnh", ico: "▤", label: "Ngăn nhật ký / kiểm toán", key: "⌘L", run: () => panels.drawer.toggle() });
       return cmds;
     },
-    open(q) { this.ensure(); this.node.classList.add("open"); this.render(q || ""); },
-    toggle() { this.ensure(); if (this.node.classList.contains("open")) this.close(); else { this.open(""); this.input.focus(); } },
+    open(q) {
+      if (!shellChromeAllowed()) {
+        if (this.node) this.close();
+        syncWorkspaceYield({ workspace: shellWorkspace() });
+        return;
+      }
+      this.ensure(); this.node.classList.add("open"); this.render(q || "");
+    },
+    toggle() {
+      if (!shellChromeAllowed()) {
+        if (this.node) this.close();
+        syncWorkspaceYield({ workspace: shellWorkspace() });
+        return;
+      }
+      this.ensure(); if (this.node.classList.contains("open")) this.close(); else { this.open(""); this.input.focus(); }
+    },
     close() { this.node && this.node.classList.remove("open"); },
     render(q) {
       const all = this.catalog();

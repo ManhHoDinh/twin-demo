@@ -188,6 +188,254 @@ async function workspaceRouting(browser) {
   await directPlant.ctx.close();
 }
 
+async function workspaceRendererIsolation(browser) {
+  step('RW · Workspace renderer isolation');
+  const { ctx, page } = await bootApp(browser, BASE);
+  usePage(page);
+
+  await check('active renderer replacement is transactional on throw', async (detail) => {
+    const state = await page.evaluate(() => {
+      const FT = window.FT;
+      const stage = document.getElementById('stageWrap');
+      FT.workspaces.register('city', ({ workspace }) => {
+        const shell = document.createElement('section');
+        shell.dataset.testRenderer = 'working-city';
+        const title = document.createElement('h2');
+        title.textContent = 'Working city renderer';
+        const slot = document.createElement('div');
+        slot.dataset.workspaceMapSlot = workspace;
+        shell.append(title, slot);
+        return shell;
+      });
+      FT.workspaces.navigate('city');
+      const beforeNode = FT.workspaces.sharedMapNode;
+      let result = null;
+      let threw = null;
+      try {
+        result = FT.workspaces.register('city', () => { throw new Error('candidate city renderer failed'); });
+      } catch (error) {
+        threw = error.message;
+      }
+      return {
+        result,
+        threw,
+        sameNode: beforeNode === stage && FT.workspaces.sharedMapNode === stage,
+        connected: stage.isConnected,
+        workspace: FT.state.workspace,
+        bodyWorkspace: document.body.dataset.workspace,
+        workingRendererStillVisible: !!document.querySelector('[data-test-renderer="working-city"]'),
+        mapInCitySlot: stage.parentElement && stage.parentElement.dataset.workspaceMapSlot === 'city',
+      };
+    });
+    detail(state);
+    return state.result === false &&
+      state.threw === null &&
+      state.sameNode &&
+      state.connected &&
+      state.workspace === 'city' &&
+      state.bodyWorkspace === 'city' &&
+      state.workingRendererStillVisible &&
+      state.mapInCitySlot;
+  });
+
+  await check('throwing renderer navigation shows fallback without detaching shared map', async (detail) => {
+    const state = await page.evaluate(() => {
+      const FT = window.FT;
+      const stage = document.getElementById('stageWrap');
+      FT.workspaces.navigate('map');
+      FT.workspaces.register('plant', () => { throw new Error('plant renderer failed'); });
+      let threw = null;
+      try {
+        FT.workspaces.navigate('plant', { facilityId: 'a-vuong' });
+      } catch (error) {
+        threw = error.message;
+      }
+      return {
+        threw,
+        sameNode: FT.workspaces.sharedMapNode === stage,
+        connected: stage.isConnected,
+        workspace: FT.state.workspace,
+        bodyWorkspace: document.body.dataset.workspace,
+        facility: FT.state.selectedFacilityId,
+        fallback: document.querySelector('.workspacePlaceholder')?.textContent || '',
+        hasSlot: !!document.querySelector('[data-workspace-map-slot="plant"]'),
+        mapInPlantSlot: stage.parentElement && stage.parentElement.dataset.workspaceMapSlot === 'plant',
+      };
+    });
+    detail(state);
+    return state.threw === null &&
+      state.sameNode &&
+      state.connected &&
+      state.workspace === 'plant' &&
+      state.bodyWorkspace === 'plant' &&
+      state.facility === 'a-vuong' &&
+      /không tải được|failed|lỗi/i.test(state.fallback) &&
+      state.hasSlot &&
+      state.mapInPlantSlot;
+  });
+
+  await check('renderer cannot move shared map during failed active replacement', async (detail) => {
+    const state = await page.evaluate(() => {
+      const FT = window.FT;
+      const stage = document.getElementById('stageWrap');
+      FT.workspaces.register('city', ({ workspace }) => {
+        const shell = document.createElement('section');
+        shell.dataset.testRenderer = 'stable-city';
+        const slot = document.createElement('div');
+        slot.dataset.workspaceMapSlot = workspace;
+        shell.appendChild(slot);
+        return shell;
+      });
+      FT.workspaces.navigate('city');
+      let result = null;
+      let threw = null;
+      try {
+        result = FT.workspaces.register('city', ({ host, sharedMapNode }) => {
+          host.appendChild(sharedMapNode);
+          throw new Error('moved shared map before failing');
+        });
+      } catch (error) {
+        threw = error.message;
+      }
+      return {
+        result,
+        threw,
+        sameNode: FT.workspaces.sharedMapNode === stage,
+        connected: stage.isConnected,
+        workspace: FT.state.workspace,
+        stableRendererStillVisible: !!document.querySelector('[data-test-renderer="stable-city"]'),
+        mapInCitySlot: stage.parentElement && stage.parentElement.dataset.workspaceMapSlot === 'city',
+      };
+    });
+    detail(state);
+    return state.result === false &&
+      state.threw === null &&
+      state.sameNode &&
+      state.connected &&
+      state.workspace === 'city' &&
+      state.stableRendererStillVisible &&
+      state.mapInCitySlot;
+  });
+
+  await check('invalid renderer return is refused with accessible fallback and stable route', async (detail) => {
+    const state = await page.evaluate(() => {
+      const FT = window.FT;
+      const stage = document.getElementById('stageWrap');
+      FT.workspaces.navigate('map');
+      FT.workspaces.register('plant', () => '<img src=x onerror=alert(1)>');
+      let threw = null;
+      try {
+        FT.workspaces.navigate('plant', { facilityId: 'a-vuong' });
+      } catch (error) {
+        threw = error.message;
+      }
+      return {
+        threw,
+        sameNode: FT.workspaces.sharedMapNode === stage,
+        connected: stage.isConnected,
+        workspace: FT.state.workspace,
+        bodyWorkspace: document.body.dataset.workspace,
+        hostText: document.getElementById('roleWorkspaceHost').textContent,
+        unsafeMarkupInserted: !!document.querySelector('img[onerror]'),
+        hasSlot: !!document.querySelector('[data-workspace-map-slot="plant"]'),
+        mapInPlantSlot: stage.parentElement && stage.parentElement.dataset.workspaceMapSlot === 'plant',
+      };
+    });
+    detail(state);
+    return state.threw === null &&
+      state.sameNode &&
+      state.connected &&
+      state.workspace === 'plant' &&
+      state.bodyWorkspace === 'plant' &&
+      /không tải được|failed|lỗi/i.test(state.hostText) &&
+      state.unsafeMarkupInserted === false &&
+      state.hasSlot &&
+      state.mapInPlantSlot;
+  });
+
+  await ctx.close();
+}
+
+async function workspaceShellYield(browser) {
+  step('RW · Shell chrome stays yielded off map');
+
+  async function assertShellChromeSuppressed(route) {
+    const query = route === 'plant' ? '?workspace=plant&facility=a-vuong' : '?workspace=city';
+    const { ctx, page } = await bootApp(browser, BASE, { hash: query });
+    usePage(page);
+    await check(`${route} route suppresses lazy palette and context panels`, async (detail) => {
+      const state = await page.evaluate(async () => {
+        const visible = (selector) => {
+          const node = document.querySelector(selector);
+          if (!node) return false;
+          const style = getComputedStyle(node);
+          return !node.hidden && style.display !== 'none' && style.visibility !== 'hidden' &&
+            style.opacity !== '0' && node.getBoundingClientRect().width > 0 && node.getBoundingClientRect().height > 0;
+        };
+        FT.palette && FT.palette.open('');
+        FT.panels && FT.panels.drawer && FT.panels.drawer.show('expanded');
+        FT.panels && FT.panels.ai && FT.panels.ai.show('expanded');
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }));
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'j', metaKey: true, bubbles: true }));
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        return {
+          workspace: FT.state.workspace,
+          bodyWorkspace: document.body.dataset.workspace,
+          paletteVisible: visible('.cmdPalette'),
+          drawerVisible: visible('.geoDrawer'),
+          aiVisible: visible('.geoAI'),
+          anyFloatVisible: [...document.querySelectorAll('.geoFloat')].some((node) => {
+            const style = getComputedStyle(node);
+            return !node.hidden && style.display !== 'none' && style.visibility !== 'hidden' &&
+              node.getBoundingClientRect().width > 0 && node.getBoundingClientRect().height > 0;
+          }),
+        };
+      });
+      detail(state);
+      return state.workspace === route &&
+        state.bodyWorkspace === route &&
+        state.paletteVisible === false &&
+        state.drawerVisible === false &&
+        state.aiVisible === false &&
+        state.anyFloatVisible === false;
+    });
+
+    await check(`${route} route restores shell opening after returning to map`, async (detail) => {
+      const state = await page.evaluate(async () => {
+        FT.workspaces.navigate('map');
+        FT.palette.open('');
+        FT.panels.drawer.show('expanded');
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        const visible = (selector) => {
+          const node = document.querySelector(selector);
+          if (!node) return false;
+          const style = getComputedStyle(node);
+          return !node.hidden && style.display !== 'none' && style.visibility !== 'hidden' &&
+            style.opacity !== '0' && node.getBoundingClientRect().width > 0 && node.getBoundingClientRect().height > 0;
+        };
+        return {
+          workspace: FT.state.workspace,
+          bodyWorkspace: document.body.dataset.workspace,
+          paletteVisible: visible('.cmdPalette'),
+          drawerOpen: (() => {
+            const drawer = document.querySelector('[data-panel="drawer"]');
+            return !!drawer && drawer.style.display !== 'none' && !drawer.classList.contains('hidden-chrome');
+          })(),
+        };
+      });
+      detail(state);
+      return state.workspace === 'map' &&
+        state.bodyWorkspace === 'map' &&
+        state.paletteVisible &&
+        state.drawerOpen;
+    });
+    await ctx.close();
+  }
+
+  await assertShellChromeSuppressed('city');
+  await assertShellChromeSuppressed('plant');
+}
+
 async function governedFacilityRegistry(browser) {
   step('RW · Governed municipal facility registry');
   const { ctx, page, errors } = await bootApp(browser, BASE);
@@ -596,6 +844,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const t0 = Date.now();
   try {
     await workspaceRouting(browser);
+    await workspaceRendererIsolation(browser);
+    await workspaceShellYield(browser);
     await governedFacilityRegistry(browser);
     await sharedReleaseWorkflowStore(browser);
   } finally {
