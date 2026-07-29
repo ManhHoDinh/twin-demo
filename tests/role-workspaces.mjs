@@ -154,6 +154,11 @@ async function sharedReleaseWorkflowStore(browser) {
           actor: 'unattributed',
           detail: { package: proposalId.replace(/^PRP-/, '') },
         }),
+        missingActor: RO.createOrder(proposalId, {
+          action: 'decision.approve',
+          detail: { package: proposalId.replace(/^PRP-/, ''), decision: 'D-03', actorRole: 'Ban Chỉ huy PCTT&TKCN' },
+          reason: 'missing actor regression',
+        }),
         mismatchedAudit: RO.createOrder(proposalId, {
           action: 'decision.approve',
           actor: 'Phạm M.D. (Ban Chỉ huy PCTT&TKCN)',
@@ -162,7 +167,39 @@ async function sharedReleaseWorkflowStore(browser) {
       };
     }, state.proposalId || 'PRP-DP-missing');
     detail(r);
-    return r.withoutAudit === null && r.anonymousAudit === null && r.mismatchedAudit === null;
+    return r.withoutAudit === null && r.anonymousAudit === null && r.missingActor === null && r.mismatchedAudit === null;
+  });
+
+  await check('audited actor identity cannot be escalated by forged detail role', async (detail) => {
+    const r = await page.evaluate((proposalId) => {
+      const FT = window.FT;
+      const pkgId = proposalId.replace(/^PRP-/, '');
+      const forged = {
+        seq: 901,
+        action: 'decision.approve',
+        actor: 'Nguyễn V.A. (Kỹ sư vận hành hồ)',
+        detail: { package: pkgId, decision: 'D-03', actorRole: 'Ban Chỉ huy PCTT&TKCN' },
+        reason: 'forged detail role must not authorize',
+      };
+      const inconsistent = {
+        seq: 902,
+        action: 'decision.approve',
+        actor: 'Phạm M.D. (Ban Chỉ huy PCTT&TKCN)',
+        detail: { package: pkgId, decision: 'D-03', actorRole: 'Kỹ sư vận hành hồ' },
+        reason: 'inconsistent detail role must not authorize',
+      };
+      return {
+        forgedDecision: FT.releaseOps.recordDecision(forged),
+        forgedOrder: FT.releaseOps.createOrder(proposalId, forged),
+        inconsistentDecision: FT.releaseOps.recordDecision(inconsistent),
+        inconsistentOrder: FT.releaseOps.createOrder(proposalId, inconsistent),
+      };
+    }, state.proposalId || 'PRP-DP-missing');
+    detail(r);
+    return r.forgedDecision === null &&
+      r.forgedOrder === null &&
+      r.inconsistentDecision === null &&
+      r.inconsistentOrder === null;
   });
 
   await signOnRole(page, ROLE.authority);

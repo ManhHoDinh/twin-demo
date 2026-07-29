@@ -46,12 +46,27 @@
     return state.proposals[`PRP-${packageId}`] || null;
   }
 
-  function roleFromActor(entry) {
-    const explicit = entry && entry.detail && entry.detail.actorRole;
-    if (explicit) return FT.roles && FT.roles.roleIdOf ? FT.roles.roleIdOf(explicit) : null;
+  function roleIdOf(label) {
+    return FT.roles && FT.roles.roleIdOf ? FT.roles.roleIdOf(label) : null;
+  }
+
+  function auditedActorRole(entry) {
     const actor = entry && entry.actor;
     const match = typeof actor === "string" ? actor.match(/\(([^)]+)\)$/) : null;
-    return match && FT.roles && FT.roles.roleIdOf ? FT.roles.roleIdOf(match[1]) : null;
+    return match ? roleIdOf(match[1]) : null;
+  }
+
+  function detailRole(entry) {
+    const label = entry && entry.detail && entry.detail.actorRole;
+    return label ? roleIdOf(label) : null;
+  }
+
+  function roleForAuthorization(entry) {
+    const actorRole = auditedActorRole(entry);
+    if (!actorRole) return null;
+    const label = entry && entry.detail && entry.detail.actorRole;
+    if (label && detailRole(entry) !== actorRole) return null;
+    return actorRole;
   }
 
   function attributed(entry) {
@@ -62,7 +77,7 @@
     if (!proposal || !entry || entry.action !== "decision.approve" || !attributed(entry)) return false;
     const detail = entry.detail || {};
     if (detail.package !== proposal.packageId && detail.package !== proposal.id) return false;
-    if (!detail.decision || !FT.roles || !FT.roles.can(detail.decision, roleFromActor(entry))) return false;
+    if (!detail.decision || !FT.roles || !FT.roles.can(detail.decision, roleForAuthorization(entry))) return false;
     if (!entry.reason || String(entry.reason).trim().length < 4) return false;
     return true;
   }
@@ -98,7 +113,7 @@
     const approved = matchesApproval(proposal, auditEntry);
     const rejected = auditEntry.action === "decision.reject" || auditEntry.action === "decision.rejected";
     if (!approved && !rejected) return null;
-    if (rejected && (!detail.decision || !FT.roles || !FT.roles.can(detail.decision, roleFromActor(auditEntry)))) return null;
+    if (rejected && (!detail.decision || !FT.roles || !FT.roles.can(detail.decision, roleForAuthorization(auditEntry)))) return null;
 
     const id = `DEC-${auditEntry.seq || auditEntry.snapshot || proposal.packageId}`;
     if (!state.decisions[id]) {
