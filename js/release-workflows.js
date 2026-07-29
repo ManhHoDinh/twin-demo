@@ -88,8 +88,21 @@
     return !!(entry && entry.actor && entry.actor !== "unattributed");
   }
 
+  function auditEventId(entry) {
+    return entry && entry.scenario ? `EVT-${entry.scenario}` : null;
+  }
+
+  function proposalEventAuthorized(proposal, entry) {
+    if (!proposal || !entry) return false;
+    const detail = entry.detail || {};
+    if (auditEventId(entry) !== proposal.eventId) return false;
+    if (detail.eventId && detail.eventId !== proposal.eventId) return false;
+    return syncEvent().id === proposal.eventId;
+  }
+
   function matchesApproval(proposal, entry) {
     if (!proposal || !entry || entry.action !== "decision.approve" || !attributed(entry)) return false;
+    if (!proposalEventAuthorized(proposal, entry)) return false;
     const detail = entry.detail || {};
     if (detail.package !== proposal.packageId && detail.package !== proposal.id) return false;
     if (!detail.decision || !FT.roles || !FT.roles.can(detail.decision, roleForAuthorization(entry))) return false;
@@ -153,6 +166,7 @@
     const detail = stored.detail || {};
     const proposal = proposalForPackageId(detail.package);
     if (!proposal) return null;
+    if (!proposalEventAuthorized(proposal, stored)) return null;
     const approved = matchesApproval(proposal, stored);
     const rejected = stored.action === "decision.reject" || stored.action === "decision.rejected";
     if (!approved && !rejected) return null;
@@ -223,7 +237,7 @@
       status: PROCESS.EXECUTING,
       startedAtH: prev.startedAtH == null ? FT.state.timeH : prev.startedAtH,
     }));
-    const auditEntry = log("release.execution.start", { orderId, revision: order.revision, status: order.status });
+    const auditEntry = log("release.execution.start", { eventId: order.eventId, orderId, revision: order.revision, status: order.status });
     if (!auditEntry) return null;
     state.orders[orderId] = order;
     state.executions[id] = execution;
@@ -254,7 +268,7 @@
       status: prevOrder.status,
       observations,
     }));
-    const auditEntry = log("release.observed", { orderId, revision: order.revision, status: order.status, observedCms });
+    const auditEntry = log("release.observed", { eventId: order.eventId, orderId, revision: order.revision, status: order.status, observedCms });
     if (!auditEntry) return null;
     state.orders[orderId] = order;
     state.executions[id] = execution;

@@ -1398,6 +1398,9 @@ async function sharedReleaseWorkflowStore(browser) {
       snap1Frozen: Object.isFrozen(snap1) && Object.isFrozen(snap1.orders[order.id]),
       snap2Frozen: Object.isFrozen(snap2) && Object.isFrozen(snap2.orders[order.id]),
       auditActions: FT.ops.audit.entries.slice(beforeAudit).map((e) => e.action),
+      workflowAuditDetails: FT.ops.audit.entries.slice(beforeAudit)
+        .filter((e) => /^release\./.test(e.action || ''))
+        .map((e) => ({ action: e.action, eventId: e.detail && e.detail.eventId })),
     };
   }, state.proposalId || 'PRP-DP-missing');
 
@@ -1444,6 +1447,130 @@ async function sharedReleaseWorkflowStore(browser) {
     workflow.snap2Order.status === 'CLOSED' &&
     workflow.snap1Order !== workflow.snap2Order &&
     workflow.snap1Order.status !== workflow.snap2Order.status);
+
+  await check('workflow audit details carry current event evidence for readiness', async (detail) => {
+    const readiness = await page.evaluate(() => {
+      FT.workspaces.navigate('city');
+      const text = document.querySelector('[data-city-readiness] [data-city-kpi="workflow"] .cityKpiValue')?.textContent || '';
+      const value = Number.parseInt(text.replace(/[^\d-]/g, ''), 10);
+      return { text, value: Number.isFinite(value) ? value : null };
+    });
+    detail({ workflowAuditDetails: workflow.workflowAuditDetails, readiness });
+    const byAction = new Map(workflow.workflowAuditDetails.map((entry) => [entry.action, entry.eventId]));
+    const currentEvent = workflow.snap1Order && workflow.snap1Order.eventId;
+    return currentEvent === 'EVT-oct2020' &&
+      byAction.get('release.order.create') === currentEvent &&
+      byAction.get('release.order.notified') === currentEvent &&
+      byAction.get('release.execution.start') === currentEvent &&
+      byAction.get('release.checklist.set') === currentEvent &&
+      byAction.get('release.observed') === currentEvent &&
+      byAction.get('release.order.close') === currentEvent &&
+      readiness.value >= 6;
+  });
+
+  await check('release store rejects cross-scenario and mismatched event approvals', async (detail) => {
+    const r = await page.evaluate(async () => {
+      const FT = window.FT;
+      const RO = FT.releaseOps;
+      const fake = { kind: 'PROPOSAL', id: 'DP-event-authority-oct', reservoir: { id: 'avuong' } };
+      FT.state.scenario = 'oct2020';
+      FT.hydro.rebuild();
+      const proposal = RO.ingestProposal(fake);
+      const beforeMismatchAudit = FT.ops.audit.entries.length;
+      const mismatchDetailAudit = FT.ops.audit.log('decision.approve', {
+        decision: 'D-03',
+        actorRole: FT.ops.audit.actor.role,
+        package: fake.id,
+        eventId: 'EVT-yagi',
+      }, 'mismatched detail event must not authorize');
+      const afterMismatchAudit = FT.ops.audit.entries.length;
+      const beforeMismatch = RO.snapshot();
+      const mismatchDecision = RO.recordDecision(mismatchDetailAudit);
+      const mismatchOrder = RO.createOrder(proposal.id, mismatchDetailAudit);
+      const afterMismatch = RO.snapshot();
+
+      const validAudit = FT.ops.audit.log('decision.approve', {
+        decision: 'D-03',
+        actorRole: FT.ops.audit.actor.role,
+        package: fake.id,
+      }, 'same event approval remains valid');
+      const validDecision = RO.recordDecision(validAudit);
+      const validOrder = RO.createOrder(proposal.id, validAudit);
+      const validSnap = RO.snapshot();
+
+      const select = document.getElementById('scenarioSelect');
+      select.value = 'yagi';
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const afterSwitch = RO.snapshot();
+
+      const beforeYagiAudit = FT.ops.audit.entries.length;
+      const yagiAudit = FT.ops.audit.log('decision.approve', {
+        decision: 'D-03',
+        actorRole: FT.ops.audit.actor.role,
+        package: fake.id,
+      }, 'current scenario audit must not authorize historical proposal');
+      const afterYagiAudit = FT.ops.audit.entries.length;
+      const beforeYagiAttempt = RO.snapshot();
+      const yagiDecision = RO.recordDecision(yagiAudit);
+      const yagiOrder = RO.createOrder(proposal.id, yagiAudit);
+      const afterYagiAttempt = RO.snapshot();
+
+      const beforeReplayAudit = FT.ops.audit.entries.length;
+      const beforeReplay = RO.snapshot();
+      const replayDecision = RO.recordDecision(validAudit);
+      const replayOrder = RO.createOrder(proposal.id, validAudit);
+      const afterReplay = RO.snapshot();
+
+      return {
+        proposalId: proposal && proposal.id,
+        proposalEventId: proposal && proposal.eventId,
+        mismatchDetailAuditEvent: mismatchDetailAudit && mismatchDetailAudit.detail && mismatchDetailAudit.detail.eventId,
+        mismatchDecision,
+        mismatchOrder,
+        mismatchAuditCreated: afterMismatchAudit === beforeMismatchAudit + 1,
+        mismatchStateUnchanged: JSON.stringify(beforeMismatch.orders) === JSON.stringify(afterMismatch.orders) &&
+          JSON.stringify(beforeMismatch.decisions) === JSON.stringify(afterMismatch.decisions),
+        validDecision,
+        validOrder,
+        validOrderEventId: validOrder && validOrder.eventId,
+        validSnapOrderFrozen: validOrder && Object.isFrozen(validSnap.orders[validOrder.id]),
+        afterSwitchEventId: afterSwitch.event.id,
+        yagiAuditScenario: yagiAudit && yagiAudit.scenario,
+        yagiDecision,
+        yagiOrder,
+        yagiAuditCreated: afterYagiAudit === beforeYagiAudit + 1,
+        yagiStateUnchanged: JSON.stringify(beforeYagiAttempt.orders) === JSON.stringify(afterYagiAttempt.orders) &&
+          JSON.stringify(beforeYagiAttempt.decisions) === JSON.stringify(afterYagiAttempt.decisions),
+        replayDecision,
+        replayOrder,
+        replayAuditUnchanged: FT.ops.audit.entries.length === beforeReplayAudit,
+        replayStateUnchanged: JSON.stringify(beforeReplay.orders) === JSON.stringify(afterReplay.orders) &&
+          JSON.stringify(beforeReplay.decisions) === JSON.stringify(afterReplay.decisions),
+      };
+    });
+    detail(r);
+    return r.proposalEventId === 'EVT-oct2020' &&
+      r.mismatchDetailAuditEvent === 'EVT-yagi' &&
+      r.mismatchDecision === null &&
+      r.mismatchOrder === null &&
+      r.mismatchAuditCreated &&
+      r.mismatchStateUnchanged &&
+      r.validDecision &&
+      r.validOrder &&
+      r.validOrderEventId === 'EVT-oct2020' &&
+      r.validSnapOrderFrozen &&
+      r.afterSwitchEventId === 'EVT-yagi' &&
+      r.yagiAuditScenario === 'yagi' &&
+      r.yagiDecision === null &&
+      r.yagiOrder === null &&
+      r.yagiAuditCreated &&
+      r.yagiStateUnchanged &&
+      r.replayDecision === null &&
+      r.replayOrder === null &&
+      r.replayAuditUnchanged &&
+      r.replayStateUnchanged;
+  });
 
   await ctx.close();
 }
