@@ -236,7 +236,23 @@ async function workspaceRouting(browser) {
       new URLSearchParams(state.url).get('facility') === 'a-vuong';
   });
 
-  await check('direct plant route renders demo facility dashboard with advisory boundary', async (detail) => {
+  await check('plant package target renders recommendation while preserving advisory boundary', async (detail) => {
+    const target = await directPlant.page.evaluate(() => {
+      const snap = FT.hydro.at(FT.state.timeH);
+      const pkg = FT.ops.package(snap);
+      const facility = pkg && pkg.reservoir && FT.facilities.all().find((item) => item.demoReservoirId === pkg.reservoir.id);
+      if (facility) FT.workspaces.navigate('plant', { facilityId: facility.id });
+      return {
+        packageKind: pkg && pkg.kind,
+        reservoirId: pkg && pkg.reservoir && pkg.reservoir.id,
+        reservoirName: pkg && pkg.reservoir && pkg.reservoir.name,
+        facilityId: facility && facility.id,
+        facilityName: facility && facility.name,
+      };
+    });
+    await directPlant.page.waitForFunction((facilityId) =>
+      document.body.dataset.workspace === 'plant' && window.FT.state.selectedFacilityId === facilityId,
+      target.facilityId);
     const plant = await directPlant.page.evaluate(() => {
       const visibleText = (node) => node && node.textContent ? node.textContent.replace(/\s+/g, ' ').trim() : '';
       const selector = document.querySelector('[data-plant-facility-selector]');
@@ -267,10 +283,12 @@ async function workspaceRouting(browser) {
         actions,
       };
     });
-    detail(plant);
-    return plant.root &&
-      /A Vương|a-vuong/i.test(plant.identity) &&
-      plant.selectorValue === 'a-vuong' &&
+    detail({ target, plant });
+    return target.packageKind === 'PROPOSAL' &&
+      !!target.facilityId &&
+      plant.root &&
+      plant.identity.includes(target.facilityName) &&
+      plant.selectorValue === target.facilityId &&
       plant.selectorOptions.length === 34 &&
       plant.currentState === 'ASSUMED_FOR_DEMO' &&
       /current|state|mực|release|xả|synthetic|assumed/i.test(plant.current) &&
@@ -278,7 +296,7 @@ async function workspaceRouting(browser) {
       plant.advisoryActionable === 'false' &&
       /RECOMMENDATION|not in force|not actionable|CHƯA có hiệu lực/i.test(plant.advisory) &&
       /ASSUMED_FOR_DEMO|individual gate geometry is not modelled|not modelled/i.test(plant.advisory) &&
-      /alternative|rule|coordinate|peak|no targeted advisory|not currently targeted/i.test(plant.alternatives) &&
+      /alternative|rule|coordinate|peak|modelled/i.test(plant.alternatives) &&
       /approved order|none approved|no approved/i.test(plant.approved) &&
       /plantApprovedOrder/.test(plant.approvedClass) &&
       /checklist/i.test(plant.checklist) &&
@@ -290,6 +308,66 @@ async function workspaceRouting(browser) {
       plant.actions.every((button) => button.disabled === true) &&
       plant.actions.some((button) => /propose/i.test(button.action || button.text)) &&
       plant.actions.some((button) => /execute/i.test(button.action || button.text));
+  });
+
+  await check('plant non-target demo facilities do not inherit active package advisory', async (detail) => {
+    const result = await directPlant.page.evaluate(async () => {
+      const visibleText = (node) => node && node.textContent ? node.textContent.replace(/\s+/g, ' ').trim() : '';
+      const snap = FT.hydro.at(FT.state.timeH);
+      const pkg = FT.ops.package(snap);
+      const target = pkg && pkg.reservoir && FT.facilities.all().find((item) => item.demoReservoirId === pkg.reservoir.id);
+      const demoFacilities = FT.facilities.all().filter((item) => item.demoReservoirId && (!target || item.id !== target.id)).slice(0, 2);
+      const rows = [];
+      for (const facility of demoFacilities) {
+        FT.workspaces.navigate('plant', { facilityId: facility.id });
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        rows.push({
+          selectedId: FT.state.selectedFacilityId,
+          selectedName: facility.name,
+          identity: visibleText(document.querySelector('[data-plant-facility-identity]')),
+          currentState: document.querySelector('[data-plant-current-state]')?.dataset.plantDataState,
+          advisoryClass: document.querySelector('[data-plant-advisory]')?.dataset.plantLifecycleClass,
+          advisoryActionable: document.querySelector('[data-plant-advisory]')?.dataset.plantActionable,
+          advisory: visibleText(document.querySelector('[data-plant-advisory]')),
+          alternatives: visibleText(document.querySelector('[data-plant-alternatives]')),
+          actionsEnabled: [...document.querySelectorAll('[data-plant-action]')].filter((button) => !button.disabled).length,
+        });
+      }
+      if (target) {
+        FT.workspaces.navigate('plant', { facilityId: target.id });
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      }
+      return {
+        target,
+        rows,
+        targetView: target ? {
+          selectedId: FT.state.selectedFacilityId,
+          advisoryClass: document.querySelector('[data-plant-advisory]')?.dataset.plantLifecycleClass,
+          advisory: visibleText(document.querySelector('[data-plant-advisory]')),
+          alternatives: visibleText(document.querySelector('[data-plant-alternatives]')),
+        } : null,
+      };
+    });
+    detail(result);
+    return result.target &&
+      result.rows.length >= 2 &&
+      result.rows.every((row) =>
+        row.selectedId !== result.target.id &&
+        row.identity.includes(row.selectedName) &&
+        row.currentState === 'ASSUMED_FOR_DEMO' &&
+        row.advisoryClass === 'MISSING' &&
+        row.advisoryActionable === 'false' &&
+        /not currently targeted|MISSING/i.test(row.advisory) &&
+        row.advisory.includes(row.selectedName) &&
+        !row.advisory.includes('A Vương release advice') &&
+        !row.advisory.includes(result.target.name) &&
+        !/Lifecycle class: RECOMMENDATION|ASSUMED_FOR_DEMO|package gate|Proposed release|m3\/s|m³\/s|Modelled peak|Peak cut/i.test(`${row.advisory} ${row.alternatives}`) &&
+        row.actionsEnabled === 0) &&
+      result.targetView &&
+      result.targetView.selectedId === result.target.id &&
+      result.targetView.advisoryClass === 'RECOMMENDATION' &&
+      /ASSUMED_FOR_DEMO|package gate|not modelled/i.test(result.targetView.advisory) &&
+      /Modelled peak|peak/i.test(result.targetView.alternatives);
   });
 
   await check('plant unavailable facility shows registry-only provenance without fabricated operations', async (detail) => {

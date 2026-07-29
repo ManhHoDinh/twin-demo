@@ -91,6 +91,10 @@
     return Object.values(snapshot.executions).find((item) => item.orderId === orderId) || null;
   }
 
+  function isPackageTarget(pkg, facility) {
+    return !!(pkg && pkg.kind === "PROPOSAL" && pkg.reservoir && facility && pkg.reservoir.id === facility.demoReservoirId);
+  }
+
   function metric(label, value, note) {
     const card = el("article", "plantMetric");
     card.append(text("span", "plantMetricLabel", label), text("strong", "", value));
@@ -212,6 +216,22 @@
       return;
     }
 
+    const targeted = isPackageTarget(pkg, facility);
+    if (!targeted) {
+      section.dataset.plantLifecycleClass = "MISSING";
+      section.dataset.plantActionable = "false";
+      section.append(text("p", "plantLifecycleBadge", "Lifecycle class: MISSING; actionable: false"));
+      section.append(text("p", "plantNotice missing", `${facility.name} is not currently targeted by a proposal-class package. No release recommendation, gate instruction, proposal validity or package alternative is rendered for this facility.`));
+      section.append(actionButton("propose", "Propose plan unavailable", "Task 7 wires proposal events; Task 6 keeps recommendations non-actionable."));
+      section.append(actionButton("approve", "Approve unavailable", "Only an attributed entitled approval can create an approved order."));
+      section.append(actionButton("execute", "Execute unavailable", "No approved order is current for this renderer."));
+      const source = text("p", "plantProvenance", `Advisory source/provenance: ${facility.name} registry and hydro state only; recommendation outputs are hidden unless the selected facility is the package target.`);
+      source.dataset.provenance = "workflow";
+      section.append(source);
+      section.scrollTop = scrollTop;
+      return;
+    }
+
     const cls = FT.lifecycle && FT.lifecycle.classifyDecision ? FT.lifecycle.classifyDecision(pkg) : null;
     const advisory = {
       lifecycleClass: cls || "MISSING",
@@ -225,8 +245,6 @@
     section.append(text("p", "plantNotice", advisory.notice || "No actionable advisory is available."));
 
     const proposal = proposalForFacility(snapshot, facility.id);
-    const targetFacility = pkg && pkg.reservoir ? FT.facilities.all().find((item) => item.demoReservoirId === pkg.reservoir.id) : null;
-    const targeted = !!(pkg && pkg.kind === "PROPOSAL" && pkg.reservoir && pkg.reservoir.id === facility.demoReservoirId);
     if (!pkg || pkg.kind !== "PROPOSAL") {
       section.append(text("p", "", pkg && pkg.reason ? pkg.reason : "No proposal-class package is available at the current time."));
     } else if (targeted) {
@@ -238,8 +256,6 @@
         metric("Peak cut", Number.isFinite(pkg.cut) ? `${fmt(pkg.cut, 2)} m` : "—", "modelled comparison")
       );
       section.append(grid);
-    } else {
-      section.append(text("p", "plantNotice missing", `This facility is not currently targeted by the synthetic proposal. Current package target: ${targetFacility ? targetFacility.name : pkg.reservoir.name}; no A Vương release advice is derived from another reservoir.`));
     }
 
     if (pkg && pkg.action && pkg.action.gates) {
@@ -273,12 +289,15 @@
       section.append(text("p", "plantNotice missing", "No numeric alternatives are computed for NOT_IN_CURRENT_DEMO facilities."));
       return;
     }
-    const targeted = !!(pkg && pkg.kind === "PROPOSAL" && pkg.reservoir && pkg.reservoir.id === facility.demoReservoirId);
+    const targeted = isPackageTarget(pkg, facility);
+    if (!targeted) {
+      section.append(text("p", "plantNotice missing", `No numeric alternatives are rendered for ${facility.name} because it is not currently targeted by the proposal package.`));
+      return;
+    }
     if (!pkg || !Array.isArray(pkg.alternatives) || !pkg.alternatives.length) {
       section.append(text("p", "", "No comparable alternatives are available at the current time."));
       return;
     }
-    if (!targeted) section.append(text("p", "plantNotice missing", "Alternatives belong to the current system proposal and are not currently targeted to this selected facility."));
     pkg.alternatives.slice(0, 3).forEach((alt) => {
       const card = el("article", "plantAlternative");
       card.append(
