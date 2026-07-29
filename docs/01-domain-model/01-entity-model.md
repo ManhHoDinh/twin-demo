@@ -174,7 +174,7 @@ The source-dated city scope contains **44 hydropower facilities: 34 named and 10
 | `name` | Source name or `MISSING`; unresolved records do not invent names |
 | `source_ref` | Source document/date/classification, including Decision 1865 where applicable |
 | `registry_status` | `READY_FOR_DEMO \| NOT_IN_CURRENT_DEMO \| MISSING \| CONFLICTING_SOURCES \| SUPERSEDED` |
-| `demo_reservoir_id` | Only A Vuong, Song Bung 4, Dak Mi 4, and Song Tranh 2 map to the synthetic demo |
+| `demo_reservoir_id` | Only A Vương, Sông Bung 4, Đắk Mi 4, and Sông Tranh 2 map to the synthetic demo |
 | `operational_advice_allowed` | False for non-demo, missing-data, conflicting, or superseded records |
 
 `NOT_IN_CURRENT_DEMO` facilities remain visible in the registry but cannot produce operational advice.
