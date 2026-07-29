@@ -239,6 +239,24 @@ Contains: T−24 → T+48 scrubber with **now** marker · event ribbon (BĐ cros
 
 **Purpose.** The operator's home screen. **Primary user.** P-01, P-02, P-07.
 
+### Reservoir selection workspace
+
+One active reservoir selection and one global clock bind six contextual map views:
+
+1. **Current state** — normalized state, age, quality, provenance, constraints and permitted use.
+2. **Historical trends** — observed/history series with gaps, datum/source versions and explicit synthetic replay.
+3. **Scenario comparison** — aligned alternatives, reservoir actions, downstream deltas, constraints and limitations.
+4. **Relationship graph** — directed reservoirs, rivers, catchments, diversions, gauges and downstream areas from
+   the governed [connected-watershed registry](https://github.com/ManhHoDinh/skylabs-surf2026/blob/main/product-os/database/DB-04-connected-watershed-registry.md),
+   including travel-time uncertainty and missing relationships.
+5. **Timeline** — observations, forecasts, state transitions, proposals, human decisions and revisions on the
+   same deterministic clock as the map.
+6. **Downstream analysis** — river, inundation, infrastructure and population consequence by branch, with
+   proposal/counterfactual attribution and controllability limits.
+
+Switching views preserves the selected reservoir, time, scenario, network version and decision state. Each view
+has loading, stale, missing, unavailable and error behavior; none may reuse a prior-current result as current.
+
 ### Screen contract
 
 - **Operational workflow.** Select a reservoir → verify telemetry quality and safety margins → inspect

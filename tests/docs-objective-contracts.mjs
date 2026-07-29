@@ -71,7 +71,11 @@ function localMarkdownTargets(root, relativePath) {
     if (/^(?:https?:|mailto:|tel:|#)/i.test(raw)) continue;
     const [filePart] = raw.split('#');
     if (!filePart) continue;
-    targets.push({ raw, resolved: path.resolve(path.dirname(sourcePath), decodeURIComponent(filePart)) });
+    const decoded = decodeURIComponent(filePart);
+    const resolved = decoded.startsWith('/')
+      ? path.resolve(root, decoded.slice(1))
+      : path.resolve(path.dirname(sourcePath), decoded);
+    targets.push({ raw, resolved });
   }
   return targets;
 }

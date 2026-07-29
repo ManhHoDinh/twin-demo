@@ -10,6 +10,7 @@
     "e2e:quick": "node tests/e2e.mjs --quick",
     "docs:engineering": "node tests/docs-engineering-verify.mjs",
     "docs:objective": "node tests/docs-objective-contracts.mjs",
+    "docs:integrated": "node tests/docs-integrated-watershed-objective.mjs",
     "docs:workflow": "node tests/workflow-spec-verify.mjs",
     "test:explainability": "node tests/explainability.mjs",
     "compare": "node tests/scenario-compare.mjs",
@@ -17,7 +18,7 @@
     "shell:layout": "node tests/shell-layout.mjs",
     "test:earth-map": "node tests/earth-map.mjs",
     "physics": "node tests/physics-conservation.mjs",
-    "test": "npm run docs:engineering && npm run docs:objective && npm run docs:workflow && npm run test:explainability && npm run compare && node tests/e2e.mjs && node tests/ux-audit.mjs && npm run shell && npm run test:earth-map && npm run physics",
+    "test": "npm run docs:engineering && npm run docs:objective && npm run docs:integrated && npm run docs:workflow && npm run test:explainability && npm run compare && node tests/e2e.mjs && node tests/ux-audit.mjs && npm run shell && npm run test:earth-map && npm run physics",
     "ux": "node tests/ux-audit.mjs",
     "ux:strict": "node tests/ux-audit.mjs --strict"
   },
