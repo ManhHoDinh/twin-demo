@@ -86,6 +86,15 @@
     };
   }
 
+  function hydroSnapshot() {
+    return FT.hydro && FT.hydro.ready && FT.hydro.at ? FT.hydro.at(FT.state.timeH) : null;
+  }
+
+  function setText(root, selector, value) {
+    const node = root.querySelector(selector);
+    if (node) node.textContent = value == null || value === "" ? "—" : String(value);
+  }
+
   function kpi(label, value, key, note) {
     const card = el("article", "cityKpi", { dataset: { cityKpi: key } });
     card.append(text("span", "cityKpiLabel", label), text("strong", "cityKpiValue", value));
@@ -130,7 +139,7 @@
     sorted.forEach((facility) => {
       const state = statusForFacility(snapshot, facility);
       const row = el("article", "cityFacilityRow", {
-        dataset: { processRow: "", state, facilityId: facility.id },
+        dataset: { cityFacilityRow: "", state, facilityId: facility.id },
       });
       row.append(text("strong", "", facility.name));
       const meta = el("span", "cityFacilityMeta");
@@ -140,8 +149,8 @@
       );
       row.append(meta);
       const reservoir = reservoirStateFor(facility, hydroSnap);
-      if (reservoir) {
-        row.append(text("span", "cityFacilityMetric", `Z ${fmt(reservoir.Z, 1)} m · O ${fmt(reservoir.O, 0)} m3/s`));
+      if (facility.demoReservoirId) {
+        row.append(text("span", "cityFacilityMetric", reservoir ? `Z ${fmt(reservoir.Z, 1)} m · O ${fmt(reservoir.O, 0)} m3/s` : "Simulation pending"));
         const button = el("button", "cityPlantLink", {
           type: "button",
           dataset: { plantFacilityId: facility.id },
@@ -175,21 +184,8 @@
   function renderDecisionQueue(snapshot) {
     const section = el("section", "cityDecisionQueue", { dataset: { cityDecisionQueue: "" }, "aria-label": "Decision queue" });
     section.append(text("h3", "", "Decision queue"));
-    const decision = currentDecision();
-    const proposals = snapshot && snapshot.proposals ? Object.values(snapshot.proposals) : [];
-    const orders = snapshot && snapshot.orders ? Object.values(snapshot.orders) : [];
-    const card = el("article", "cityDecisionCard pending");
-    if (decision) {
-      card.append(
-        text("strong", "", `${decision.id} · ${decision.kind || "CURRENT_PACKAGE"}`),
-        text("p", "", `Accountable role: ${decision.accountable || "unassigned in RACI"}`),
-        text("p", "", decision.consulted && decision.consulted.length ? `Consulted: ${decision.consulted.join(", ")}` : "Consulted roles: none recorded")
-      );
-    } else {
-      card.append(text("strong", "", "No active release decision package"), text("p", "", "Accountable role label unavailable until a proposal-class package exists."));
-    }
-    section.append(card);
-    section.append(text("p", "cityQueueMeta", `${proposals.length} proposals · ${orders.length} approved orders in shared release workflow snapshot`));
+    section.append(el("article", "cityDecisionCard pending", { dataset: { cityDecisionCard: "" } }));
+    section.append(text("p", "cityQueueMeta", "—"));
     return section;
   }
 
@@ -199,11 +195,11 @@
     const gauges = FT.data && FT.data.GAUGES ? FT.data.GAUGES.slice(0, 4) : [];
     gauges.forEach((gauge) => {
       const state = hydroSnap && hydroSnap.gauges ? hydroSnap.gauges[gauge.id] : null;
-      const item = el("article", "cityGaugeCard", { dataset: { provenance: "simulation" } });
+      const item = el("article", "cityGaugeCard", { dataset: { provenance: "simulation", cityGaugeId: gauge.id } });
       item.append(
         text("span", "", gauge.name),
         text("strong", "", state ? `${fmt(state.stage, 2)} m` : "—"),
-        text("span", "", state ? `Alert ${state.alert} · trend ${fmt(state.trend, 2)} m/3h` : "Simulation unavailable")
+        text("span", "cityGaugeState", state ? `Alert ${state.alert} · trend ${fmt(state.trend, 2)} m/3h` : "Simulation unavailable")
       );
       section.append(item);
     });
@@ -238,7 +234,7 @@
     const coverage = FT.facilities.coverage();
     const facilities = FT.facilities.all();
     const snapshot = getSnapshot();
-    const hydroSnap = FT.hydro && FT.hydro.ready && FT.hydro.at ? FT.hydro.at(FT.state.timeH) : null;
+    const hydroSnap = hydroSnapshot();
     const shell = el("section", "roleDashboard cityDashboard", { dataset: { workspace: "city" } });
     const grid = el("div", "roleDashboardGrid");
     const map = el("div", "roleDashboardMap", { dataset: { workspaceMapSlot: "city" } });
@@ -251,24 +247,104 @@
       renderReadiness()
     );
     shell.append(renderHeader(coverage), renderKpis(coverage), renderUnresolved(coverage), grid);
+    updateCity(shell);
     return shell;
+  }
+
+  function updateKpis(root, coverage) {
+    setText(root, '[data-city-kpi="total"] .cityKpiValue', coverage.total);
+    setText(root, '[data-city-kpi="named"] .cityKpiValue', coverage.named);
+    setText(root, '[data-city-kpi="unresolved"] .cityKpiValue', coverage.unresolved);
+    setText(root, ".citySyntheticBanner", `Synthetic simulation workspace · ${coverage.total} municipal facilities in source scope · ${relTime()}`);
+    setText(root, "[data-city-unresolved-evidence]", `${coverage.unresolved} identities awaiting authoritative registry`);
+  }
+
+  function updatePortfolio(root, facilities, snapshot, hydroSnap) {
+    facilities.forEach((facility) => {
+      const row = root.querySelector(`[data-city-facility-row][data-facility-id="${facility.id}"]`);
+      if (!row) return;
+      const state = statusForFacility(snapshot, facility);
+      row.dataset.state = state;
+      setText(row, ".statePill", state);
+      const reservoir = reservoirStateFor(facility, hydroSnap);
+      const metric = row.querySelector(".cityFacilityMetric");
+      if (metric) metric.textContent = reservoir ? `Z ${fmt(reservoir.Z, 1)} m · O ${fmt(reservoir.O, 0)} m3/s` : "Simulation pending";
+    });
+  }
+
+  function updateTimeline(root, facilities, snapshot) {
+    DEMO_ORDER.map((id) => facilities.find((facility) => facility.id === id)).filter(Boolean).forEach((facility) => {
+      const row = root.querySelector(`[data-city-timeline] [data-process-row][data-facility-id="${facility.id}"]`);
+      if (!row) return;
+      const state = statusForFacility(snapshot, facility);
+      row.dataset.state = state;
+      setText(row, ".cityProcessState", state);
+    });
+  }
+
+  function updateDecisionQueue(root, snapshot) {
+    const card = root.querySelector("[data-city-decision-card]");
+    const decision = currentDecision();
+    if (card) {
+      card.replaceChildren();
+      if (decision) {
+        card.append(
+          text("strong", "", `${decision.id} · ${decision.kind || "CURRENT_PACKAGE"}`),
+          text("p", "", `Accountable role: ${decision.accountable || "unassigned in RACI"}`),
+          text("p", "", decision.consulted && decision.consulted.length ? `Consulted: ${decision.consulted.join(", ")}` : "Consulted roles: none recorded")
+        );
+      } else {
+        card.append(text("strong", "", "No active release decision package"), text("p", "", "Accountable role label unavailable until a proposal-class package exists."));
+      }
+    }
+    const proposals = snapshot && snapshot.proposals ? Object.values(snapshot.proposals) : [];
+    const orders = snapshot && snapshot.orders ? Object.values(snapshot.orders) : [];
+    setText(root, ".cityQueueMeta", `${proposals.length} proposals · ${orders.length} approved orders in shared release workflow snapshot`);
+  }
+
+  function updateImpact(root, hydroSnap) {
+    const gauges = FT.data && FT.data.GAUGES ? FT.data.GAUGES.slice(0, 4) : [];
+    gauges.forEach((gauge) => {
+      const card = root.querySelector(`[data-city-gauge-id="${gauge.id}"]`);
+      const state = hydroSnap && hydroSnap.gauges ? hydroSnap.gauges[gauge.id] : null;
+      if (!card) return;
+      setText(card, "strong", state ? `${fmt(state.stage, 2)} m` : "—");
+      setText(card, ".cityGaugeState", state ? `Alert ${state.alert} · trend ${fmt(state.trend, 2)} m/3h` : "Simulation unavailable");
+    });
+  }
+
+  function updateReadiness(root) {
+    const entries = FT.ops && FT.ops.audit && Array.isArray(FT.ops.audit.entries) ? FT.ops.audit.entries : [];
+    const notifications = entries.filter((entry) => /^notify|notification/i.test(entry.action || ""));
+    const decisions = entries.filter((entry) => /^decision|release\./i.test(entry.action || ""));
+    setText(root, '[data-city-readiness] [data-city-kpi="audit"] .cityKpiValue', entries.length);
+    setText(root, '[data-city-readiness] [data-city-kpi="notifications"] .cityKpiValue', notifications.length);
+    setText(root, '[data-city-readiness] [data-city-kpi="workflow"] .cityKpiValue', decisions.length);
+  }
+
+  function updateCity(root) {
+    if (!root) return;
+    const coverage = FT.facilities.coverage();
+    const facilities = FT.facilities.all();
+    const snapshot = getSnapshot();
+    const hydroSnap = hydroSnapshot();
+    updateKpis(root, coverage);
+    updatePortfolio(root, facilities, snapshot, hydroSnap);
+    updateTimeline(root, facilities, snapshot);
+    updateDecisionQueue(root, snapshot);
+    updateImpact(root, hydroSnap);
+    updateReadiness(root);
   }
 
   FT.workspaces.register("city", renderCity);
 
-  let queued = false;
   function refreshCity() {
     if (!FT.workspaces || !FT.workspaces.current || FT.workspaces.current().workspace !== "city") return;
-    if (queued) return;
-    queued = true;
-    requestAnimationFrame(() => {
-      queued = false;
-      if (FT.workspaces.current().workspace === "city") FT.workspaces.render();
-    });
+    updateCity(document.querySelector(".cityDashboard"));
   }
 
   if (FT.bus) {
-    ["scrubbed", "hydroRebuilt", "opsAudit", "lang", "workspaceChanged"].forEach((eventName) => {
+    ["scrubbed", "hydroRebuilt", "opsAudit", "lang"].forEach((eventName) => {
       FT.bus.on(eventName, refreshCity);
     });
   }

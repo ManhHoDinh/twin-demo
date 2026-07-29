@@ -34,7 +34,12 @@ async function workspaceRouting(browser) {
   await check('city workspace renders governed operations dashboard without invented identities', async (detail) => {
     const city = await directCity.page.evaluate(() => {
       const visibleText = (node) => node && node.textContent ? node.textContent.replace(/\s+/g, ' ').trim() : '';
-      const rows = [...document.querySelectorAll('[data-process-row]')].map((row) => ({
+      const kpiInt = (key) => {
+        const node = document.querySelector(`[data-city-kpi="${key}"] .cityKpiValue`);
+        const value = Number.parseInt((node && node.textContent || '').replace(/[^\d-]/g, ''), 10);
+        return Number.isFinite(value) ? value : null;
+      };
+      const rows = [...document.querySelectorAll('[data-city-timeline] [data-process-row]')].map((row) => ({
         text: visibleText(row),
         state: row.getAttribute('data-state') || '',
         facilityId: row.getAttribute('data-facility-id') || '',
@@ -42,10 +47,12 @@ async function workspaceRouting(browser) {
       const plantLink = document.querySelector('[data-city-portfolio] [data-plant-facility-id]');
       const unresolvedCards = [...document.querySelectorAll('[data-city-unresolved-evidence]')].map(visibleText);
       return {
-        total: document.querySelector('[data-city-kpi="total"]')?.textContent,
-        named: document.querySelector('[data-city-kpi="named"]')?.textContent,
-        unresolved: document.querySelector('[data-city-kpi="unresolved"]')?.textContent,
-        rows: document.querySelectorAll('[data-process-row]').length,
+        total: kpiInt('total'),
+        named: kpiInt('named'),
+        unresolved: kpiInt('unresolved'),
+        facilityRows: document.querySelectorAll('[data-city-portfolio] [data-city-facility-row]').length,
+        rows: document.querySelectorAll('[data-city-timeline] [data-process-row]').length,
+        strayProcessRows: document.querySelectorAll('[data-city-portfolio] [data-process-row]').length,
         queue: document.querySelector('[data-city-decision-queue]')?.textContent,
         map: !!document.querySelector('[data-workspace="city"] [data-workspace-map-slot] #stageWrap'),
         plantLinkFacilityId: plantLink && plantLink.getAttribute('data-plant-facility-id'),
@@ -57,10 +64,12 @@ async function workspaceRouting(browser) {
       };
     });
     detail(city);
-    return /44/.test(city.total || '') &&
-      /34/.test(city.named || '') &&
-      /10/.test(city.unresolved || '') &&
-      city.rows >= 4 &&
+    return city.total === 44 &&
+      city.named === 34 &&
+      city.unresolved === 10 &&
+      city.facilityRows === 34 &&
+      city.rows === 4 &&
+      city.strayProcessRows === 0 &&
       /accountable|thẩm quyền|PCTT|committee/i.test(city.queue || '') &&
       city.map === true &&
       city.plantLinkFacilityId === 'a-vuong' &&
@@ -70,6 +79,90 @@ async function workspaceRouting(browser) {
       /simulation|mô phỏng|synthetic|provenance|nguồn/i.test(city.downstream || '') &&
       /audit|notification|thông báo|provenance|source|nguồn/i.test(city.readiness || '') &&
       /simulation|synthetic|source|provenance|registry|audit/i.test(city.provenance || '');
+  });
+
+  await check('city dashboard layout remains usable at 1366×768', async (detail) => {
+    await directCity.page.setViewportSize({ width: 1366, height: 768 });
+    await directCity.page.waitForFunction(() => document.body.dataset.workspace === 'city' && document.querySelector('.cityDashboard'));
+    const layout = await directCity.page.evaluate(() => {
+      const rect = (selector) => {
+        const node = document.querySelector(selector);
+        if (!node) return null;
+        const r = node.getBoundingClientRect();
+        return { top: r.top, right: r.right, bottom: r.bottom, left: r.left, width: r.width, height: r.height };
+      };
+      const map = rect('.roleDashboardMap');
+      const grid = rect('.roleDashboardGrid');
+      const banner = rect('.citySyntheticBanner');
+      const queue = rect('[data-city-decision-queue]');
+      const mapNode = rect('#stageWrap');
+      const mapShare = map && grid ? (map.width * map.height) / (grid.width * grid.height) : 0;
+      const overflowX = document.documentElement.scrollWidth > window.innerWidth || document.body.scrollWidth > window.innerWidth;
+      return {
+        viewport: { width: window.innerWidth, height: window.innerHeight },
+        overflowX,
+        mapShare: Number(mapShare.toFixed(3)),
+        map, grid, banner, queue, mapNode,
+        dashboardScroll: document.querySelector('.cityDashboard')?.scrollHeight,
+      };
+    });
+    detail(layout);
+    return layout.overflowX === false &&
+      layout.mapShare >= 0.55 &&
+      layout.grid &&
+      layout.grid.bottom <= 768 &&
+      layout.map &&
+      layout.map.bottom <= 768 &&
+      layout.mapNode &&
+      layout.mapNode.bottom <= 768 &&
+      layout.banner &&
+      layout.banner.top >= 0 &&
+      layout.banner.bottom <= 768 &&
+      layout.queue &&
+      layout.queue.bottom <= 768;
+  });
+
+  await check('city live refresh preserves dashboard root, focus and scroll', async (detail) => {
+    const state = await directCity.page.evaluate(async () => {
+      const root = document.querySelector('.cityDashboard');
+      const stageParent = document.getElementById('stageWrap')?.parentElement;
+      const scroller = document.querySelector('[data-city-portfolio] .cityFacilityList')?.parentElement;
+      const button = document.querySelector('[data-city-portfolio] [data-plant-facility-id="a-vuong"]');
+      const beforeAudit = Number.parseInt(document.querySelector('[data-city-readiness] [data-city-kpi="audit"] .cityKpiValue')?.textContent || '0', 10);
+      const beforeGauge = document.querySelector('[data-city-impact] .cityGaugeCard strong')?.textContent || '';
+      if (scroller) scroller.scrollTop = 24;
+      if (button) button.focus();
+      const focusedBefore = document.activeElement === button;
+      FT.ops.audit.log('notify.dispatch', { channel: 'city-regression' }, 'city refresh regression');
+      FT.state.timeH = Math.min(FT.hydro.T1, FT.state.timeH + 6);
+      FT.bus.emit('scrubbed');
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const afterRoot = document.querySelector('.cityDashboard');
+      const afterButton = document.querySelector('[data-city-portfolio] [data-plant-facility-id="a-vuong"]');
+      const afterAudit = Number.parseInt(document.querySelector('[data-city-readiness] [data-city-kpi="audit"] .cityKpiValue')?.textContent || '0', 10);
+      const afterGauge = document.querySelector('[data-city-impact] .cityGaugeCard strong')?.textContent || '';
+      return {
+        rootStable: root === afterRoot,
+        mapParentStable: document.getElementById('stageWrap')?.parentElement === stageParent,
+        buttonStable: button === afterButton,
+        focusedBefore,
+        focusPreserved: document.activeElement === button,
+        scrollPreserved: !scroller || scroller.scrollTop >= 24,
+        beforeAudit,
+        afterAudit,
+        beforeGauge,
+        afterGauge,
+      };
+    });
+    detail(state);
+    return state.rootStable &&
+      state.mapParentStable &&
+      state.buttonStable &&
+      state.focusedBefore &&
+      state.focusPreserved &&
+      state.scrollPreserved &&
+      state.afterAudit > state.beforeAudit &&
+      state.afterGauge !== state.beforeGauge;
   });
 
   await check('city portfolio deep link navigates to plant route for governed facility', async (detail) => {
