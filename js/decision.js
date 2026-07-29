@@ -374,19 +374,24 @@
                "the gauge model has reached its representable maximum — the two policies cannot be compared")];
     }
 
+    const action = Object.freeze({
+      q0: p.q0, q1: p.q1, tStart: p.tStart,
+      rampMax: Math.round(r.spillMax / 6),
+      endCondition: L(`Z ≤ ${U.fmt(r.ceil - 1.5, 1)} m hoặc hết đỉnh lũ`, `Z ≤ ${U.fmt(r.ceil - 1.5, 1)} m or peak passed`),
+      gates: L("mở đối xứng quanh tim tràn (chưa mô hình hoá từng cửa)", "symmetric about the spillway centreline (individual gates not modelled)"),
+    });
+
     return {
       kind: saturated ? "SATURATED" : cut < CFG.worthwhileCutM ? "NULL" : "PROPOSAL",
       saturated,
       id: `DP-${FT.state.scenario}-${Math.round(p.tStart * 10)}`,
+      proposalRevision: 1,
+      validFromH: FT.state.timeH,
+      validUntilH: deadline,
       health: hl,
       reservoir: r,
       gauge: g,
-      action: {
-        q0: p.q0, q1: p.q1, tStart: p.tStart,
-        rampMax: Math.round(r.spillMax / 6),
-        endCondition: L(`Z ≤ ${U.fmt(r.ceil - 1.5, 1)} m hoặc hết đỉnh lũ`, `Z ≤ ${U.fmt(r.ceil - 1.5, 1)} m or peak passed`),
-        gates: L("mở đối xứng quanh tim tràn (chưa mô hình hoá từng cửa)", "symmetric about the spillway centreline (individual gates not modelled)"),
-      },
+      action,
       constraints: cons,
       feasible: hard.length === 0,
       binding,

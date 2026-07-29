@@ -2,7 +2,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { listen } from './serve.mjs';
 import { launchGpu } from './browser.mjs';
-import { step, check, usePage, bootApp, report, results } from './harness.mjs';
+import { step, check, usePage, bootApp, report, results, setTime, signOnRole, ROLE } from './harness.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
@@ -102,6 +102,156 @@ async function governedFacilityRegistry(browser) {
   await ctx.close();
 }
 
+async function sharedReleaseWorkflowStore(browser) {
+  step('RW · Shared release workflow store');
+  const { ctx, page, errors } = await bootApp(browser, BASE);
+  usePage(page);
+  await setTime(page, 6);
+
+  await check('the app boots without workflow-blocking application errors', (detail) => {
+    const app = errors.filter((error) => !/overpass|arcgisonline|elevation-tiles-prod|jsdelivr|unpkg|cdn\./i.test(error));
+    detail(app.slice(0, 4));
+    return app.length === 0;
+  });
+
+  const state = await page.evaluate(() => {
+    const FT = window.FT;
+    const pkg = FT.ops.package(FT.hydro.at(FT.state.timeH));
+    const proposal = FT.releaseOps && FT.releaseOps.ingestProposal(pkg);
+    return {
+      proposalId: proposal && proposal.id,
+      facilityId: proposal && proposal.facilityId,
+      lifecycleClass: proposal && proposal.lifecycleClass,
+      actionable: proposal && proposal.actionable,
+      packageId: pkg && pkg.id,
+      actionFrozen: pkg && Object.isFrozen(pkg.action),
+      proposalRevision: pkg && pkg.proposalRevision,
+      validFromH: pkg && pkg.validFromH,
+      validUntilH: pkg && pkg.validUntilH,
+    };
+  });
+
+  await check('proposal is shared but not actionable', () =>
+    /^PRP-/.test(state.proposalId) &&
+    !!state.facilityId &&
+    state.lifecycleClass === 'RECOMMENDATION' &&
+    state.actionable === false);
+
+  await check('proposal package exposes stable details without changing solver behavior', () =>
+    state.proposalRevision === 1 &&
+    state.validFromH === 6 &&
+    Number.isFinite(state.validUntilH) &&
+    state.actionFrozen === true);
+
+  await check('createOrder refuses a proposal without approved attributed audit', async (detail) => {
+    const r = await page.evaluate((proposalId) => {
+      const RO = window.FT.releaseOps;
+      if (!RO) return { withoutAudit: undefined, anonymousAudit: undefined, mismatchedAudit: undefined };
+      return {
+        withoutAudit: RO.createOrder(proposalId, null),
+        anonymousAudit: RO.createOrder(proposalId, {
+          action: 'decision.approve',
+          actor: 'unattributed',
+          detail: { package: proposalId.replace(/^PRP-/, '') },
+        }),
+        mismatchedAudit: RO.createOrder(proposalId, {
+          action: 'decision.approve',
+          actor: 'Phạm M.D. (Ban Chỉ huy PCTT&TKCN)',
+          detail: { package: 'DP-other' },
+        }),
+      };
+    }, state.proposalId || 'PRP-DP-missing');
+    detail(r);
+    return r.withoutAudit === null && r.anonymousAudit === null && r.mismatchedAudit === null;
+  });
+
+  await signOnRole(page, ROLE.authority);
+  const workflow = await page.evaluate((proposalId) => {
+    const FT = window.FT;
+    const RO = FT.releaseOps;
+    if (!RO) {
+      return {
+        beforeAudit: FT.ops.audit.entries.length,
+        afterAudit: FT.ops.audit.entries.length,
+        decision: null,
+        order: null,
+        notified: null,
+        execution: null,
+        checklist: null,
+        observed: null,
+        closed: null,
+        snap1Order: null,
+        snap2Order: null,
+        snap1Frozen: false,
+        snap2Frozen: false,
+        auditActions: [],
+      };
+    }
+    const beforeAudit = FT.ops.audit.entries.length;
+    const decisionAudit = FT.ops.audit.log('decision.approve', {
+      decision: 'D-03',
+      actorRole: FT.ops.audit.actor.role,
+      package: proposalId.replace(/^PRP-/, ''),
+      feasible: true,
+    }, 'shared workflow approval');
+    const decision = RO.recordDecision(decisionAudit);
+    const order = RO.createOrder(proposalId, decisionAudit);
+    const snap1 = RO.snapshot();
+    const notified = RO.markNotified(order.id);
+    const execution = RO.startExecution(order.id);
+    const checklist = RO.setChecklist(order.id, 'downstreamNotice', true);
+    const observed = RO.recordObservedRelease(order.id, 420);
+    const closed = RO.close(order.id);
+    const snap2 = RO.snapshot();
+    return {
+      beforeAudit,
+      afterAudit: FT.ops.audit.entries.length,
+      decision,
+      order,
+      notified,
+      execution,
+      checklist,
+      observed,
+      closed,
+      snap1Order: snap1.orders[order.id],
+      snap2Order: snap2.orders[order.id],
+      snap1Frozen: Object.isFrozen(snap1) && Object.isFrozen(snap1.orders[order.id]),
+      snap2Frozen: Object.isFrozen(snap2) && Object.isFrozen(snap2.orders[order.id]),
+      auditActions: FT.ops.audit.entries.slice(beforeAudit).map((e) => e.action),
+    };
+  }, state.proposalId || 'PRP-DP-missing');
+
+  await check('approved attributed audit creates an actionable order', (detail) => {
+    detail(workflow);
+    return /^DEC-/.test(workflow.decision.id) &&
+      workflow.decision.lifecycleClass === 'OPERATOR_DECISION' &&
+      workflow.order &&
+      /^ORD-/.test(workflow.order.id) &&
+      workflow.order.lifecycleClass === 'APPROVED_PLAN' &&
+      workflow.order.actionable === true &&
+      workflow.order.status === 'APPROVED';
+  });
+
+  await check('workflow mutators append audit entries and preserve prior snapshots', () =>
+    workflow.afterAudit >= workflow.beforeAudit + 6 &&
+    workflow.auditActions.includes('release.order.create') &&
+    workflow.auditActions.includes('release.order.notified') &&
+    workflow.auditActions.includes('release.execution.start') &&
+    workflow.auditActions.includes('release.checklist.set') &&
+    workflow.auditActions.includes('release.observed') &&
+    workflow.auditActions.includes('release.order.close') &&
+    workflow.snap1Frozen &&
+    workflow.snap2Frozen &&
+    workflow.snap1Order &&
+    workflow.snap2Order &&
+    workflow.snap1Order.status === 'APPROVED' &&
+    workflow.snap2Order.status === 'CLOSED' &&
+    workflow.snap1Order !== workflow.snap2Order &&
+    workflow.snap1Order.status !== workflow.snap2Order.status);
+
+  await ctx.close();
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const srv = await listen(4310, ROOT);
   BASE = `http://127.0.0.1:${srv.address().port}`;
@@ -111,6 +261,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const t0 = Date.now();
   try {
     await governedFacilityRegistry(browser);
+    await sharedReleaseWorkflowStore(browser);
   } finally {
     await browser.close();
     srv.close();
