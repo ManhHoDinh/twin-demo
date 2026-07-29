@@ -70,6 +70,36 @@ Mode, escalation level, data health and the decision deadline are **never** hidd
 
 **Status:** ⚠ partially exists (KPI strip, gauge/reservoir/zone lists). Missing: κ, freeboard, time-to-full, `P(BĐ3)`, deadline, counterfactual, impact ranges, data-health chip.
 
+### City/Plant role dashboard amendment
+
+The Dashboard entry point branches to two separate role routes over the shared operational core:
+
+- **City Operations Dashboard.** Municipal command, portfolio/event posture, decision queue, approved
+  orders, execution verification and event closure.
+- **Plant Operations Dashboard.** Facility selection, advisory evidence, proposal review, approved plant
+  order execution and completion.
+
+Both routes use the same `event_id`, `facility_id`, `proposal_id`, `decision_id` and
+`approved_order_id`, and the same map as shared spatial context. The dashboards are separate routes; the
+map is evidence, not the universal workspace.
+
+City state path:
+
+```text
+City: PORTFOLIO -> EVENT_ACTIVE -> DECISION_PENDING -> ORDERED -> EXECUTING -> VERIFIED -> CLOSED
+```
+
+Plant state path:
+
+```text
+Plant: FACILITY_SELECTED -> ADVISORY_AVAILABLE -> PROPOSED -> APPROVED_PLAN -> EXECUTING -> COMPLETE
+```
+
+`CONFLICTING_SOURCES` blocks advice and names the disagreeing records. `NOT_IN_CURRENT_DEMO` facilities
+remain visible but cannot produce operational advice. `MISSING` names the unavailable evidence and affected
+controls. `SUPERSEDED` leaves the old decision/order auditable but not executable. Plant execution must
+show actual-versus-commanded release or gate evidence when authoritative telemetry exists.
+
 ---
 
 ## S-02 — Situation (authority view)

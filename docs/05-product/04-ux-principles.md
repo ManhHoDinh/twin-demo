@@ -63,6 +63,17 @@ architecture change, not a CSS change. Mitigation in the meantime: every *persis
 signal — mode, escalation, data health, κ, P(exceed), decision deadline — lives in the global
 chrome and is verified visible without scrolling on every audit run. Tracked as **R-28**.
 
+### Amendment A2 — separate city and plant routes over one operational core
+
+The old universal-map-only reading is superseded for city-plant release workflows. City Operations
+Dashboard and Plant Operations Dashboard are separate dashboards because city command and plant execution
+have different state paths, authorities and closure evidence. They share one operational core: registry,
+clock, map context, proposal, decision, approved order and audit records.
+
+The shared map remains spatial context. It must never force municipal command and facility execution into
+one route, and it must never hide `CONFLICTING_SOURCES`, `NOT_IN_CURRENT_DEMO`, `MISSING` or `SUPERSEDED`
+states behind a clean-looking dashboard.
+
 ---
 
 ## 3. The language of uncertainty

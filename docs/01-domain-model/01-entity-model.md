@@ -162,6 +162,25 @@ Never a constant. See [hydraulics §5](../00-foundations/03-hydraulics-and-routi
 3. Mass balance closes within sensor tolerance
 4. `outflow ≤ Q_max(z)` from the gate rating
 
+### E-07A HydropowerFacility
+
+Municipal registry object used before a source row is proven enough to bind to an operational reservoir.
+The source-dated city scope contains **44 hydropower facilities: 34 named and 10 unresolved**. Decision
+1865 classification contains **19 hydropower reservoirs**, not 20. Completeness remains false.
+
+| Field | Notes |
+|---|---|
+| `facility_id` | Stable shared identifier used by City Operations Dashboard and Plant Operations Dashboard |
+| `name` | Source name or `MISSING`; unresolved records do not invent names |
+| `source_ref` | Source document/date/classification, including Decision 1865 where applicable |
+| `registry_status` | `READY_FOR_DEMO \| NOT_IN_CURRENT_DEMO \| MISSING \| CONFLICTING_SOURCES \| SUPERSEDED` |
+| `demo_reservoir_id` | Only A Vuong, Song Bung 4, Dak Mi 4, and Song Tranh 2 map to the synthetic demo |
+| `operational_advice_allowed` | False for non-demo, missing-data, conflicting, or superseded records |
+
+`NOT_IN_CURRENT_DEMO` facilities remain visible in the registry but cannot produce operational advice.
+The product must not invent facility identities, owners, capacities, gate geometry, telemetry, operating
+rules or routing times.
+
 ### E-08 Dam
 `type` (`GRAVITY \| ARCH \| RCC \| EMBANKMENT`) · `height_m`, `crest_length_m`, `crest_elevation_m` ⚠ · `year_commissioned` · `design_flood_p`, `check_flood_p` · `instrumentation[]` → Sensor · `eap` → EmergencyActionPlan ⚠ · `breach_scenarios[]` ⚠ (pre-computed; see [simulation §5](../04-decision-support/03-simulation-and-scenarios.md)) · `last_safety_inspection`, `known_defects[]`, `maintenance_state`
 
@@ -226,6 +245,12 @@ Every one of them carries `last_seen`, `quality`, `provenance` and a **staleness
 
 ### E-37 Decision
 `proposal_id`, `decided_at`, `decided_by` → User ⚠, `authority_basis` (legal reference), `choice` (`APPROVE \| MODIFY \| REJECT \| DEFER`), `modifications`, `reason_of_record` ⚠ (**required, free text, ≤ 30 s to enter**), `input_snapshot_hash` ⚠, `resulting_orders[]`, `notifications[]`
+
+City/plant release workflows share `event_id`, `facility_id`, `proposal_id`, `decision_id` and
+`approved_order_id`. AI proposes only; authorized humans approve. D-06 dam-safety emergency authority may
+supersede normal approval. `PROPOSED` has no downstream effect; only `APPROVED_PLAN` can create an
+actionable order, and execution records must preserve actual-versus-commanded evidence when telemetry is
+authoritative.
 
 ### E-38 Notification
 `decision_id`, `channel` (`SMS \| CALL \| ZALO \| SIREN \| LOUDSPEAKER \| RADIO \| APP \| CAP_FEED \| EMAIL`), `audience`, `template_id`, `rendered_text` ⚠ (**generated from the decision record — never hand-authored per channel**, so channels cannot diverge), `sent_at`, `delivery_status`, `acknowledged_by`, `acknowledged_at` ⚠
