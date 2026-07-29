@@ -81,48 +81,72 @@ async function workspaceRouting(browser) {
       /simulation|synthetic|source|provenance|registry|audit/i.test(city.provenance || '');
   });
 
-  await check('city dashboard layout remains usable at 1366×768', async (detail) => {
-    await directCity.page.setViewportSize({ width: 1366, height: 768 });
-    await directCity.page.waitForFunction(() => document.body.dataset.workspace === 'city' && document.querySelector('.cityDashboard'));
-    const layout = await directCity.page.evaluate(() => {
-      const rect = (selector) => {
-        const node = document.querySelector(selector);
-        if (!node) return null;
-        const r = node.getBoundingClientRect();
-        return { top: r.top, right: r.right, bottom: r.bottom, left: r.left, width: r.width, height: r.height };
-      };
-      const map = rect('.roleDashboardMap');
-      const grid = rect('.roleDashboardGrid');
-      const banner = rect('.citySyntheticBanner');
-      const queue = rect('[data-city-decision-queue]');
-      const mapNode = rect('#stageWrap');
-      const mapShare = map && grid ? (map.width * map.height) / (grid.width * grid.height) : 0;
-      const overflowX = document.documentElement.scrollWidth > window.innerWidth || document.body.scrollWidth > window.innerWidth;
-      return {
-        viewport: { width: window.innerWidth, height: window.innerHeight },
-        overflowX,
-        mapShare: Number(mapShare.toFixed(3)),
-        map, grid, banner, queue, mapNode,
-        dashboardScroll: document.querySelector('.cityDashboard')?.scrollHeight,
-      };
+  await check('city dashboard layout remains usable across desktop, tablet and mobile widths', async (detail) => {
+    const viewports = [
+      { width: 1366, height: 768 },
+      { width: 1024, height: 768 },
+      { width: 768, height: 1024 },
+      { width: 701, height: 900 },
+      { width: 390, height: 844 },
+    ];
+    const measurements = [];
+    for (const viewport of viewports) {
+      await directCity.page.setViewportSize(viewport);
+      await directCity.page.waitForFunction(() => document.body.dataset.workspace === 'city' && document.querySelector('.cityDashboard'));
+      measurements.push(await directCity.page.evaluate(() => {
+        const rect = (selector) => {
+          const node = document.querySelector(selector);
+          if (!node) return null;
+          const r = node.getBoundingClientRect();
+          return { top: r.top, right: r.right, bottom: r.bottom, left: r.left, width: r.width, height: r.height };
+        };
+        const panels = [...document.querySelectorAll('[data-city-portfolio], [data-city-timeline], [data-city-decision-queue], [data-city-impact], [data-city-readiness]')]
+          .map((node) => {
+            const r = node.getBoundingClientRect();
+            return { top: r.top, right: r.right, bottom: r.bottom, left: r.left, width: r.width, height: r.height };
+          });
+        const map = rect('.roleDashboardMap');
+        const grid = rect('.roleDashboardGrid');
+        const banner = rect('.citySyntheticBanner');
+        const queue = rect('[data-city-decision-queue]');
+        const readiness = rect('[data-city-readiness]');
+        const mapNode = rect('#stageWrap');
+        const mapShare = map && grid ? (map.width * map.height) / (grid.width * grid.height) : 0;
+        const overflowX = document.documentElement.scrollWidth > window.innerWidth || document.body.scrollWidth > window.innerWidth;
+        const mobile = window.innerWidth <= 700;
+        return {
+          viewport: { width: window.innerWidth, height: window.innerHeight },
+          overflowX,
+          mapShare: Number(mapShare.toFixed(3)),
+          map, grid, banner, queue, readiness, mapNode, panels,
+          queueBeforeMap: queue && map ? queue.top <= map.top : null,
+          bannerVisible: !!banner && banner.top >= 0 && banner.bottom <= window.innerHeight,
+          panelsInViewport: mobile ? true : panels.every((panel) =>
+            panel.left >= 0 && panel.right <= window.innerWidth && panel.top >= 0 && panel.bottom <= window.innerHeight),
+        };
+      }));
+    }
+    detail(measurements);
+    return measurements.every((layout) => {
+      const mobile = layout.viewport.width <= 700;
+      const fullDesktop = layout.viewport.width >= 1366;
+      return layout.overflowX === false &&
+        layout.grid &&
+        layout.map &&
+        layout.mapNode &&
+        layout.bannerVisible &&
+        layout.queue &&
+        layout.readiness &&
+        layout.mapNode.width >= 320 &&
+        layout.mapNode.height >= (mobile ? 300 : 220) &&
+        (mobile ? layout.queueBeforeMap === true : layout.panelsInViewport && layout.grid.bottom <= layout.viewport.height && layout.map.bottom <= layout.viewport.height && layout.mapNode.bottom <= layout.viewport.height) &&
+        (!fullDesktop || layout.mapShare >= 0.55);
     });
-    detail(layout);
-    return layout.overflowX === false &&
-      layout.mapShare >= 0.55 &&
-      layout.grid &&
-      layout.grid.bottom <= 768 &&
-      layout.map &&
-      layout.map.bottom <= 768 &&
-      layout.mapNode &&
-      layout.mapNode.bottom <= 768 &&
-      layout.banner &&
-      layout.banner.top >= 0 &&
-      layout.banner.bottom <= 768 &&
-      layout.queue &&
-      layout.queue.bottom <= 768;
   });
 
   await check('city live refresh preserves dashboard root, focus and scroll', async (detail) => {
+    await directCity.page.setViewportSize({ width: 1366, height: 768 });
+    await directCity.page.waitForFunction(() => document.body.dataset.workspace === 'city' && document.querySelector('.cityDashboard'));
     const state = await directCity.page.evaluate(async () => {
       const root = document.querySelector('.cityDashboard');
       const stageParent = document.getElementById('stageWrap')?.parentElement;

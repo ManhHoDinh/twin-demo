@@ -459,6 +459,24 @@ body[data-workspace="city"] .roleWorkspaceHost {
 .cityDashboard .roleDashboardGrid > *:nth-child(2) { animation-delay: .03s; }
 .cityDashboard .roleDashboardGrid > *:nth-child(3) { animation-delay: .06s; }
 .cityDashboard .roleDashboardGrid > *:nth-child(4) { animation-delay: .09s; }
+@media (min-width: 701px) and (max-width: 1299px) {
+  .roleDashboardHead {
+    display: grid;
+    align-items: start;
+  }
+  .citySyntheticBanner {
+    width: 100%;
+  }
+  .roleDashboardGrid {
+    grid-template-columns: minmax(0, 1.35fr) minmax(220px, 0.65fr);
+    grid-template-rows: repeat(4, minmax(0, 1fr));
+    grid-template-areas:
+      "map queue"
+      "map readiness"
+      "map impact"
+      "portfolio timeline";
+  }
+}
 @media (max-width: 700px) {
   .workspaceNav {
     left: 8px;
