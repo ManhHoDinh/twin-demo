@@ -486,6 +486,18 @@ async function earthControls(browser) {
       result.requestCount === 1;
   });
 
+  await check('Administrative map labels use the new Da Nang ward and commune names', async (d) => {
+    const labels = await page.evaluate(() => window.FT.data.PLACES
+      .filter((place) => place.k === 'dist')
+      .map((place) => place.n));
+    d(labels);
+    return labels.length >= 10 &&
+      labels.every((label) => /^(Phường|Xã) /.test(label)) &&
+      !labels.some((label) => /^(Q\.|H\.|TX\b)|Quảng Nam|Điện Bàn$/.test(label)) &&
+      ['Phường Hòa Cường', 'Phường Thanh Khê', 'Xã Duy Xuyên', 'Xã Hà Nha']
+        .every((label) => labels.includes(label));
+  });
+
   await check('Place sheet shows address loading and ignores a stale lookup response', async (d) => {
     const result = await page.evaluate(async () => {
       const FT = window.FT;

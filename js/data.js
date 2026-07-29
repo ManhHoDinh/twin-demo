@@ -189,23 +189,24 @@
   ];
   const MAIN_ROUTE = { from: "dn_s", to: "hoian", label: "ĐN → Hội An" };
 
-  /* ---------- gazetteer: real districts, bridges & landmarks (labels 2D+3D) ----------
-     kind: dist (quận/huyện) · bridge (cầu thật) · lm (địa danh) — tier 1 hiện sớm, tier 2 khi zoom gần */
+  /* ---------- gazetteer: current administrative units, bridges & landmarks ----------
+     `dist` is retained as an internal style key; labels use the post-merger Da Nang names. */
   const PLACES = [
-    { n: "Q. Hải Châu", k: "dist", t: 1, ll: [108.212, 16.047] },
-    { n: "Q. Thanh Khê", k: "dist", t: 1, ll: [108.187, 16.064] },
-    { n: "Q. Sơn Trà", k: "dist", t: 1, ll: [108.244, 16.083] },
-    { n: "Q. Ngũ Hành Sơn", k: "dist", t: 1, ll: [108.251, 16.008] },
-    { n: "Q. Cẩm Lệ", k: "dist", t: 1, ll: [108.193, 16.008] },
-    { n: "Q. Liên Chiểu", k: "dist", t: 1, ll: [108.135, 16.09] },
-    { n: "H. Hòa Vang", k: "dist", t: 1, ll: [108.088, 16.02] },
-    { n: "TX Điện Bàn", k: "dist", t: 1, ll: [108.22, 15.90] },
-    { n: "H. Đại Lộc", k: "dist", t: 1, ll: [108.02, 15.862] },
-    { n: "H. Duy Xuyên", k: "dist", t: 1, ll: [108.17, 15.788] },
-    { n: "H. Quế Sơn", k: "dist", t: 1, ll: [108.13, 15.678] },
-    { n: "H. Nông Sơn", k: "dist", t: 1, ll: [108.018, 15.70] },
-    { n: "H. Nam Giang", k: "dist", t: 1, ll: [107.79, 15.68] },
-    { n: "H. Hiệp Đức", k: "dist", t: 1, ll: [108.088, 15.565] },
+    { n: "Phường Hải Châu", k: "dist", t: 1, ll: [108.214, 16.068] },
+    { n: "Phường Hòa Cường", k: "dist", t: 1, ll: [108.212, 16.047] },
+    { n: "Phường Thanh Khê", k: "dist", t: 1, ll: [108.187, 16.064] },
+    { n: "Phường An Hải", k: "dist", t: 1, ll: [108.244, 16.083] },
+    { n: "Phường Ngũ Hành Sơn", k: "dist", t: 1, ll: [108.251, 16.008] },
+    { n: "Phường Cẩm Lệ", k: "dist", t: 1, ll: [108.193, 16.008] },
+    { n: "Phường Hải Vân", k: "dist", t: 1, ll: [108.135, 16.09] },
+    { n: "Xã Bà Nà", k: "dist", t: 1, ll: [108.088, 16.02] },
+    { n: "Phường An Thắng", k: "dist", t: 1, ll: [108.22, 15.90] },
+    { n: "Xã Hà Nha", k: "dist", t: 1, ll: [108.02, 15.862] },
+    { n: "Xã Duy Xuyên", k: "dist", t: 1, ll: [108.17, 15.788] },
+    { n: "Xã Nông Sơn", k: "dist", t: 1, ll: [108.13, 15.678] },
+    { n: "Xã Quế Phước", k: "dist", t: 1, ll: [108.018, 15.70] },
+    { n: "Xã Bến Giằng", k: "dist", t: 1, ll: [107.79, 15.68] },
+    { n: "Xã Hiệp Đức", k: "dist", t: 1, ll: [108.088, 15.565] },
     { n: "Cầu Thuận Phước", k: "bridge", t: 2, ll: [108.2226, 16.0937] },
     { n: "Cầu Sông Hàn", k: "bridge", t: 2, ll: [108.2273, 16.0721] },
     { n: "Cầu Rồng", k: "bridge", t: 2, ll: [108.2266, 16.0612] },
