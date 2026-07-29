@@ -236,6 +236,227 @@ async function workspaceRouting(browser) {
       new URLSearchParams(state.url).get('facility') === 'a-vuong';
   });
 
+  await check('direct plant route renders demo facility dashboard with advisory boundary', async (detail) => {
+    const plant = await directPlant.page.evaluate(() => {
+      const visibleText = (node) => node && node.textContent ? node.textContent.replace(/\s+/g, ' ').trim() : '';
+      const selector = document.querySelector('[data-plant-facility-selector]');
+      const advisory = document.querySelector('[data-plant-advisory]');
+      const approved = document.querySelector('[data-plant-approved-order]');
+      const actions = [...document.querySelectorAll('[data-plant-action]')].map((button) => ({
+        action: button.dataset.plantAction,
+        disabled: button.disabled,
+        text: visibleText(button),
+      }));
+      return {
+        root: !!document.querySelector('.plantDashboard[data-workspace="plant"]'),
+        identity: visibleText(document.querySelector('[data-plant-facility-identity]')),
+        selectorValue: selector && selector.value,
+        selectorOptions: selector ? [...selector.options].map((option) => option.value) : [],
+        current: visibleText(document.querySelector('[data-plant-current-state]')),
+        currentState: document.querySelector('[data-plant-data-state]')?.dataset.plantDataState,
+        advisory: visibleText(advisory),
+        advisoryClass: advisory?.dataset.plantLifecycleClass,
+        advisoryActionable: advisory?.dataset.plantActionable,
+        alternatives: visibleText(document.querySelector('[data-plant-alternatives]')),
+        approved: visibleText(approved),
+        approvedClass: approved?.className || '',
+        checklist: visibleText(document.querySelector('[data-plant-checklist]')),
+        execution: visibleText(document.querySelector('[data-plant-execution]')),
+        map: !!document.querySelector('[data-workspace="plant"] [data-workspace-map-slot="plant"] #stageWrap'),
+        provenance: [...document.querySelectorAll('.plantDashboard [data-provenance]')].map(visibleText),
+        actions,
+      };
+    });
+    detail(plant);
+    return plant.root &&
+      /A Vương|a-vuong/i.test(plant.identity) &&
+      plant.selectorValue === 'a-vuong' &&
+      plant.selectorOptions.length === 34 &&
+      plant.currentState === 'ASSUMED_FOR_DEMO' &&
+      /current|state|mực|release|xả|synthetic|assumed/i.test(plant.current) &&
+      plant.advisoryClass === 'RECOMMENDATION' &&
+      plant.advisoryActionable === 'false' &&
+      /RECOMMENDATION|not in force|not actionable|CHƯA có hiệu lực/i.test(plant.advisory) &&
+      /ASSUMED_FOR_DEMO|individual gate geometry is not modelled|not modelled/i.test(plant.advisory) &&
+      /alternative|rule|coordinate|peak|no targeted advisory|not currently targeted/i.test(plant.alternatives) &&
+      /approved order|none approved|no approved/i.test(plant.approved) &&
+      /plantApprovedOrder/.test(plant.approvedClass) &&
+      /checklist/i.test(plant.checklist) &&
+      /execution|no execution|approval/i.test(plant.execution) &&
+      plant.map &&
+      plant.provenance.length >= 3 &&
+      plant.provenance.join(' | ').match(/source|provenance|synthetic|2026-05-06|hydro\.js/i) &&
+      plant.actions.length >= 3 &&
+      plant.actions.every((button) => button.disabled === true) &&
+      plant.actions.some((button) => /propose/i.test(button.action || button.text)) &&
+      plant.actions.some((button) => /execute/i.test(button.action || button.text));
+  });
+
+  await check('plant unavailable facility shows registry-only provenance without fabricated operations', async (detail) => {
+    await openWorkspace(directPlant.page, 'plant', 'tra-linh-1');
+    const unavailable = await directPlant.page.evaluate(() => ({
+      state: document.querySelector('[data-plant-data-state]')?.dataset.plantDataState,
+      text: document.querySelector('[data-plant-data-state]')?.textContent,
+      enabledActions: [...document.querySelectorAll('[data-plant-action]')].filter((b) => !b.disabled).length,
+      identity: document.querySelector('[data-plant-facility-identity]')?.textContent,
+      source: [...document.querySelectorAll('.plantDashboard [data-provenance]')].map((node) => node.textContent).join(' | '),
+      missing: document.querySelector('[data-plant-missing-dependencies]')?.textContent,
+      whole: document.querySelector('.plantDashboard')?.textContent,
+    }));
+    detail(unavailable);
+    return unavailable.state === 'NOT_IN_CURRENT_DEMO' &&
+      /Trà Linh 1|HydropowerFacility|not-generating/i.test(unavailable.identity || '') &&
+      /source|provenance|dn-inspection-2026-05-06|2026-05-06/i.test(unavailable.source || '') &&
+      /telemetry|storage|outlet geometry|operating rules|routing|forecast/i.test(unavailable.missing || '') &&
+      unavailable.enabledActions === 0 &&
+      !/(gate opening|deviation|observed release|commanded release|m3\/s|m³\/s|telemetry advice|recommend \d)/i.test(unavailable.whole || '');
+  });
+
+  await check('plant facility selector updates deep URL only to governed facility IDs', async (detail) => {
+    const state = await directPlant.page.evaluate(async () => {
+      const selector = document.querySelector('[data-plant-facility-selector]');
+      selector.value = 'dak-mi-4';
+      selector.dispatchEvent(new Event('change', { bubbles: true }));
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const afterGoverned = {
+        workspace: FT.state.workspace,
+        bodyWorkspace: document.body.dataset.workspace,
+        facility: FT.state.selectedFacilityId,
+        current: FT.workspaces.current(),
+        search: location.search,
+        selectorValue: document.querySelector('[data-plant-facility-selector]')?.value,
+      };
+      const selectedBeforeFake = FT.state.selectedFacilityId;
+      selector.value = 'not-real';
+      selector.dispatchEvent(new Event('change', { bubbles: true }));
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      return {
+        afterGoverned,
+        selectedBeforeFake,
+        afterFake: {
+          workspace: FT.state.workspace,
+          facility: FT.state.selectedFacilityId,
+          current: FT.workspaces.current(),
+          search: location.search,
+          selectorValue: document.querySelector('[data-plant-facility-selector]')?.value,
+        },
+      };
+    });
+    detail(state);
+    return state.afterGoverned.workspace === 'plant' &&
+      state.afterGoverned.bodyWorkspace === 'plant' &&
+      state.afterGoverned.facility === 'dak-mi-4' &&
+      state.afterGoverned.current.facilityId === 'dak-mi-4' &&
+      new URLSearchParams(state.afterGoverned.search).get('facility') === 'dak-mi-4' &&
+      state.afterGoverned.selectorValue === 'dak-mi-4' &&
+      state.afterFake.workspace === 'plant' &&
+      state.afterFake.facility === state.selectedBeforeFake &&
+      state.afterFake.current.facilityId === state.selectedBeforeFake &&
+      new URLSearchParams(state.afterFake.search).get('facility') === state.selectedBeforeFake;
+  });
+
+  await check('plant live refresh preserves dashboard root, selector focus, scroll and map', async (detail) => {
+    await openWorkspace(directPlant.page, 'plant', 'a-vuong');
+    await directPlant.page.setViewportSize({ width: 1366, height: 768 });
+    await directPlant.page.waitForFunction(() => document.body.dataset.workspace === 'plant' && document.querySelector('.plantDashboard'));
+    const state = await directPlant.page.evaluate(async () => {
+      const root = document.querySelector('.plantDashboard');
+      const stageParent = document.getElementById('stageWrap')?.parentElement;
+      const selector = document.querySelector('[data-plant-facility-selector]');
+      const scroller = document.querySelector('[data-plant-advisory]');
+      const beforeCurrent = document.querySelector('[data-plant-current-state]')?.textContent || '';
+      if (scroller) scroller.scrollTop = 16;
+      if (selector) selector.focus();
+      const focusedBefore = document.activeElement === selector;
+      FT.ops.audit.log('release.workflow.refreshProbe', { facilityId: 'a-vuong' }, 'plant refresh regression');
+      FT.state.timeH = Math.min(FT.hydro.T1, FT.state.timeH + 6);
+      FT.bus.emit('scrubbed');
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      return {
+        rootStable: root === document.querySelector('.plantDashboard'),
+        mapParentStable: document.getElementById('stageWrap')?.parentElement === stageParent,
+        selectorStable: selector === document.querySelector('[data-plant-facility-selector]'),
+        focusedBefore,
+        focusPreserved: document.activeElement === selector,
+        scrollPreserved: !scroller || scroller.scrollTop >= 16,
+        beforeCurrent,
+        afterCurrent: document.querySelector('[data-plant-current-state]')?.textContent || '',
+      };
+    });
+    detail(state);
+    return state.rootStable &&
+      state.mapParentStable &&
+      state.selectorStable &&
+      state.focusedBefore &&
+      state.focusPreserved &&
+      state.scrollPreserved &&
+      state.beforeCurrent !== state.afterCurrent;
+  });
+
+  await check('plant dashboard layout remains usable across desktop, tablet and mobile widths', async (detail) => {
+    await openWorkspace(directPlant.page, 'plant', 'a-vuong');
+    const viewports = [
+      { width: 1366, height: 768 },
+      { width: 1440, height: 900 },
+      { width: 1024, height: 768 },
+      { width: 768, height: 1024 },
+      { width: 701, height: 900 },
+      { width: 390, height: 844 },
+    ];
+    const measurements = [];
+    for (const viewport of viewports) {
+      await directPlant.page.setViewportSize(viewport);
+      await directPlant.page.waitForFunction(() => document.body.dataset.workspace === 'plant' && document.querySelector('.plantDashboard'));
+      measurements.push(await directPlant.page.evaluate(() => {
+        const rect = (selector) => {
+          const node = document.querySelector(selector);
+          if (!node) return null;
+          const r = node.getBoundingClientRect();
+          return { top: r.top, right: r.right, bottom: r.bottom, left: r.left, width: r.width, height: r.height };
+        };
+        const panels = [...document.querySelectorAll('[data-plant-current-state], [data-plant-advisory], [data-plant-alternatives], [data-plant-approved-order], [data-plant-checklist], [data-plant-execution]')]
+          .map((node) => {
+            const r = node.getBoundingClientRect();
+            return { top: r.top, right: r.right, bottom: r.bottom, left: r.left, width: r.width, height: r.height };
+          });
+        const map = rect('.roleDashboardMap');
+        const grid = rect('.roleDashboardGrid');
+        const current = rect('[data-plant-current-state]');
+        const order = rect('[data-plant-approved-order]');
+        const mapNode = rect('#stageWrap');
+        const banner = rect('.plantSyntheticBanner');
+        const overflowX = document.documentElement.scrollWidth > window.innerWidth || document.body.scrollWidth > window.innerWidth;
+        const mobile = window.innerWidth <= 700;
+        return {
+          viewport: { width: window.innerWidth, height: window.innerHeight },
+          overflowX,
+          map, grid, current, order, mapNode, banner, panels,
+          currentBeforeMap: current && map ? current.top <= map.top : null,
+          orderBeforeMap: order && map ? order.top <= map.top : null,
+          bannerVisible: !!banner && banner.top >= 0 && banner.bottom <= window.innerHeight,
+          panelsInViewport: mobile ? true : panels.every((panel) =>
+            panel.left >= 0 && panel.right <= window.innerWidth && panel.top >= 0 && panel.bottom <= window.innerHeight),
+        };
+      }));
+    }
+    detail(measurements);
+    return measurements.every((layout) => {
+      const mobile = layout.viewport.width <= 700;
+      return layout.overflowX === false &&
+        layout.grid &&
+        layout.map &&
+        layout.mapNode &&
+        layout.bannerVisible &&
+        layout.current &&
+        layout.order &&
+        layout.mapNode.width >= 300 &&
+        layout.mapNode.height >= (mobile ? 280 : 210) &&
+        (mobile
+          ? layout.currentBeforeMap === true && layout.orderBeforeMap === true
+          : layout.panelsInViewport && layout.grid.bottom <= layout.viewport.height && layout.map.bottom <= layout.viewport.height && layout.mapNode.bottom <= layout.viewport.height);
+    });
+  });
+
   await check('API navigation synchronizes query, state and browser history', async (detail) => {
     const before = await directPlant.page.evaluate(() => history.length);
     await openWorkspace(directPlant.page, 'city');

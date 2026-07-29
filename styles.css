@@ -539,6 +539,336 @@ body[data-workspace="city"] .roleWorkspaceHost {
   }
 }
 
+body[data-workspace="plant"] {
+  --plant-bg: #071119;
+  --plant-surface: #0f202d;
+  --plant-surface-2: #122b3a;
+  --plant-line: rgba(145, 187, 208, 0.22);
+  --plant-line-strong: rgba(145, 187, 208, 0.38);
+  --plant-ink: #e8f3f7;
+  --plant-muted: #9db4c1;
+  --plant-amber: #e0a235;
+  --plant-amber-soft: rgba(224, 162, 53, 0.14);
+  --plant-green: #54c27d;
+  --plant-green-soft: rgba(84, 194, 125, 0.15);
+  --plant-shadow: 0 18px 44px rgba(0, 0, 0, 0.28);
+}
+body[data-workspace="plant"] .roleWorkspaceHost {
+  color: var(--plant-ink);
+  background:
+    linear-gradient(180deg, rgba(7, 17, 25, 0.94), rgba(9, 23, 33, 0.98)),
+    repeating-linear-gradient(90deg, rgba(145, 187, 208, 0.035) 0 1px, transparent 1px 96px),
+    var(--plant-bg);
+}
+.plantDashboard {
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 10px;
+  padding: 68px 12px 12px;
+  overflow: hidden;
+}
+.plantDashboard .roleDashboardHead,
+.plantFacilityBar,
+.plantDashboard .roleDashboardGrid {
+  width: min(1640px, 100%);
+  margin: 0 auto;
+}
+.plantDashboard .roleEyebrow,
+.plantMetricLabel,
+.plantMetricNote,
+.plantSourceLine,
+.plantProvenance,
+.plantNotice,
+.plantUnavailableText {
+  color: var(--plant-muted);
+}
+.plantDashboard .roleDashboardLead {
+  color: #bad0dc;
+}
+.plantSyntheticBanner {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 8px 11px;
+  border: 1px solid rgba(224, 162, 53, 0.42);
+  border-radius: 8px;
+  background: var(--plant-amber-soft);
+  color: #ffd993;
+  font-size: 12px;
+  font-weight: 900;
+}
+.plantFacilityBar {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) minmax(260px, 0.45fr) minmax(320px, 0.9fr);
+  gap: 10px;
+  align-items: stretch;
+}
+.plantFacilityIdentity,
+.plantFacilitySelect,
+.plantSourceLine,
+.plantPanel {
+  border: 1px solid var(--plant-line);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(18, 43, 58, 0.96), rgba(15, 32, 45, 0.96));
+  box-shadow: var(--plant-shadow);
+}
+.plantFacilityIdentity,
+.plantFacilitySelect,
+.plantSourceLine {
+  min-height: 56px;
+  display: grid;
+  gap: 4px;
+  align-content: center;
+  margin: 0;
+  padding: 9px 11px;
+}
+.plantFacilityIdentity strong {
+  font-size: 15px;
+}
+.plantFacilityIdentity span,
+.plantFacilitySelect span,
+.plantSourceLine {
+  font-size: 12px;
+}
+.plantFacilitySelect select {
+  min-width: 0;
+  width: 100%;
+  min-height: 30px;
+  border: 1px solid var(--plant-line-strong);
+  border-radius: 7px;
+  background: #07131d;
+  color: var(--plant-ink);
+  padding: 5px 8px;
+}
+.plantDashboard .roleDashboardGrid {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(620px, 1.42fr) minmax(230px, 0.5fr) minmax(230px, 0.5fr) minmax(230px, 0.5fr);
+  grid-template-rows: repeat(3, minmax(0, 1fr));
+  grid-template-areas:
+    "map current advisory approved"
+    "map alternatives advisory checklist"
+    "map alternatives execution checklist";
+  gap: 10px;
+}
+.plantDashboard .roleDashboardMap {
+  border-color: rgba(145, 187, 208, 0.3);
+  background: #07131d;
+  box-shadow: var(--plant-shadow);
+}
+.plantPanel {
+  min-height: 0;
+  padding: 11px;
+  overflow: auto;
+}
+.plantPanel h3 {
+  margin: 0 0 9px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: #d9edf4;
+}
+.plantPanel h4 {
+  margin: 10px 0 6px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: #ffd993;
+}
+.plantCurrentState { grid-area: current; }
+.plantAdvisory {
+  grid-area: advisory;
+  border-color: rgba(224, 162, 53, 0.46);
+}
+.plantAlternatives { grid-area: alternatives; }
+.plantApprovedOrder {
+  grid-area: approved;
+  border-color: rgba(84, 194, 125, 0.42);
+  background: linear-gradient(180deg, rgba(16, 54, 43, 0.95), rgba(13, 38, 37, 0.96));
+}
+.plantChecklist { grid-area: checklist; }
+.plantExecution { grid-area: execution; }
+.plantMetricGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+.plantMetric,
+.plantAlternative,
+.plantCheckRow {
+  display: grid;
+  gap: 5px;
+  padding: 8px;
+  border: 1px solid rgba(145, 187, 208, 0.16);
+  border-radius: 7px;
+  background: rgba(7, 19, 29, 0.52);
+}
+.plantMetric strong {
+  font-size: 19px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.plantMetricLabel,
+.plantMetricNote {
+  font-size: 11px;
+}
+.plantLifecycleBadge {
+  display: inline-flex;
+  width: fit-content;
+  margin: 0 0 8px;
+  padding: 4px 8px;
+  border: 1px solid rgba(224, 162, 53, 0.45);
+  border-radius: 999px;
+  background: var(--plant-amber-soft);
+  color: #ffd993;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .02em;
+}
+.plantLifecycleBadge.approved {
+  border-color: rgba(84, 194, 125, 0.5);
+  background: var(--plant-green-soft);
+  color: #9df0b7;
+}
+.plantNotice,
+.plantProvenance,
+.plantAssumption,
+.plantOrderEmpty,
+.plantUnavailableText,
+.plantAlternative p {
+  margin: 0 0 8px;
+  font-size: 12px;
+  line-height: 1.35;
+}
+.plantNotice.missing,
+.plantAssumption,
+.plantMissingDependencies {
+  color: #ffd993;
+}
+.plantAssumption {
+  padding: 8px;
+  border: 1px solid rgba(224, 162, 53, 0.38);
+  border-radius: 7px;
+  background: var(--plant-amber-soft);
+}
+.plantAction {
+  width: 100%;
+  min-height: 30px;
+  margin: 5px 0 0;
+  border: 1px solid rgba(145, 187, 208, 0.2);
+  border-radius: 7px;
+  background: rgba(145, 187, 208, 0.08);
+  color: var(--plant-muted);
+  font-weight: 800;
+}
+.plantAction:disabled {
+  cursor: not-allowed;
+  opacity: .72;
+}
+.plantAlternative strong {
+  color: #eef8fb;
+}
+.plantAlternative span {
+  color: #9df0b7;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.plantCheckRow {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  margin-bottom: 7px;
+  color: var(--plant-muted);
+  font-size: 12px;
+}
+.plantMissingDependencies {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+}
+@keyframes plantEnter {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.plantDashboard .plantFacilityBar > *,
+.plantDashboard .roleDashboardGrid > * {
+  animation: plantEnter .24s ease-out both;
+}
+@media (min-width: 701px) and (max-width: 1299px) {
+  .plantDashboard {
+    padding-top: 68px;
+  }
+  .plantFacilityBar {
+    grid-template-columns: minmax(0, 1fr) minmax(230px, 0.42fr);
+  }
+  .plantSourceLine {
+    grid-column: 1 / -1;
+  }
+  .plantDashboard .roleDashboardGrid {
+    grid-template-columns: minmax(0, 1.15fr) minmax(220px, 0.7fr) minmax(220px, 0.7fr);
+    grid-template-rows: repeat(4, minmax(0, 1fr));
+    grid-template-areas:
+      "map current approved"
+      "map advisory checklist"
+      "map execution checklist"
+      "alternatives alternatives checklist";
+  }
+}
+@media (min-width: 701px) and (max-width: 1099px) {
+  .plantDashboard .roleDashboardGrid {
+    grid-template-columns: minmax(320px, 1fr) minmax(220px, 0.62fr);
+    grid-template-rows: repeat(5, minmax(0, 1fr));
+    grid-template-areas:
+      "map current"
+      "map approved"
+      "map execution"
+      "advisory checklist"
+      "alternatives checklist";
+  }
+}
+@media (max-width: 700px) {
+  .plantDashboard {
+    padding: 74px 8px 8px;
+    overflow: auto;
+    grid-template-rows: auto auto auto;
+  }
+  .plantSyntheticBanner {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+  }
+  .plantFacilityBar {
+    grid-template-columns: 1fr;
+  }
+  .plantDashboard .roleDashboardGrid {
+    grid-template-columns: 1fr;
+    grid-template-rows: none;
+    grid-template-areas:
+      "current"
+      "approved"
+      "map"
+      "advisory"
+      "alternatives"
+      "checklist"
+      "execution";
+  }
+  .plantDashboard .roleDashboardMap {
+    min-height: min(52vh, 430px);
+  }
+  .plantPanel {
+    max-height: none;
+    overflow: visible;
+  }
+  .plantMetricGrid {
+    grid-template-columns: 1fr;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .plantDashboard .plantFacilityBar > *,
+  .plantDashboard .roleDashboardGrid > * {
+    animation: none;
+  }
+}
+
 /* ============ TOP BAR ============ */
 .topbar {
   display: flex;
