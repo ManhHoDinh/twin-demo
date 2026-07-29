@@ -897,6 +897,8 @@
         el.type = "button";
         el.dataset.explainKind = selection.kind;
         el.dataset.explainId = selection.id;
+        el.dataset.selected = "false";
+        el.setAttribute("aria-pressed", "false");
         el.addEventListener("click", (ev) => {
           ev.stopPropagation();
           FT.bus.emit("explainOrigin", { element: el, moveFocus: false });
@@ -921,6 +923,17 @@
     /* gazetteer thật: quận/huyện hiện khi < 110, cầu & địa danh khi < 40 (đỡ rối toàn cảnh) */
     if (D.PLACES) for (const p of D.PLACES) {
       mk(p.n, `pl-${p.k}`, p.x, p.y, p.k === "bridge" ? 0.35 : 0.55, null, p.t === 1 ? 110 : 40);
+    }
+  }
+
+  function syncSelectedLabels(selection) {
+    for (const label of labels) {
+      if (!label.selection) continue;
+      const selected = !!selection &&
+        label.selection.kind === selection.kind &&
+        label.selection.id === selection.id;
+      label.el.dataset.selected = String(selected);
+      label.el.setAttribute("aria-pressed", String(selected));
     }
   }
   function updateLabels(snap) {
@@ -1311,7 +1324,11 @@
     FT.bus.on("osmRoads", () => { try { buildOsmRoads(); } catch (e) { console.warn("osm 3d roads", e); } });
     FT.bus.on("osmBuildings", () => { try { swapOsmBuildings(); } catch (e) { console.warn("osm 3d bldg", e); } });
     FT.bus.on("osmMinor", () => { try { buildOsmMinor(); } catch (e) { console.warn("osm 3d minor", e); } });
-    FT.bus.on("explainSelection", (contract) => showSelectionPulse(contract && contract.selection));
+    FT.bus.on("explainSelection", (contract) => {
+      const selection = contract && contract.selection;
+      showSelectionPulse(selection);
+      syncSelectedLabels(selection);
+    });
   };
 
   S3.resize = function () {

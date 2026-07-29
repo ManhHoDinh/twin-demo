@@ -531,6 +531,68 @@ async function earthControls(browser) {
       /\d/.test(result.coordinates);
   });
 
+  await check('Address lookup keeps coordinates usable when reverse geocoding is offline', async (d) => {
+    const result = await page.evaluate(async () => {
+      const FT = window.FT;
+      const originalFetch = window.fetch;
+      window.fetch = async () => { throw new TypeError('offline for test'); };
+      FT.address.clearCache();
+      try {
+        const address = await FT.address.lookup({ longitude: 108.2266, latitude: 16.0612 });
+        return address;
+      } finally {
+        window.fetch = originalFetch;
+        FT.address.clearCache();
+      }
+    });
+    d(result);
+    return ['approximate', 'unavailable'].includes(result.status) &&
+      (/^Gần /.test(result.text || '') || result.text === 'Chưa xác định được địa chỉ') &&
+      !/số|đường|street|road/i.test(result.text || '');
+  });
+
+  await check('Selected map label stays highlighted until the place sheet closes or selection changes', async (d) => {
+    const result = await page.evaluate(async () => {
+      const FT = window.FT;
+      const waitFrame = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      document.querySelector('#viewTabs button[data-view="3d"]')?.click();
+      await waitFrame();
+      const canvas = document.getElementById('canvas3d');
+      const gauges = FT.data.GAUGES.slice(0, 2);
+      const label = (gauge) => document.querySelector(`.label3d[data-explain-kind="gauge"][data-explain-id="${gauge.id}"]`);
+      FT.bus.emit('explainOrigin', { element: canvas, moveFocus: false });
+      FT.explain.select({ kind: 'gauge', id: gauges[0].id });
+      await waitFrame();
+      document.querySelector('#earthPlaceSheet [data-place-action="close"]')?.focus({ preventScroll: true });
+      const firstSelected = {
+        pressed: label(gauges[0])?.getAttribute('aria-pressed'),
+        selected: label(gauges[0])?.dataset.selected,
+      };
+      FT.bus.emit('explainOrigin', { element: canvas, moveFocus: false });
+      FT.explain.select({ kind: 'gauge', id: gauges[1].id });
+      await waitFrame();
+      const afterChange = {
+        first: label(gauges[0])?.dataset.selected,
+        second: label(gauges[1])?.dataset.selected,
+      };
+      document.querySelector('#earthPlaceSheet [data-place-action="close"]')?.click();
+      await waitFrame();
+      return {
+        firstSelected,
+        afterChange,
+        afterClose: label(gauges[1])?.dataset.selected,
+        currentAfterClose: FT.explain.current,
+      };
+    });
+    d(result);
+    return result.firstSelected.pressed === 'true' &&
+      result.firstSelected.selected === 'true' &&
+      result.afterChange.first === 'false' &&
+      result.afterChange.second === 'true' &&
+      result.afterClose === 'false' &&
+      result.currentAfterClose === null;
+  });
+
   await check('Earth place sheet separates observed and simulated truth for gauges and arbitrary terrain points', async (d) => {
     const result = await page.evaluate(async () => {
       const FT = window.FT;
@@ -1090,7 +1152,7 @@ async function earthControls(browser) {
       afterInput.hidden === false &&
       afterCanvas.hidden === true &&
       afterCanvas.activeId === 'canvas3d' &&
-      afterCanvas.currentKind === 'point';
+      afterCanvas.currentKind === null;
   });
 
   await check('Command palette routes zones and active alerts through shared navigation without dropping UI events', async (d) => {

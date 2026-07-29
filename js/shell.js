@@ -307,7 +307,7 @@
     return row;
   }
 
-  function closePlaceSheet() {
+  function closePlaceSheet(clearSelection = true) {
     if (!placeSheet || placeSheet.hidden) return;
     addressRequestId += 1;
     if (addressController) addressController.abort();
@@ -316,6 +316,7 @@
     placeSheet.hidden = true;
     document.body.classList.remove("place-sheet-open");
     restorePlaceFocus();
+    if (clearSelection && FT.explain && FT.explain.current) FT.explain.clear();
   }
 
   function suppressLegacyInspector() {
@@ -489,14 +490,14 @@
       if (!contract) {
         activePlaceSelection = null;
         usePlaceSurface = false;
-        closePlaceSheet();
+        closePlaceSheet(false);
         return;
       }
       const showPlaceSheet = usePlaceSurface;
       usePlaceSurface = false;
       if (!showPlaceSheet) {
         activePlaceSelection = null;
-        closePlaceSheet();
+        closePlaceSheet(false);
         return;
       }
       activePlaceSelection = contract.selection;

@@ -340,6 +340,13 @@ canvas { display: block; }
 }
 .labels3d button.label3d { font: inherit; cursor: pointer; pointer-events: auto; }
 .labels3d button.label3d:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.labels3d button.label3d[data-selected="true"] {
+  background: rgba(4, 48, 61, .94);
+  box-shadow: 0 0 0 2px #42e6da, 0 7px 22px rgba(0, 12, 19, .7);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, .75);
+  transform: translate(-50%, -110%) scale(1.06);
+  z-index: 3;
+}
 .label3d.city { color: #fff; font-weight: 600; }
 .label3d.pl-dist { color: rgba(200, 216, 234, 0.8); font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; background: none; border: none; }
 .label3d.pl-bridge { color: #aae1ff; font-size: 11px; }
@@ -1748,6 +1755,33 @@ body.geoshell .geoFloat #timelinePanel { display: block; }
   font-size: 11px;
   overflow-wrap: anywhere;
 }
+.earthPlaceAddress {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 7px;
+  align-items: baseline;
+  margin-top: 3px;
+  padding-top: 7px;
+  border-top: 1px solid rgba(126, 178, 205, .16);
+}
+.earthPlaceAddress span {
+  color: #7ec8cc;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.earthPlaceAddress strong {
+  min-width: 0;
+  color: var(--ink-0);
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.earthPlaceAddress strong[data-address-status="loading"] { color: var(--ink-2); }
+.earthPlaceAddress strong[data-address-status="approximate"] { color: #f0d59a; }
+.earthPlaceAddress strong[data-address-status="unavailable"] { color: #d5a5a5; }
 .earthPlaceSection {
   position: relative;
   display: grid;
