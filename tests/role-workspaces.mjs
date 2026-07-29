@@ -202,7 +202,75 @@ async function sharedReleaseWorkflowStore(browser) {
       r.inconsistentOrder === null;
   });
 
+  await check('proposal ingestion is not committed when audit logging fails', async (detail) => {
+    const r = await page.evaluate(() => {
+      const FT = window.FT;
+      const originalLog = FT.ops.audit.log;
+      const beforeAudit = FT.ops.audit.entries.length;
+      const before = FT.releaseOps.snapshot();
+      const fakeNull = { kind: 'PROPOSAL', id: 'DP-atomic-null', reservoir: { id: 'avuong' } };
+      const fakeThrow = { kind: 'PROPOSAL', id: 'DP-atomic-throw', reservoir: { id: 'avuong' } };
+      FT.ops.audit.log = () => null;
+      const nullResult = FT.releaseOps.ingestProposal(fakeNull);
+      const afterNull = FT.releaseOps.snapshot();
+      FT.ops.audit.log = () => { throw new Error('audit offline'); };
+      const throwResult = FT.releaseOps.ingestProposal(fakeThrow);
+      const afterThrow = FT.releaseOps.snapshot();
+      FT.ops.audit.log = originalLog;
+      return {
+        nullResult,
+        throwResult,
+        auditUnchanged: FT.ops.audit.entries.length === beforeAudit,
+        nullUnchanged: JSON.stringify(before.proposals) === JSON.stringify(afterNull.proposals),
+        throwUnchanged: JSON.stringify(before.proposals) === JSON.stringify(afterThrow.proposals),
+      };
+    });
+    detail(r);
+    return r.nullResult === null &&
+      r.throwResult === null &&
+      r.auditUnchanged &&
+      r.nullUnchanged &&
+      r.throwUnchanged;
+  });
+
   await signOnRole(page, ROLE.authority);
+  const setupAudit = await page.evaluate((proposalId) => {
+    const FT = window.FT;
+    const entry = FT.ops.audit.log('decision.approve', {
+      decision: 'D-03',
+      actorRole: FT.ops.audit.actor.role,
+      package: proposalId.replace(/^PRP-/, ''),
+      feasible: true,
+    }, 'shared workflow approval');
+    window.__releaseWorkflowApproval = { seq: entry.seq, snapshot: entry.snapshot };
+    return entry;
+  }, state.proposalId || 'PRP-DP-missing');
+
+  await check('approval lookalike not stored in audit trail cannot create workflow state', async (detail) => {
+    const r = await page.evaluate(({ proposalId, audit }) => {
+      const FT = window.FT;
+      const beforeAudit = FT.ops.audit.entries.length;
+      const before = FT.releaseOps.snapshot();
+      const lookalike = Object.assign({}, audit, { seq: audit.seq + 9000, snapshot: `forged-${audit.snapshot}` });
+      const decision = FT.releaseOps.recordDecision(lookalike);
+      const order = FT.releaseOps.createOrder(proposalId, lookalike);
+      const after = FT.releaseOps.snapshot();
+      return {
+        decision,
+        order,
+        auditUnchanged: FT.ops.audit.entries.length === beforeAudit,
+        ordersUnchanged: JSON.stringify(before.orders) === JSON.stringify(after.orders),
+        decisionsUnchanged: JSON.stringify(before.decisions) === JSON.stringify(after.decisions),
+      };
+    }, { proposalId: state.proposalId || 'PRP-DP-missing', audit: setupAudit });
+    detail(r);
+    return r.decision === null &&
+      r.order === null &&
+      r.auditUnchanged &&
+      r.ordersUnchanged &&
+      r.decisionsUnchanged;
+  });
+
   const workflow = await page.evaluate((proposalId) => {
     const FT = window.FT;
     const RO = FT.releaseOps;
@@ -224,32 +292,66 @@ async function sharedReleaseWorkflowStore(browser) {
         auditActions: [],
       };
     }
+    const decisionAudit = FT.ops.audit.entries.find((e) =>
+      e.seq === window.__releaseWorkflowApproval.seq && e.snapshot === window.__releaseWorkflowApproval.snapshot);
     const beforeAudit = FT.ops.audit.entries.length;
-    const decisionAudit = FT.ops.audit.log('decision.approve', {
-      decision: 'D-03',
-      actorRole: FT.ops.audit.actor.role,
-      package: proposalId.replace(/^PRP-/, ''),
-      feasible: true,
-    }, 'shared workflow approval');
     const decision = RO.recordDecision(decisionAudit);
+    const beforeCreate = RO.snapshot();
+    const originalLog = FT.ops.audit.log;
+    FT.ops.audit.log = () => null;
+    const blockedCreate = RO.createOrder(proposalId, decisionAudit);
+    const afterBlockedCreate = RO.snapshot();
+    FT.ops.audit.log = originalLog;
     const order = RO.createOrder(proposalId, decisionAudit);
     const snap1 = RO.snapshot();
+    FT.ops.audit.log = () => null;
+    const blockedNotify = RO.markNotified(order.id);
+    const afterBlockedNotify = RO.snapshot();
+    FT.ops.audit.log = originalLog;
+    const directCloseBeforeAudit = FT.ops.audit.entries.length;
+    const directCloseBefore = RO.snapshot();
+    const directClose = RO.close(order.id);
+    const directCloseAfter = RO.snapshot();
+    const directCloseAuditUnchanged = FT.ops.audit.entries.length === directCloseBeforeAudit;
     const notified = RO.markNotified(order.id);
     const execution = RO.startExecution(order.id);
     const checklist = RO.setChecklist(order.id, 'downstreamNotice', true);
     const observed = RO.recordObservedRelease(order.id, 420);
     const closed = RO.close(order.id);
+    const closedSnap = RO.snapshot();
+    const closedAuditBefore = FT.ops.audit.entries.length;
+    const closedNotify = RO.markNotified(order.id);
+    const closedExecution = RO.startExecution(order.id);
+    const closedChecklist = RO.setChecklist(order.id, 'postClose', true);
+    const closedObserved = RO.recordObservedRelease(order.id, 430);
+    const closedAgain = RO.close(order.id);
     const snap2 = RO.snapshot();
     return {
       beforeAudit,
       afterAudit: FT.ops.audit.entries.length,
       decision,
+      blockedCreate,
+      createAtomic: JSON.stringify(beforeCreate.orders) === JSON.stringify(afterBlockedCreate.orders) &&
+        JSON.stringify(beforeCreate.decisions) === JSON.stringify(afterBlockedCreate.decisions),
       order,
+      blockedNotify,
+      notifyAtomic: snap1.orders[order.id].status === afterBlockedNotify.orders[order.id].status &&
+        snap1.orders[order.id].revision === afterBlockedNotify.orders[order.id].revision,
+      directClose,
+      directCloseAtomic: directCloseAuditUnchanged &&
+        JSON.stringify(directCloseBefore.orders[order.id]) === JSON.stringify(directCloseAfter.orders[order.id]),
       notified,
       execution,
       checklist,
       observed,
       closed,
+      closedNotify,
+      closedExecution,
+      closedChecklist,
+      closedObserved,
+      closedAgain,
+      closedAtomic: closedAuditBefore === FT.ops.audit.entries.length &&
+        JSON.stringify(closedSnap.orders[order.id]) === JSON.stringify(snap2.orders[order.id]),
       snap1Order: snap1.orders[order.id],
       snap2Order: snap2.orders[order.id],
       snap1Frozen: Object.isFrozen(snap1) && Object.isFrozen(snap1.orders[order.id]),
@@ -268,6 +370,22 @@ async function sharedReleaseWorkflowStore(browser) {
       workflow.order.actionable === true &&
       workflow.order.status === 'APPROVED';
   });
+
+  await check('workflow state is not committed when required audit logging fails', () =>
+    workflow.blockedCreate === null &&
+    workflow.createAtomic &&
+    workflow.blockedNotify === null &&
+    workflow.notifyAtomic);
+
+  await check('release workflow refuses impossible and closed transitions without side effects', () =>
+    workflow.directClose === null &&
+    workflow.directCloseAtomic &&
+    workflow.closedNotify === null &&
+    workflow.closedExecution === null &&
+    workflow.closedChecklist === null &&
+    workflow.closedObserved === null &&
+    workflow.closedAgain === null &&
+    workflow.closedAtomic);
 
   await check('workflow mutators append audit entries and preserve prior snapshots', () =>
     workflow.afterAudit >= workflow.beforeAudit + 6 &&

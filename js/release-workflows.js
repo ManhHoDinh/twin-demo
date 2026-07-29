@@ -46,6 +46,11 @@
     return state.proposals[`PRP-${packageId}`] || null;
   }
 
+  function storedAuditEntry(entry) {
+    if (!entry || entry.seq == null || !entry.snapshot || !FT.ops || !FT.ops.audit) return null;
+    return FT.ops.audit.entries.find((item) => item.seq === entry.seq && item.snapshot === entry.snapshot) || null;
+  }
+
   function roleIdOf(label) {
     return FT.roles && FT.roles.roleIdOf ? FT.roles.roleIdOf(label) : null;
   }
@@ -83,7 +88,30 @@
   }
 
   function log(action, detail, reason) {
-    return FT.ops && FT.ops.audit ? FT.ops.audit.log(action, detail, reason) : null;
+    if (!FT.ops || !FT.ops.audit || typeof FT.ops.audit.log !== "function") return null;
+    try {
+      return FT.ops.audit.log(action, detail, reason) || null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function approvalEvidence(proposal, auditEntry) {
+    const stored = storedAuditEntry(auditEntry);
+    return matchesApproval(proposal, stored) ? stored : null;
+  }
+
+  function buildDecision(proposal, auditEntry, outcome) {
+    const detail = auditEntry.detail || {};
+    return deepFreeze({
+      id: `DEC-${auditEntry.seq}`,
+      eventId: proposal.eventId, proposalId: proposal.id, packageId: proposal.packageId,
+      auditSeq: auditEntry.seq, auditSnapshot: auditEntry.snapshot,
+      decision: detail.decision, actor: auditEntry.actor, reason: auditEntry.reason || null,
+      outcome,
+      lifecycleClass: FT.lifecycle.CLASS.OPERATOR_DECISION, actionable: false,
+      revision: 1, createdAtH: FT.state.timeH,
+    });
   }
 
   const R = {};
@@ -94,61 +122,61 @@
     if (!facility) return null;
     const id = `PRP-${pkg.id}`;
     if (!state.proposals[id]) {
-      state.proposals[id] = deepFreeze({
+      const next = deepFreeze({
         id, eventId: state.event.id, facilityId: facility.id, packageId: pkg.id,
         lifecycleClass: FT.lifecycle.CLASS.RECOMMENDATION, actionable: false,
         revision: 1, createdAtH: FT.state.timeH, status: PROCESS.SUBMITTED,
       });
-      log("release.proposal.ingest", { proposalId: id, package: pkg.id, facilityId: facility.id });
+      const auditEntry = log("release.proposal.ingest", { proposalId: id, package: pkg.id, facilityId: facility.id });
+      if (!auditEntry) return null;
+      state.proposals[id] = next;
+      state.activeFacilityId = facility.id;
+      return state.proposals[id];
     }
-    state.activeFacilityId = facility.id;
     return state.proposals[id];
   };
 
   R.recordDecision = function (auditEntry) {
-    if (!auditEntry || !attributed(auditEntry)) return null;
-    const detail = auditEntry.detail || {};
+    const stored = storedAuditEntry(auditEntry);
+    if (!stored || !attributed(stored)) return null;
+    const detail = stored.detail || {};
     const proposal = proposalForPackageId(detail.package);
     if (!proposal) return null;
-    const approved = matchesApproval(proposal, auditEntry);
-    const rejected = auditEntry.action === "decision.reject" || auditEntry.action === "decision.rejected";
+    const approved = matchesApproval(proposal, stored);
+    const rejected = stored.action === "decision.reject" || stored.action === "decision.rejected";
     if (!approved && !rejected) return null;
-    if (rejected && (!detail.decision || !FT.roles || !FT.roles.can(detail.decision, roleForAuthorization(auditEntry)))) return null;
+    if (rejected && (!detail.decision || !FT.roles || !FT.roles.can(detail.decision, roleForAuthorization(stored)))) return null;
 
-    const id = `DEC-${auditEntry.seq || auditEntry.snapshot || proposal.packageId}`;
+    const id = `DEC-${stored.seq}`;
     if (!state.decisions[id]) {
-      state.decisions[id] = deepFreeze({
-        id, eventId: proposal.eventId, proposalId: proposal.id, packageId: proposal.packageId,
-        auditSeq: auditEntry.seq || null, auditSnapshot: auditEntry.snapshot || null,
-        decision: detail.decision, actor: auditEntry.actor, reason: auditEntry.reason || null,
-        outcome: approved ? PROCESS.APPROVED : PROCESS.REJECTED,
-        lifecycleClass: FT.lifecycle.CLASS.OPERATOR_DECISION, actionable: false,
-        revision: 1, createdAtH: FT.state.timeH,
-      });
+      state.decisions[id] = buildDecision(proposal, stored, approved ? PROCESS.APPROVED : PROCESS.REJECTED);
     }
     return state.decisions[id];
   };
 
   R.createOrder = function (proposalId, auditEntry) {
     const proposal = state.proposals[proposalId];
-    if (!matchesApproval(proposal, auditEntry)) return null;
-    const decision = R.recordDecision(auditEntry);
-    if (!decision) return null;
+    const stored = approvalEvidence(proposal, auditEntry);
+    if (!stored) return null;
+    const decisionId = `DEC-${stored.seq}`;
+    const decision = state.decisions[decisionId] || buildDecision(proposal, stored, PROCESS.APPROVED);
     const id = `ORD-${proposal.packageId}`;
-    if (!state.orders[id]) {
-      state.orders[id] = deepFreeze({
-        id, eventId: proposal.eventId, proposalId: proposal.id, decisionId: decision.id,
-        facilityId: proposal.facilityId, packageId: proposal.packageId,
-        lifecycleClass: FT.lifecycle.CLASS.APPROVED_PLAN, actionable: true,
-        revision: 1, createdAtH: FT.state.timeH, status: PROCESS.APPROVED,
-        checklist: Object.freeze({}), observedCms: null, auditSeq: auditEntry.seq || null,
-      });
-      log("release.order.create", { orderId: id, proposalId: proposal.id, decisionId: decision.id, package: proposal.packageId });
-    }
+    if (state.orders[id]) return state.orders[id];
+    const order = deepFreeze({
+      id, eventId: proposal.eventId, proposalId: proposal.id, decisionId: decision.id,
+      facilityId: proposal.facilityId, packageId: proposal.packageId,
+      lifecycleClass: FT.lifecycle.CLASS.APPROVED_PLAN, actionable: true,
+      revision: 1, createdAtH: FT.state.timeH, status: PROCESS.APPROVED,
+      checklist: Object.freeze({}), observedCms: null, auditSeq: stored.seq,
+    });
+    const orderAudit = log("release.order.create", { orderId: id, proposalId: proposal.id, decisionId: decision.id, package: proposal.packageId });
+    if (!orderAudit) return null;
+    state.decisions[decision.id] = decision;
+    state.orders[id] = order;
     return state.orders[id];
   };
 
-  function updateOrder(orderId, status, action, extra, reason) {
+  function commitOrder(orderId, status, action, extra, reason) {
     const prev = state.orders[orderId];
     if (!prev) return null;
     const next = Object.assign({}, prev, extra || {}, {
@@ -156,52 +184,76 @@
       revision: prev.revision + 1,
       updatedAtH: FT.state.timeH,
     });
-    state.orders[orderId] = deepFreeze(next);
-    log(action, Object.assign({ orderId, revision: next.revision, status }, extra || {}), reason);
+    const frozen = deepFreeze(next);
+    const auditEntry = log(action, Object.assign({ orderId, revision: frozen.revision, status }, extra || {}), reason);
+    if (!auditEntry) return null;
+    state.orders[orderId] = frozen;
     return state.orders[orderId];
   }
 
   R.markNotified = function (orderId) {
-    return updateOrder(orderId, PROCESS.NOTIFIED, "release.order.notified");
+    const prev = state.orders[orderId];
+    if (!prev || prev.status !== PROCESS.APPROVED) return null;
+    return commitOrder(orderId, PROCESS.NOTIFIED, "release.order.notified");
   };
 
   R.startExecution = function (orderId) {
-    const order = updateOrder(orderId, PROCESS.EXECUTING, "release.execution.start");
-    if (!order) return null;
+    const prevOrder = state.orders[orderId];
+    if (!prevOrder || prevOrder.status !== PROCESS.NOTIFIED) return null;
     const id = `EXE-${orderId}`;
     const prev = state.executions[id] || { id, orderId, revision: 0, observations: [] };
-    state.executions[id] = deepFreeze(Object.assign({}, prev, {
+    const order = deepFreeze(Object.assign({}, prevOrder, {
+      status: PROCESS.EXECUTING,
+      revision: prevOrder.revision + 1,
+      updatedAtH: FT.state.timeH,
+    }));
+    const execution = deepFreeze(Object.assign({}, prev, {
       revision: prev.revision + 1,
       status: PROCESS.EXECUTING,
       startedAtH: prev.startedAtH == null ? FT.state.timeH : prev.startedAtH,
     }));
+    const auditEntry = log("release.execution.start", { orderId, revision: order.revision, status: order.status });
+    if (!auditEntry) return null;
+    state.orders[orderId] = order;
+    state.executions[id] = execution;
     return state.executions[id];
   };
 
   R.setChecklist = function (orderId, key, checked) {
     const prev = state.orders[orderId];
-    if (!prev || !key) return null;
+    if (!prev || !key || prev.status === PROCESS.CLOSED) return null;
     const checklist = Object.freeze(Object.assign({}, prev.checklist || {}, { [key]: !!checked }));
-    return updateOrder(orderId, prev.status, "release.checklist.set", { checklist, checklistKey: key, checked: !!checked });
+    return commitOrder(orderId, prev.status, "release.checklist.set", { checklist, checklistKey: key, checked: !!checked });
   };
 
   R.recordObservedRelease = function (orderId, observedCms) {
     if (!isFinite(observedCms)) return null;
-    const order = updateOrder(orderId, PROCESS.EXECUTING, "release.observed", { observedCms });
-    if (!order) return null;
+    const prevOrder = state.orders[orderId];
+    if (!prevOrder || ![PROCESS.EXECUTING, PROCESS.DEVIATING].includes(prevOrder.status)) return null;
     const id = `EXE-${orderId}`;
     const prev = state.executions[id] || { id, orderId, revision: 0, observations: [] };
     const observations = (prev.observations || []).concat([{ tH: FT.state.timeH, observedCms }]);
-    state.executions[id] = deepFreeze(Object.assign({}, prev, {
+    const order = deepFreeze(Object.assign({}, prevOrder, {
+      revision: prevOrder.revision + 1,
+      updatedAtH: FT.state.timeH,
+      observedCms,
+    }));
+    const execution = deepFreeze(Object.assign({}, prev, {
       revision: prev.revision + 1,
-      status: PROCESS.EXECUTING,
+      status: prevOrder.status,
       observations,
     }));
+    const auditEntry = log("release.observed", { orderId, revision: order.revision, status: order.status, observedCms });
+    if (!auditEntry) return null;
+    state.orders[orderId] = order;
+    state.executions[id] = execution;
     return state.executions[id];
   };
 
   R.close = function (orderId) {
-    return updateOrder(orderId, PROCESS.CLOSED, "release.order.close");
+    const prev = state.orders[orderId];
+    if (!prev || ![PROCESS.EXECUTING, PROCESS.DEVIATING, PROCESS.VERIFIED].includes(prev.status)) return null;
+    return commitOrder(orderId, PROCESS.CLOSED, "release.order.close");
   };
 
   R.snapshot = function () {
