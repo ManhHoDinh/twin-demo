@@ -25,6 +25,16 @@
     activeFacilityId: "a-vuong",
   };
 
+  function eventForScenario() {
+    return Object.freeze({ id: `EVT-${FT.state.scenario}`, scenarioId: FT.state.scenario, processes: Object.freeze({}) });
+  }
+
+  function syncEvent() {
+    const nextId = `EVT-${FT.state.scenario}`;
+    if (!state.event || state.event.id !== nextId) state.event = eventForScenario();
+    return state.event;
+  }
+
   function deepFreeze(value) {
     if (!value || typeof value !== "object" || Object.isFrozen(value)) return value;
     Object.freeze(value);
@@ -117,6 +127,7 @@
   const R = {};
 
   R.ingestProposal = function (pkg) {
+    syncEvent();
     if (!pkg || pkg.kind !== "PROPOSAL" || !pkg.reservoir) return null;
     const facility = FT.facilities.all().find((item) => item.demoReservoirId === pkg.reservoir.id);
     if (!facility) return null;
@@ -127,7 +138,7 @@
         lifecycleClass: FT.lifecycle.CLASS.RECOMMENDATION, actionable: false,
         revision: 1, createdAtH: FT.state.timeH, status: PROCESS.SUBMITTED,
       });
-      const auditEntry = log("release.proposal.ingest", { proposalId: id, package: pkg.id, facilityId: facility.id });
+      const auditEntry = log("release.proposal.ingest", { eventId: state.event.id, proposalId: id, package: pkg.id, facilityId: facility.id });
       if (!auditEntry) return null;
       state.proposals[id] = next;
       state.activeFacilityId = facility.id;
@@ -169,7 +180,7 @@
       revision: 1, createdAtH: FT.state.timeH, status: PROCESS.APPROVED,
       checklist: Object.freeze({}), observedCms: null, auditSeq: stored.seq,
     });
-    const orderAudit = log("release.order.create", { orderId: id, proposalId: proposal.id, decisionId: decision.id, package: proposal.packageId });
+    const orderAudit = log("release.order.create", { eventId: proposal.eventId, orderId: id, proposalId: proposal.id, decisionId: decision.id, package: proposal.packageId });
     if (!orderAudit) return null;
     state.decisions[decision.id] = decision;
     state.orders[id] = order;
@@ -185,7 +196,7 @@
       updatedAtH: FT.state.timeH,
     });
     const frozen = deepFreeze(next);
-    const auditEntry = log(action, Object.assign({ orderId, revision: frozen.revision, status }, extra || {}), reason);
+    const auditEntry = log(action, Object.assign({ eventId: frozen.eventId, orderId, revision: frozen.revision, status }, extra || {}), reason);
     if (!auditEntry) return null;
     state.orders[orderId] = frozen;
     return state.orders[orderId];
@@ -257,6 +268,7 @@
   };
 
   R.snapshot = function () {
+    syncEvent();
     return Object.freeze({
       event: freezeCopy(state.event),
       activeFacilityId: state.activeFacilityId,
@@ -268,6 +280,8 @@
   };
 
   R.PROCESS = PROCESS;
+
+  if (FT.bus) FT.bus.on("hydroRebuilt", syncEvent);
 
   Object.defineProperty(FT, "releaseOps", {
     value: Object.freeze(R),

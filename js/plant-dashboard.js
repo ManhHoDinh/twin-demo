@@ -10,6 +10,7 @@
     "plant operating rules not supplied to this demo",
     "routing/forecast inputs not supplied for this facility",
   ]);
+  const marginDiagnostics = new Set();
 
   function el(tag, className, attrs) {
     const node = document.createElement(tag);
@@ -68,22 +69,32 @@
 
   function marginsFor(facility, hydroSnap) {
     const def = facility && facility.demoReservoirId ? reservoirDef(facility.demoReservoirId) : null;
-    if (!def || !hydroSnap || !FT.ops || typeof FT.ops.margins !== "function") return null;
+    if (!def || !hydroSnap || !FT.ops || typeof FT.ops.margins !== "function") return { state: "MISSING", margins: null, message: "Safety margin inputs are not available." };
     try {
-      return FT.ops.margins(hydroSnap, def);
+      const margins = FT.ops.margins(hydroSnap, def);
+      return { state: "OK", margins, message: "" };
     } catch (error) {
-      return null;
+      const eventId = FT.releaseOps && FT.releaseOps.snapshot ? FT.releaseOps.snapshot().event.id : `EVT-${FT.state.scenario}`;
+      const message = error && error.message ? error.message : String(error || "unknown margin error");
+      const key = `${eventId}:${facility.id}:${message}`;
+      if (!marginDiagnostics.has(key)) {
+        marginDiagnostics.add(key);
+        if (typeof FT.log === "function") FT.log(`MARGIN_CALCULATION_FAILED ${facility.name}: ${message}`, "warn");
+      }
+      return { state: "MARGIN_CALCULATION_FAILED", margins: null, message };
     }
   }
 
   function proposalForFacility(snapshot, facilityId) {
+    const eventId = snapshot && snapshot.event && snapshot.event.id;
     const proposals = snapshot && snapshot.proposals ? Object.values(snapshot.proposals) : [];
-    return proposals.find((item) => item.facilityId === facilityId) || null;
+    return proposals.find((item) => item.facilityId === facilityId && item.eventId === eventId) || null;
   }
 
   function orderForFacility(snapshot, facilityId) {
+    const eventId = snapshot && snapshot.event && snapshot.event.id;
     const orders = snapshot && snapshot.orders ? Object.values(snapshot.orders) : [];
-    return orders.find((item) => item.facilityId === facilityId) || null;
+    return orders.find((item) => item.facilityId === facilityId && item.eventId === eventId) || null;
   }
 
   function executionForOrder(snapshot, orderId) {
@@ -185,15 +196,22 @@
     }
 
     const rs = reservoirState(facility, hydroSnap);
-    const margins = marginsFor(facility, hydroSnap);
+    const marginResult = marginsFor(facility, hydroSnap);
+    const margins = marginResult && marginResult.margins;
+    section.dataset.plantMarginState = marginResult ? marginResult.state : "MISSING";
     const grid = el("div", "plantMetricGrid");
     grid.append(
       metric("Reservoir level", rs ? `${fmt(rs.Z, 1)} m` : "—", "synthetic reservoir state"),
       metric("Inflow", rs ? `${fmtInt(rs.I)} m3/s` : "—", "simulated, not telemetry"),
       metric("Current release", rs ? `${fmtInt(rs.O)} m3/s` : "—", "simulated active policy"),
-      metric("Freeboard", margins && Number.isFinite(margins.freeboard) ? `${fmt(margins.freeboard, 1)} m` : "—", "assumed design values")
+      metric("Freeboard", margins && Number.isFinite(margins.freeboard) ? `${fmt(margins.freeboard, 1)} m` : "MISSING", marginResult && marginResult.state === "OK" ? "assumed design values" : "safety margin unavailable")
     );
     section.append(grid);
+    if (marginResult && marginResult.state !== "OK") {
+      const warning = text("p", "plantNotice missing", `${marginResult.state}: safety margin could not be calculated for ${facility.name}; no numeric freeboard or margin value is substituted.`);
+      warning.dataset.provenance = "diagnostic";
+      section.append(warning);
+    }
     const prov = text("p", "plantProvenance", `State provenance: FT.hydro.at(FT.state.timeH), hydro.js synthetic reservoir model; source date ${facility.validFrom}; values are simulated/assumed, not observations.`);
     prov.dataset.provenance = "simulation";
     section.append(prov);

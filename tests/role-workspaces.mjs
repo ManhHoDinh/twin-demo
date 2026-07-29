@@ -370,6 +370,100 @@ async function workspaceRouting(browser) {
       /Modelled peak|peak/i.test(result.targetView.alternatives);
   });
 
+  await check('plant workflow state is isolated to the current scenario event', async (detail) => {
+    await signOnRole(directPlant.page, ROLE.authority);
+    const setup = await directPlant.page.evaluate(async () => {
+      const FT = window.FT;
+      const snap = FT.hydro.at(FT.state.timeH);
+      const pkg = FT.ops.package(snap);
+      const target = pkg && pkg.reservoir && FT.facilities.all().find((item) => item.demoReservoirId === pkg.reservoir.id);
+      const proposal = FT.releaseOps.ingestProposal(pkg);
+      const audit = FT.ops.audit.log('decision.approve', {
+        decision: 'D-03',
+        actorRole: FT.ops.audit.actor.role,
+        package: pkg.id,
+        feasible: true,
+      }, 'scenario boundary regression');
+      const decision = FT.releaseOps.recordDecision(audit);
+      const order = FT.releaseOps.createOrder(proposal.id, audit);
+      const notified = FT.releaseOps.markNotified(order.id);
+      const execution = FT.releaseOps.startExecution(order.id);
+      const checklist = FT.releaseOps.setChecklist(order.id, 'scenarioBoundary', true);
+      const beforeSnapshot = FT.releaseOps.snapshot();
+      FT.workspaces.navigate('plant', { facilityId: target.id });
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      return {
+        scenario: FT.state.scenario,
+        eventId: beforeSnapshot.event.id,
+        target,
+        pkgId: pkg.id,
+        proposalId: proposal.id,
+        decisionId: decision && decision.id,
+        orderId: order && order.id,
+        executionId: execution && execution.id,
+        checklistKey: 'scenarioBoundary',
+        beforeFrozen: Object.isFrozen(beforeSnapshot) && Object.isFrozen(beforeSnapshot.orders[order.id]),
+        orderEventId: beforeSnapshot.orders[order.id] && beforeSnapshot.orders[order.id].eventId,
+        notifiedStatus: notified && notified.status,
+        checklistStatus: checklist && checklist.status,
+        visibleBefore: document.querySelector('.plantDashboard')?.textContent || '',
+      };
+    });
+    const beforeVisible = await directPlant.page.evaluate((setup) => ({
+      orderText: document.querySelector('[data-plant-approved-order]')?.textContent || '',
+      checklistText: document.querySelector('[data-plant-checklist]')?.textContent || '',
+      executionText: document.querySelector('[data-plant-execution]')?.textContent || '',
+      currentEventId: FT.releaseOps.snapshot().event.id,
+      orderStillFrozen: Object.isFrozen(FT.releaseOps.snapshot().orders[setup.orderId]),
+    }), setup);
+
+    await directPlant.page.evaluate(() => {
+      const select = document.getElementById('scenarioSelect');
+      select.value = 'yagi';
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await directPlant.page.waitForFunction(() => window.FT.state.scenario === 'yagi' && window.FT.hydro.ready);
+    await directPlant.page.waitForFunction(() => window.FT.releaseOps.snapshot().event.id === 'EVT-yagi', null, { timeout: 10000 }).catch(() => {});
+    await directPlant.page.waitForTimeout(120);
+
+    const after = await directPlant.page.evaluate((setup) => {
+      const snap = FT.releaseOps.snapshot();
+      const dashboardText = document.querySelector('.plantDashboard')?.textContent || '';
+      const currentPkg = FT.ops.package(FT.hydro.at(FT.state.timeH));
+      return {
+        scenario: FT.state.scenario,
+        eventId: snap.event.id,
+        currentPkgId: currentPkg && currentPkg.id,
+        oldOrderStillFrozen: Object.isFrozen(snap.orders[setup.orderId]),
+        oldOrderEventId: snap.orders[setup.orderId] && snap.orders[setup.orderId].eventId,
+        oldOrderStored: !!snap.orders[setup.orderId],
+        orderText: document.querySelector('[data-plant-approved-order]')?.textContent || '',
+        checklistText: document.querySelector('[data-plant-checklist]')?.textContent || '',
+        executionText: document.querySelector('[data-plant-execution]')?.textContent || '',
+        dashboardText,
+      };
+    }, setup);
+    detail({ setup, beforeVisible, after });
+    return setup.beforeFrozen &&
+      setup.eventId === `EVT-${setup.scenario}` &&
+      setup.orderEventId === setup.eventId &&
+      beforeVisible.currentEventId === setup.eventId &&
+      beforeVisible.orderText.includes(setup.orderId) &&
+      beforeVisible.checklistText.includes(setup.checklistKey) &&
+      beforeVisible.executionText.includes(setup.executionId) &&
+      after.scenario === 'yagi' &&
+      after.eventId === 'EVT-yagi' &&
+      after.currentPkgId !== setup.pkgId &&
+      after.oldOrderStored &&
+      after.oldOrderStillFrozen &&
+      after.oldOrderEventId === setup.eventId &&
+      !after.orderText.includes(setup.orderId) &&
+      !after.checklistText.includes(setup.checklistKey) &&
+      !after.executionText.includes(setup.executionId) &&
+      !after.dashboardText.includes(setup.orderId) &&
+      !after.dashboardText.includes(setup.executionId);
+  });
+
   await check('plant unavailable facility shows registry-only provenance without fabricated operations', async (detail) => {
     await openWorkspace(directPlant.page, 'plant', 'tra-linh-1');
     const unavailable = await directPlant.page.evaluate(() => ({
@@ -469,6 +563,44 @@ async function workspaceRouting(browser) {
       state.focusPreserved &&
       state.scrollPreserved &&
       state.beforeCurrent !== state.afterCurrent;
+  });
+
+  await check('plant current state reports margin calculation failure without fabricated margin', async (detail) => {
+    await openWorkspace(directPlant.page, 'plant', 'a-vuong');
+    const result = await directPlant.page.evaluate(async () => {
+      const FT = window.FT;
+      const originalMargins = FT.ops.margins;
+      const originalLog = FT.log;
+      const logs = [];
+      FT.log = (msg, kind, tH) => {
+        logs.push({ msg, kind, tH });
+        return originalLog(msg, kind, tH);
+      };
+      FT.ops.margins = () => { throw new Error('forced margin failure'); };
+      FT.bus.emit('scrubbed');
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      FT.bus.emit('scrubbed');
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const failedText = document.querySelector('[data-plant-current-state]')?.textContent || '';
+      const failedState = document.querySelector('[data-plant-current-state]')?.dataset.plantMarginState || '';
+      const matchingLogs = logs.filter((entry) => /MARGIN_CALCULATION_FAILED/.test(entry.msg || ''));
+      FT.ops.margins = originalMargins;
+      FT.bus.emit('scrubbed');
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const recoveredText = document.querySelector('[data-plant-current-state]')?.textContent || '';
+      const recoveredState = document.querySelector('[data-plant-current-state]')?.dataset.plantMarginState || '';
+      FT.log = originalLog;
+      return { failedText, failedState, matchingLogs, recoveredText, recoveredState };
+    });
+    detail(result);
+    return result.failedState === 'MARGIN_CALCULATION_FAILED' &&
+      /MARGIN_CALCULATION_FAILED|safety margin could not be calculated|MISSING/i.test(result.failedText) &&
+      !/Freeboard\s*\d/i.test(result.failedText) &&
+      result.matchingLogs.length === 1 &&
+      result.matchingLogs[0].kind === 'warn' &&
+      result.recoveredState === 'OK' &&
+      !/MARGIN_CALCULATION_FAILED/.test(result.recoveredText) &&
+      /Freeboard\s*\d/i.test(result.recoveredText);
   });
 
   await check('plant dashboard layout remains usable across desktop, tablet and mobile widths', async (detail) => {

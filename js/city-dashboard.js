@@ -51,11 +51,12 @@
   }
 
   function workflowForFacility(snapshot, facilityId) {
+    const eventId = snapshot && snapshot.event && snapshot.event.id;
     const orders = snapshot && snapshot.orders ? Object.values(snapshot.orders) : [];
-    const order = orders.find((item) => item.facilityId === facilityId);
+    const order = orders.find((item) => item.facilityId === facilityId && item.eventId === eventId);
     if (order) return order.status || DEMO_STATUS.APPROVED;
     const proposals = snapshot && snapshot.proposals ? Object.values(snapshot.proposals) : [];
-    const proposal = proposals.find((item) => item.facilityId === facilityId);
+    const proposal = proposals.find((item) => item.facilityId === facilityId && item.eventId === eventId);
     if (proposal) return proposal.status || DEMO_STATUS.SUBMITTED;
     return null;
   }
@@ -297,8 +298,8 @@
         card.append(text("strong", "", "No active release decision package"), text("p", "", "Accountable role label unavailable until a proposal-class package exists."));
       }
     }
-    const proposals = snapshot && snapshot.proposals ? Object.values(snapshot.proposals) : [];
-    const orders = snapshot && snapshot.orders ? Object.values(snapshot.orders) : [];
+    const proposals = currentEventItems(snapshot, "proposals");
+    const orders = currentEventItems(snapshot, "orders");
     setText(root, ".cityQueueMeta", `${proposals.length} proposals · ${orders.length} approved orders in shared release workflow snapshot`);
   }
 
@@ -313,10 +314,16 @@
     });
   }
 
-  function updateReadiness(root) {
+  function currentEventItems(snapshot, key) {
+    const eventId = snapshot && snapshot.event && snapshot.event.id;
+    return snapshot && snapshot[key] ? Object.values(snapshot[key]).filter((item) => item.eventId === eventId) : [];
+  }
+
+  function updateReadiness(root, snapshot) {
     const entries = FT.ops && FT.ops.audit && Array.isArray(FT.ops.audit.entries) ? FT.ops.audit.entries : [];
     const notifications = entries.filter((entry) => /^notify|notification/i.test(entry.action || ""));
-    const decisions = entries.filter((entry) => /^decision|release\./i.test(entry.action || ""));
+    const eventId = snapshot && snapshot.event && snapshot.event.id;
+    const decisions = entries.filter((entry) => /^decision|release\./i.test(entry.action || "") && entry.detail && entry.detail.eventId === eventId);
     setText(root, '[data-city-readiness] [data-city-kpi="audit"] .cityKpiValue', entries.length);
     setText(root, '[data-city-readiness] [data-city-kpi="notifications"] .cityKpiValue', notifications.length);
     setText(root, '[data-city-readiness] [data-city-kpi="workflow"] .cityKpiValue', decisions.length);
@@ -333,7 +340,7 @@
     updateTimeline(root, facilities, snapshot);
     updateDecisionQueue(root, snapshot);
     updateImpact(root, hydroSnap);
-    updateReadiness(root);
+    updateReadiness(root, snapshot);
   }
 
   FT.workspaces.register("city", renderCity);
