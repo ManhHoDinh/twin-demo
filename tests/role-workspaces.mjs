@@ -36,6 +36,69 @@ async function governedFacilityRegistry(browser) {
   await check('Dak Mi 4A remains a reconciliation conflict, not an alias', () =>
     conflict.status === 'CONFLICTING_SOURCES' && conflict.facility === null);
 
+  const tamper = await page.evaluate(() => {
+    const original = window.FT.facilities;
+    const before = original.coverage();
+    try { original.coverage = () => ({ total: 1, named: 1, unresolved: 0, complete: true }); } catch {}
+    try { window.FT.facilities = { coverage: () => ({ total: 2, named: 2, unresolved: 0, complete: true }) }; } catch {}
+    return {
+      sameRegistry: window.FT.facilities === original,
+      after: window.FT.facilities.coverage(),
+      methodUnchanged: window.FT.facilities.coverage === original.coverage,
+      descriptor: Object.getOwnPropertyDescriptor(window.FT, 'facilities'),
+      before,
+    };
+  });
+  await check('registry API resists method replacement and reassignment', () =>
+    tamper.sameRegistry &&
+    tamper.methodUnchanged &&
+    tamper.after.total === 44 &&
+    tamper.after.named === 34 &&
+    tamper.after.unresolved === 10 &&
+    tamper.after.complete === false &&
+    tamper.descriptor.enumerable === true &&
+    tamper.descriptor.writable === false &&
+    tamper.descriptor.configurable === false &&
+    tamper.before.total === 44);
+
+  const immutability = await page.evaluate(() => {
+    const F = window.FT.facilities;
+    const record = F.get('a-vuong');
+    const scopeStatusBefore = F.scope.status.operating;
+    const names = F.decision1865ReservoirNames();
+    const decisionNamesBefore = F.decision1865.names.length;
+    try { record.demoReservoirId = 'changed'; } catch {}
+    try { F.scope.total = 1; } catch {}
+    try { F.scope.status.operating = 1; } catch {}
+    try { F.decision1865.names.push('Invented Reservoir'); } catch {}
+    try { names.push('Caller Mutation'); } catch {}
+    return {
+      apiFrozen: Object.isFrozen(F),
+      recordFrozen: Object.isFrozen(record),
+      scopeFrozen: Object.isFrozen(F.scope),
+      scopeStatusFrozen: Object.isFrozen(F.scope.status),
+      decisionFrozen: Object.isFrozen(F.decision1865),
+      decisionNamesFrozen: Object.isFrozen(F.decision1865.names),
+      recordStillMapped: F.get('a-vuong').demoReservoirId === 'avuong',
+      scopeStill44: F.scope.total === 44,
+      scopeStatusStillOperating34: F.scope.status.operating === scopeStatusBefore && F.scope.status.operating === 34,
+      decisionNamesStill19: F.decision1865.names.length === decisionNamesBefore && F.decision1865.names.length === 19,
+      returnedNamesIsCopy: names.length === 20 && F.decision1865ReservoirNames().length === 19,
+    };
+  });
+  await check('registry data and returned records are immutable', () =>
+    immutability.apiFrozen &&
+    immutability.recordFrozen &&
+    immutability.scopeFrozen &&
+    immutability.scopeStatusFrozen &&
+    immutability.decisionFrozen &&
+    immutability.decisionNamesFrozen &&
+    immutability.recordStillMapped &&
+    immutability.scopeStill44 &&
+    immutability.scopeStatusStillOperating34 &&
+    immutability.decisionNamesStill19 &&
+    immutability.returnedNamesIsCopy);
+
   await ctx.close();
 }
 

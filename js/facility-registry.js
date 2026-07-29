@@ -1,7 +1,9 @@
 (function () {
   'use strict';
   const FT = window.FT;
-  const F = (FT.facilities = {});
+  if (Object.prototype.hasOwnProperty.call(FT, 'facilities')) {
+    throw new Error('FT.facilities registry is already initialized');
+  }
 
   const SOURCE_SCOPE = Object.freeze({
     id: 'dn-doit-2026-03-05',
@@ -115,21 +117,30 @@
     }),
   });
 
-  F.scope = SOURCE_SCOPE;
-  F.decision1865 = DECISION_1865;
-  F.all = () => facilities.slice();
-  F.get = (id) => byId.get(id) || null;
-  F.coverage = () => Object.freeze({
-    total: SOURCE_SCOPE.total,
-    named: facilities.length,
-    unresolved: SOURCE_SCOPE.total - facilities.length,
-    complete: false,
+  const API = Object.freeze({
+    scope: SOURCE_SCOPE,
+    decision1865: DECISION_1865,
+    all: () => facilities.slice(),
+    get: (id) => byId.get(id) || null,
+    coverage: () => Object.freeze({
+      total: SOURCE_SCOPE.total,
+      named: facilities.length,
+      unresolved: SOURCE_SCOPE.total - facilities.length,
+      complete: false,
+    }),
+    decision1865ReservoirNames: () => DECISION_1865.names.slice(),
+    resolveName: (name) => {
+      const key = normalize(name);
+      if (conflicts[key]) return conflicts[key];
+      const facility = byId.get(key) || byName.get(key) || null;
+      return Object.freeze({ status: facility ? 'MATCHED' : 'UNRESOLVED', facility });
+    },
   });
-  F.decision1865ReservoirNames = () => DECISION_1865.names.slice();
-  F.resolveName = (name) => {
-    const key = normalize(name);
-    if (conflicts[key]) return conflicts[key];
-    const facility = byId.get(key) || byName.get(key) || null;
-    return Object.freeze({ status: facility ? 'MATCHED' : 'UNRESOLVED', facility });
-  };
+
+  Object.defineProperty(FT, 'facilities', {
+    value: API,
+    enumerable: true,
+    writable: false,
+    configurable: false,
+  });
 })();
