@@ -291,23 +291,37 @@
     }
     const existing = state.proposals[id];
     if (!proposalMatchesPackage(existing, pkg, facility, action)) {
-      const next = deepFreeze(Object.assign({}, existing, {
+      const archivedId = `${id}@rev${existing.revision}`;
+      const archived = deepFreeze(Object.assign({}, existing, {
+        id: archivedId,
         status: "SUPERSEDED",
-        supersededBy: `${id}:action-mismatch:${existing.revision + 1}`,
+        supersededBy: id,
         revision: existing.revision + 1,
         updatedAtH: FT.state.timeH,
       }));
-      const auditEntry = log("release.proposal.supersede", {
+      const next = deepFreeze({
+        id, eventId: state.event.id, facilityId: facility.id, packageId: pkg.id,
+        action,
+        lifecycleClass: FT.lifecycle.CLASS.RECOMMENDATION, actionable: false,
+        revision: archived.revision + 1, createdAtH: FT.state.timeH, status: PROCESS.SUBMITTED,
+        previousProposalId: archivedId,
+      });
+      const supersedeAudit = log("release.proposal.supersede", {
         eventId: state.event.id,
-        proposalId: id,
+        proposalId: archivedId,
+        supersededBy: id,
         package: pkg.id,
         facilityId: facility.id,
         reason: "action-signature-mismatch",
       });
-      if (!auditEntry) return null;
+      if (!supersedeAudit) return null;
+      const ingestAudit = log("release.proposal.ingest", { eventId: state.event.id, proposalId: id, previousProposalId: archivedId, package: pkg.id, facilityId: facility.id });
+      if (!ingestAudit) return null;
+      state.proposals[archivedId] = archived;
       state.proposals[id] = next;
-      emitWorkflowChanged("release.proposal.supersede", { eventId: state.event.id, proposalId: id, status: next.status });
-      return null;
+      state.activeFacilityId = facility.id;
+      emitWorkflowChanged("release.proposal.supersede", { eventId: state.event.id, proposalId: archivedId, supersededBy: id, status: archived.status });
+      return state.proposals[id];
     }
     return activeProposal(existing) ? existing : null;
   };
@@ -347,9 +361,12 @@
     if (!stored) return null;
     const decisionId = `DEC-${stored.seq}`;
     const decision = state.decisions[decisionId] || buildDecision(proposal, stored, PROCESS.APPROVED);
-    const id = `ORD-${proposal.packageId}`;
-    if (state.orders[id]) return state.orders[id];
     if (orderForProposalId(proposal.id)) return orderForProposalId(proposal.id);
+    const baseId = `ORD-${proposal.packageId}`;
+    const id = state.orders[baseId] && state.orders[baseId].proposalId !== proposal.id
+      ? `${baseId}-R${proposal.revision}`
+      : baseId;
+    if (state.orders[id]) return state.orders[id];
     const order = deepFreeze({
       id, eventId: proposal.eventId, proposalId: proposal.id, decisionId: decision.id,
       facilityId: proposal.facilityId, packageId: proposal.packageId,

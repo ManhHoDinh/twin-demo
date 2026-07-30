@@ -1273,7 +1273,7 @@ async function sharedReleaseWorkflowStore(browser) {
   });
 
   await signOnRole(page, ROLE.authority);
-  await check('same package id with changed action cannot create an order from stale proposal action', async (detail) => {
+  await check('same package id with changed action creates a new active proposal and current-command order', async (detail) => {
     const r = await page.evaluate(() => {
       const FT = window.FT;
       const RO = FT.releaseOps;
@@ -1300,26 +1300,46 @@ async function sharedReleaseWorkflowStore(browser) {
         feasible: true,
       }, 'changed action approval must not reuse stale proposal');
       const decision = RO.recordDecision(audit);
-      const order = RO.createOrder(first && first.id, audit);
+      const order = RO.createOrder(second && second.id, audit);
       const after = RO.snapshot();
+      const duplicateOrder = RO.createOrder(second && second.id, audit);
+      const afterDuplicate = RO.snapshot();
+      const proposals = Object.values(after.proposals).filter((item) => item.packageId === changed.id);
       return {
+        firstId: first && first.id,
         firstAction: first && first.action,
         second,
         decision,
         order,
+        duplicateOrder,
+        proposals,
         orderCountBefore: Object.keys(before.orders).length,
         orderCountAfter: Object.keys(after.orders).length,
-        staleOrder: after.orders['ORD-DP-stale-action'],
+        orderCountAfterDuplicate: Object.keys(afterDuplicate.orders).length,
       };
     });
     detail(r);
+    const archived = (r.proposals || []).find((item) => item.status === 'SUPERSEDED');
+    const active = (r.proposals || []).find((item) => item.status === 'SUBMITTED' && !item.supersededBy);
     return r.firstAction &&
       r.firstAction.commandedCms === 1000 &&
-      r.second === null &&
-      r.decision === null &&
-      r.order === null &&
-      r.orderCountAfter === r.orderCountBefore &&
-      !r.staleOrder;
+      r.second &&
+      r.second.action &&
+      r.second.action.commandedCms === 2222 &&
+      archived &&
+      archived.action.commandedCms === 1000 &&
+      active &&
+      active.id === r.second.id &&
+      r.decision &&
+      r.order &&
+      r.order.proposalId === r.second.id &&
+      r.order.commandedCms === 2222 &&
+      r.order.previousCms === 200 &&
+      r.order.action.gates === 'new gates' &&
+      r.duplicateOrder &&
+      r.duplicateOrder.id === r.order.id &&
+      r.orderCountAfter === r.orderCountBefore + 1 &&
+      r.orderCountAfterDuplicate === r.orderCountAfter;
   });
 
   await signOnRole(page, ROLE.authority);
