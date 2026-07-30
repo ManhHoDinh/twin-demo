@@ -60,7 +60,9 @@
   }
 
   function proposalForPackageId(packageId) {
-    return state.proposals[`PRP-${packageId}`] || null;
+    return Object.values(state.proposals)
+      .filter((proposal) => proposal.packageId === packageId && activeProposal(proposal))
+      .sort((a, b) => b.revision - a.revision)[0] || null;
   }
 
   function orderForProposalId(proposalId) {
@@ -197,6 +199,15 @@
     ]);
   }
 
+  function shortHash(text) {
+    let h = 2166136261;
+    for (let i = 0; i < text.length; i += 1) {
+      h ^= text.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return (h >>> 0).toString(16).slice(0, 8);
+  }
+
   function proposalMatchesPackage(proposal, pkg, facility, action) {
     return !!(proposal &&
       proposal.eventId === syncEvent().id &&
@@ -274,9 +285,11 @@
     if (!pkg || pkg.kind !== "PROPOSAL" || !pkg.reservoir) return null;
     const facility = FT.facilities.all().find((item) => item.demoReservoirId === pkg.reservoir.id);
     if (!facility) return null;
-    const id = `PRP-${pkg.id}`;
     const action = immutableAction(pkg);
-    if (!state.proposals[id]) {
+    const baseId = `PRP-${pkg.id}`;
+    const existing = proposalForPackageId(pkg.id);
+    if (!existing) {
+      const id = state.proposals[baseId] ? `${baseId}@${shortHash(actionSignature(action))}` : baseId;
       const next = deepFreeze({
         id, eventId: state.event.id, facilityId: facility.id, packageId: pkg.id,
         action,
@@ -289,9 +302,9 @@
       state.activeFacilityId = facility.id;
       return state.proposals[id];
     }
-    const existing = state.proposals[id];
     if (!proposalMatchesPackage(existing, pkg, facility, action)) {
-      const archivedId = `${id}@rev${existing.revision}`;
+      const archivedId = `${existing.id}@rev${existing.revision}`;
+      const id = `${baseId}@${shortHash(actionSignature(action))}`;
       const archived = deepFreeze(Object.assign({}, existing, {
         id: archivedId,
         status: "SUPERSEDED",
@@ -306,7 +319,7 @@
         revision: archived.revision + 1, createdAtH: FT.state.timeH, status: PROCESS.SUBMITTED,
         previousProposalId: archivedId,
       });
-      const supersedeAudit = log("release.proposal.supersede", {
+      const revisionAudit = log("release.proposal.revise", {
         eventId: state.event.id,
         proposalId: archivedId,
         supersededBy: id,
@@ -314,13 +327,12 @@
         facilityId: facility.id,
         reason: "action-signature-mismatch",
       });
-      if (!supersedeAudit) return null;
-      const ingestAudit = log("release.proposal.ingest", { eventId: state.event.id, proposalId: id, previousProposalId: archivedId, package: pkg.id, facilityId: facility.id });
-      if (!ingestAudit) return null;
+      if (!revisionAudit) return null;
+      delete state.proposals[existing.id];
       state.proposals[archivedId] = archived;
       state.proposals[id] = next;
       state.activeFacilityId = facility.id;
-      emitWorkflowChanged("release.proposal.supersede", { eventId: state.event.id, proposalId: archivedId, supersededBy: id, status: archived.status });
+      emitWorkflowChanged("release.proposal.revise", { eventId: state.event.id, proposalId: archivedId, supersededBy: id, status: archived.status });
       return state.proposals[id];
     }
     return activeProposal(existing) ? existing : null;
@@ -363,7 +375,8 @@
     const decision = state.decisions[decisionId] || buildDecision(proposal, stored, PROCESS.APPROVED);
     if (orderForProposalId(proposal.id)) return orderForProposalId(proposal.id);
     const baseId = `ORD-${proposal.packageId}`;
-    const id = state.orders[baseId] && state.orders[baseId].proposalId !== proposal.id
+    const staleBaseOrder = state.orders[baseId] && state.orders[baseId].proposalId !== proposal.id ? state.orders[baseId] : null;
+    const id = staleBaseOrder
       ? `${baseId}-R${proposal.revision}`
       : baseId;
     if (state.orders[id]) return state.orders[id];
@@ -380,9 +393,23 @@
       checklist: Object.freeze({}), actual: missingActual({ facilityId: proposal.facilityId, commandedCms: proposal.action.commandedCms }),
       observedCms: null, auditSeq: stored.seq,
     });
-    const orderAudit = log("release.order.create", { eventId: proposal.eventId, orderId: id, proposalId: proposal.id, decisionId: decision.id, package: proposal.packageId });
+    const orderAudit = log("release.order.create", {
+      eventId: proposal.eventId,
+      orderId: id,
+      proposalId: proposal.id,
+      decisionId: decision.id,
+      package: proposal.packageId,
+      supersedesOrderId: staleBaseOrder ? staleBaseOrder.id : null,
+    });
     if (!orderAudit) return null;
     state.decisions[decision.id] = decision;
+    if (staleBaseOrder) {
+      state.orders[staleBaseOrder.id] = deepFreeze(Object.assign({}, staleBaseOrder, {
+        supersededBy: id,
+        revision: staleBaseOrder.revision + 1,
+        updatedAtH: FT.state.timeH,
+      }));
+    }
     state.orders[id] = order;
     return state.orders[id];
   };

@@ -1290,6 +1290,15 @@ async function sharedReleaseWorkflowStore(browser) {
         action: { q0: 200, q1: 2222, tStart: 8, rampMax: 40, endCondition: 'new', gates: 'new gates' },
       };
       const first = RO.ingestProposal(original);
+      const originalAudit = FT.ops.audit.log('decision.approve', {
+        decision: 'D-03',
+        actorRole: FT.ops.audit.actor.role,
+        package: original.id,
+        eventId: RO.snapshot().event.id,
+        feasible: true,
+      }, 'original action approval');
+      const originalDecision = RO.recordDecision(originalAudit);
+      const originalOrder = RO.createOrder(first && first.id, originalAudit);
       const before = RO.snapshot();
       const second = RO.ingestProposal(changed);
       const audit = FT.ops.audit.log('decision.approve', {
@@ -1305,14 +1314,18 @@ async function sharedReleaseWorkflowStore(browser) {
       const duplicateOrder = RO.createOrder(second && second.id, audit);
       const afterDuplicate = RO.snapshot();
       const proposals = Object.values(after.proposals).filter((item) => item.packageId === changed.id);
+      const currentOrders = Object.values(after.orders).filter((item) => item.eventId === after.event.id && !item.supersededBy);
       return {
         firstId: first && first.id,
         firstAction: first && first.action,
+        originalDecision,
+        originalOrder,
         second,
         decision,
         order,
         duplicateOrder,
         proposals,
+        currentOrders,
         orderCountBefore: Object.keys(before.orders).length,
         orderCountAfter: Object.keys(after.orders).length,
         orderCountAfterDuplicate: Object.keys(afterDuplicate.orders).length,
@@ -1323,9 +1336,13 @@ async function sharedReleaseWorkflowStore(browser) {
     const active = (r.proposals || []).find((item) => item.status === 'SUBMITTED' && !item.supersededBy);
     return r.firstAction &&
       r.firstAction.commandedCms === 1000 &&
+      r.originalDecision &&
+      r.originalOrder &&
+      r.originalOrder.commandedCms === 1000 &&
       r.second &&
       r.second.action &&
       r.second.action.commandedCms === 2222 &&
+      r.second.id !== r.firstId &&
       archived &&
       archived.action.commandedCms === 1000 &&
       active &&
@@ -1336,10 +1353,58 @@ async function sharedReleaseWorkflowStore(browser) {
       r.order.commandedCms === 2222 &&
       r.order.previousCms === 200 &&
       r.order.action.gates === 'new gates' &&
+      r.currentOrders.length === 1 &&
+      r.currentOrders[0].id === r.order.id &&
+      r.currentOrders[0].commandedCms === 2222 &&
       r.duplicateOrder &&
       r.duplicateOrder.id === r.order.id &&
       r.orderCountAfter === r.orderCountBefore + 1 &&
       r.orderCountAfterDuplicate === r.orderCountAfter;
+  });
+
+  await check('proposal revision does not leave supersede audit without state change when ingest audit fails', async (detail) => {
+    const r = await page.evaluate(() => {
+      const FT = window.FT;
+      const RO = FT.releaseOps;
+      const original = {
+        kind: 'PROPOSAL',
+        id: 'DP-atomic-revision',
+        reservoir: { id: 'avuong' },
+        action: { q0: 100, q1: 1000, tStart: 4, rampMax: 20, endCondition: 'old', gates: 'old gates' },
+      };
+      const changed = {
+        kind: 'PROPOSAL',
+        id: 'DP-atomic-revision',
+        reservoir: { id: 'avuong' },
+        action: { q0: 200, q1: 2222, tStart: 8, rampMax: 40, endCondition: 'new', gates: 'new gates' },
+      };
+      const first = RO.ingestProposal(original);
+      const before = RO.snapshot();
+      const beforeAudit = FT.ops.audit.entries.length;
+      const originalLog = FT.ops.audit.log;
+      let calls = 0;
+      FT.ops.audit.log = (action, auditDetail, reason) => {
+        calls += 1;
+        if (action === 'release.proposal.revise') return null;
+        return originalLog(action, auditDetail, reason);
+      };
+      const changedResult = RO.ingestProposal(changed);
+      FT.ops.audit.log = originalLog;
+      const after = RO.snapshot();
+      return {
+        first,
+        calls,
+        changedResult,
+        auditUnchanged: FT.ops.audit.entries.length === beforeAudit,
+        proposalsUnchanged: JSON.stringify(before.proposals) === JSON.stringify(after.proposals),
+      };
+    });
+    detail(r);
+    return r.first &&
+      r.changedResult === null &&
+      r.calls === 1 &&
+      r.auditUnchanged &&
+      r.proposalsUnchanged;
   });
 
   await signOnRole(page, ROLE.authority);
