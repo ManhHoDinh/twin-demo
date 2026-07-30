@@ -1407,6 +1407,122 @@ async function sharedReleaseWorkflowStore(browser) {
       r.proposalsUnchanged;
   });
 
+  await check('third changed-command order supersedes every prior current order revision', async (detail) => {
+    const r = await page.evaluate(async () => {
+      const FT = window.FT;
+      const RO = FT.releaseOps;
+      const packageId = 'DP-multi-revision-action';
+      const eventId = RO.snapshot().event.id;
+      const proposals = [
+        {
+          kind: 'PROPOSAL',
+          id: packageId,
+          reservoir: { id: 'songbung4' },
+          action: { q0: 100, q1: 1000, tStart: 4, rampMax: 20, endCondition: 'first', gates: 'first gates' },
+        },
+        {
+          kind: 'PROPOSAL',
+          id: packageId,
+          reservoir: { id: 'songbung4' },
+          action: { q0: 200, q1: 2222, tStart: 8, rampMax: 40, endCondition: 'second', gates: 'second gates' },
+        },
+        {
+          kind: 'PROPOSAL',
+          id: packageId,
+          reservoir: { id: 'songbung4' },
+          action: { q0: 300, q1: 3333, tStart: 12, rampMax: 60, endCondition: 'third', gates: 'third gates' },
+        },
+      ];
+      const approvals = [];
+      for (const proposalPackage of proposals) {
+        if (Number.isFinite(FT.state.timeH)) FT.state.timeH += 1;
+        const proposal = RO.ingestProposal(proposalPackage);
+        const audit = FT.ops.audit.log('decision.approve', {
+          decision: 'D-03',
+          actorRole: FT.ops.audit.actor.role,
+          package: proposalPackage.id,
+          eventId,
+          feasible: true,
+        }, `multi revision approval ${proposalPackage.action.endCondition}`);
+        const decision = RO.recordDecision(audit);
+        const order = RO.createOrder(proposal && proposal.id, audit);
+        approvals.push({ proposal, audit, decision, order });
+      }
+      const duplicateThird = RO.createOrder(approvals[2].proposal && approvals[2].proposal.id, approvals[2].audit);
+      const beforeBlocked = RO.snapshot();
+      const priorOrderIds = approvals.slice(0, 2).map((item) => item.order && item.order.id).filter(Boolean);
+      const blocked = priorOrderIds.map((orderId) => ({
+        orderId,
+        checklist: RO.setChecklist(orderId, 'order-valid', true),
+        notified: RO.markNotified(orderId),
+        start: RO.startExecution(orderId),
+      }));
+      const afterBlocked = RO.snapshot();
+      const orders = Object.values(afterBlocked.orders).filter((item) => item.packageId === packageId && item.eventId === eventId);
+      const currentOrders = orders.filter((item) => !item.supersededBy);
+      const thirdOrder = approvals[2].order;
+      const createAudits = approvals.map((approval) => FT.ops.audit.entries
+        .filter((entry) => entry.action === 'release.order.create' && entry.detail && entry.detail.orderId === (approval.order && approval.order.id))
+        .pop());
+      FT.workspaces.navigate('city');
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const cityRowText = document.querySelector(`[data-city-timeline] [data-process-row][data-facility-id="${thirdOrder && thirdOrder.facilityId}"]`)?.textContent || '';
+      FT.workspaces.navigate('plant', { facilityId: thirdOrder && thirdOrder.facilityId });
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const approvedText = document.querySelector('[data-plant-approved-order]')?.textContent || '';
+      const executionText = document.querySelector('[data-plant-execution]')?.textContent || '';
+      return {
+        orderIds: approvals.map((item) => item.order && item.order.id),
+        duplicateThirdId: duplicateThird && duplicateThird.id,
+        blocked,
+        blockedUnchanged: JSON.stringify(beforeBlocked.orders) === JSON.stringify(afterBlocked.orders) &&
+          JSON.stringify(beforeBlocked.executions) === JSON.stringify(afterBlocked.executions),
+        orders: orders.map((item) => ({
+          id: item.id,
+          proposalId: item.proposalId,
+          commandedCms: item.commandedCms,
+          createdAtH: item.createdAtH,
+          supersededBy: item.supersededBy || null,
+          status: item.status,
+        })),
+        currentOrders: currentOrders.map((item) => item.id),
+        thirdOrderId: thirdOrder && thirdOrder.id,
+        thirdCommandedCms: thirdOrder && thirdOrder.commandedCms,
+        createAuditDetails: createAudits.map((entry) => entry && entry.detail),
+        cityRowText,
+        approvedText,
+        executionText,
+      };
+    });
+    detail(r);
+    const auditSuperseded = (r.createAuditDetails || []).map((detail) => (detail && detail.supersededOrderIds || []).slice().sort().join('|'));
+    const byId = new Map((r.orders || []).map((order) => [order.id, order]));
+    return r.orderIds.length === 3 &&
+      r.orderIds[0] !== r.orderIds[1] &&
+      r.orderIds[1] !== r.orderIds[2] &&
+      r.duplicateThirdId === r.thirdOrderId &&
+      r.currentOrders.length === 1 &&
+      r.currentOrders[0] === r.thirdOrderId &&
+      r.thirdCommandedCms === 3333 &&
+      byId.get(r.orderIds[0]).supersededBy === r.orderIds[1] &&
+      byId.get(r.orderIds[1]).supersededBy === r.orderIds[2] &&
+      r.orders.filter((item) => item.supersededBy === null)[0].id === r.thirdOrderId &&
+      r.blocked.every((item) => item.checklist === null && item.notified === null && item.start === null) &&
+      r.blockedUnchanged &&
+      auditSuperseded[0] === '' &&
+      auditSuperseded[1] === r.orderIds[0] &&
+      auditSuperseded[2] === r.orderIds[1] &&
+      r.createAuditDetails[2].supersedesOrderId === r.orderIds[1] &&
+      r.cityRowText.includes(`approved_order_id ${r.thirdOrderId};`) &&
+      !r.orderIds.slice(0, 2).some((orderId) => r.cityRowText.includes(`approved_order_id ${orderId};`)) &&
+      r.approvedText.includes(`approved_order_id ${r.thirdOrderId};`) &&
+      !r.orderIds.slice(0, 2).some((orderId) => r.approvedText.includes(`approved_order_id ${orderId};`)) &&
+      r.approvedText.replace(/\D/g, '').includes('3333') &&
+      r.executionText.includes(r.thirdOrderId) &&
+      !r.executionText.includes('Commanded release1,000 m3/s') &&
+      !r.executionText.includes('Commanded release2,222 m3/s');
+  });
+
   await check('City and Plant render the current changed-command order, not superseded order history', async (detail) => {
     const r = await page.evaluate(async () => {
       const snap = FT.releaseOps.snapshot();

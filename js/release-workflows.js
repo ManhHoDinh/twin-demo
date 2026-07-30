@@ -69,6 +69,17 @@
     return Object.values(state.orders).find((item) => item.proposalId === proposalId) || null;
   }
 
+  function currentPriorOrdersForProposal(proposal) {
+    return Object.values(state.orders)
+      .filter((order) => order &&
+        order.eventId === proposal.eventId &&
+        order.packageId === proposal.packageId &&
+        order.facilityId === proposal.facilityId &&
+        order.proposalId !== proposal.id &&
+        !order.supersededBy)
+      .sort((a, b) => a.id.localeCompare(b.id));
+  }
+
   function storedAuditEntry(entry) {
     if (!entry || entry.seq == null || !entry.snapshot || !FT.ops || !FT.ops.audit) return null;
     return FT.ops.audit.entries.find((item) => item.seq === entry.seq && item.snapshot === entry.snapshot) || null;
@@ -375,8 +386,9 @@
     const decision = state.decisions[decisionId] || buildDecision(proposal, stored, PROCESS.APPROVED);
     if (orderForProposalId(proposal.id)) return orderForProposalId(proposal.id);
     const baseId = `ORD-${proposal.packageId}`;
-    const staleBaseOrder = state.orders[baseId] && state.orders[baseId].proposalId !== proposal.id ? state.orders[baseId] : null;
-    const id = staleBaseOrder
+    const staleOrders = currentPriorOrdersForProposal(proposal);
+    const supersededOrderIds = staleOrders.map((order) => order.id);
+    const id = staleOrders.length
       ? `${baseId}-R${proposal.revision}`
       : baseId;
     if (state.orders[id]) return state.orders[id];
@@ -399,14 +411,15 @@
       proposalId: proposal.id,
       decisionId: decision.id,
       package: proposal.packageId,
-      supersedesOrderId: staleBaseOrder ? staleBaseOrder.id : null,
+      supersedesOrderId: supersededOrderIds[0] || null,
+      supersededOrderIds,
     });
     if (!orderAudit) return null;
     state.decisions[decision.id] = decision;
-    if (staleBaseOrder) {
-      state.orders[staleBaseOrder.id] = deepFreeze(Object.assign({}, staleBaseOrder, {
+    for (const staleOrder of staleOrders) {
+      state.orders[staleOrder.id] = deepFreeze(Object.assign({}, staleOrder, {
         supersededBy: id,
-        revision: staleBaseOrder.revision + 1,
+        revision: staleOrder.revision + 1,
         updatedAtH: FT.state.timeH,
       }));
     }
