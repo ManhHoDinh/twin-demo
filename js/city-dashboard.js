@@ -52,12 +52,11 @@
   }
 
   function workflowForFacility(snapshot, facilityId) {
-    const eventId = snapshot && snapshot.event && snapshot.event.id;
-    const orders = snapshot && snapshot.orders ? Object.values(snapshot.orders) : [];
-    const order = orders.find((item) => item.facilityId === facilityId && item.eventId === eventId);
+    const orders = currentOrders(snapshot).filter((item) => item.facilityId === facilityId);
+    const order = orders[0] || null;
     if (order) return order.status || DEMO_STATUS.APPROVED;
-    const proposals = snapshot && snapshot.proposals ? Object.values(snapshot.proposals) : [];
-    const proposal = proposals.find((item) => item.facilityId === facilityId && item.eventId === eventId);
+    const proposals = currentProposals(snapshot).filter((item) => item.facilityId === facilityId);
+    const proposal = proposals[0] || null;
     if (proposal) return proposal.status || DEMO_STATUS.SUBMITTED;
     return null;
   }
@@ -69,9 +68,7 @@
   }
 
   function orderForFacility(snapshot, facilityId) {
-    const eventId = snapshot && snapshot.event && snapshot.event.id;
-    const orders = snapshot && snapshot.orders ? Object.values(snapshot.orders) : [];
-    return orders.find((item) => item.facilityId === facilityId && item.eventId === eventId) || null;
+    return currentOrders(snapshot).find((item) => item.facilityId === facilityId) || null;
   }
 
   function reservoirStateFor(facility, hydroSnap) {
@@ -348,7 +345,30 @@
 
   function currentEventItems(snapshot, key) {
     const eventId = snapshot && snapshot.event && snapshot.event.id;
-    return snapshot && snapshot[key] ? Object.values(snapshot[key]).filter((item) => item.eventId === eventId) : [];
+    const items = snapshot && snapshot[key] ? Object.values(snapshot[key]).filter((item) => item.eventId === eventId) : [];
+    if (key === "orders") return currentOrders(snapshot);
+    if (key === "proposals") return currentProposals(snapshot);
+    return items;
+  }
+
+  function latestFirst(a, b) {
+    return (b.revision || 0) - (a.revision || 0) || (b.createdAtH || 0) - (a.createdAtH || 0) || String(b.id).localeCompare(String(a.id));
+  }
+
+  function currentOrders(snapshot) {
+    const eventId = snapshot && snapshot.event && snapshot.event.id;
+    return snapshot && snapshot.orders
+      ? Object.values(snapshot.orders).filter((item) => item.eventId === eventId && !item.supersededBy).sort(latestFirst)
+      : [];
+  }
+
+  function currentProposals(snapshot) {
+    const eventId = snapshot && snapshot.event && snapshot.event.id;
+    return snapshot && snapshot.proposals
+      ? Object.values(snapshot.proposals)
+        .filter((item) => item.eventId === eventId && !item.supersededBy && item.status !== "REJECTED" && item.status !== "SUPERSEDED")
+        .sort(latestFirst)
+      : [];
   }
 
   function updateReadiness(root, snapshot) {

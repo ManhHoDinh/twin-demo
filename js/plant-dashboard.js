@@ -86,15 +86,31 @@
   }
 
   function proposalForFacility(snapshot, facilityId) {
-    const eventId = snapshot && snapshot.event && snapshot.event.id;
-    const proposals = snapshot && snapshot.proposals ? Object.values(snapshot.proposals) : [];
-    return proposals.find((item) => item.facilityId === facilityId && item.eventId === eventId) || null;
+    return currentProposals(snapshot).find((item) => item.facilityId === facilityId) || null;
   }
 
   function orderForFacility(snapshot, facilityId) {
+    return currentOrders(snapshot).find((item) => item.facilityId === facilityId) || null;
+  }
+
+  function latestFirst(a, b) {
+    return (b.revision || 0) - (a.revision || 0) || (b.createdAtH || 0) - (a.createdAtH || 0) || String(b.id).localeCompare(String(a.id));
+  }
+
+  function currentOrders(snapshot) {
     const eventId = snapshot && snapshot.event && snapshot.event.id;
-    const orders = snapshot && snapshot.orders ? Object.values(snapshot.orders) : [];
-    return orders.find((item) => item.facilityId === facilityId && item.eventId === eventId) || null;
+    return snapshot && snapshot.orders
+      ? Object.values(snapshot.orders).filter((item) => item.eventId === eventId && !item.supersededBy).sort(latestFirst)
+      : [];
+  }
+
+  function currentProposals(snapshot) {
+    const eventId = snapshot && snapshot.event && snapshot.event.id;
+    return snapshot && snapshot.proposals
+      ? Object.values(snapshot.proposals)
+        .filter((item) => item.eventId === eventId && !item.supersededBy && item.status !== "REJECTED" && item.status !== "SUPERSEDED")
+        .sort(latestFirst)
+      : [];
   }
 
   function executionForOrder(snapshot, orderId) {

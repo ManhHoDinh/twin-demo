@@ -1407,6 +1407,52 @@ async function sharedReleaseWorkflowStore(browser) {
       r.proposalsUnchanged;
   });
 
+  await check('City and Plant render the current changed-command order, not superseded order history', async (detail) => {
+    const r = await page.evaluate(async () => {
+      const snap = FT.releaseOps.snapshot();
+      const orders = Object.values(snap.orders).filter((item) => item.packageId === 'DP-stale-action');
+      const current = orders.find((item) => item.eventId === snap.event.id && !item.supersededBy);
+      const stale = orders.find((item) => item.supersededBy);
+      if (!current) return { orders };
+      FT.workspaces.navigate('city');
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const cityRowText = document.querySelector(`[data-city-timeline] [data-process-row][data-facility-id="${current.facilityId}"]`)?.textContent || '';
+      FT.workspaces.navigate('plant', { facilityId: current.facilityId });
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const approvedText = document.querySelector('[data-plant-approved-order]')?.textContent || '';
+      const executionText = document.querySelector('[data-plant-execution]')?.textContent || '';
+      return {
+        currentOrderId: current.id,
+        staleOrderId: stale && stale.id,
+        currentCommandedCms: current.commandedCms,
+        staleCommandedCms: stale && stale.commandedCms,
+        currentSupersededBy: current.supersededBy || null,
+        staleSupersededBy: stale && stale.supersededBy,
+        cityRowText,
+        approvedText,
+        executionText,
+        approvedDigits: approvedText.replace(/\D/g, ''),
+        executionDigits: executionText.replace(/\D/g, ''),
+      };
+    });
+    detail(r);
+    return /^ORD-/.test(r.currentOrderId || '') &&
+      /^ORD-/.test(r.staleOrderId || '') &&
+      r.currentOrderId !== r.staleOrderId &&
+      r.currentCommandedCms === 2222 &&
+      r.staleCommandedCms === 1000 &&
+      r.currentSupersededBy === null &&
+      r.staleSupersededBy === r.currentOrderId &&
+      r.cityRowText.includes(`approved_order_id ${r.currentOrderId};`) &&
+      !r.cityRowText.includes(`approved_order_id ${r.staleOrderId};`) &&
+      r.approvedText.includes(`approved_order_id ${r.currentOrderId};`) &&
+      !r.approvedText.includes(`approved_order_id ${r.staleOrderId};`) &&
+      r.approvedDigits.includes('2222') &&
+      r.executionText.includes(r.currentOrderId) &&
+      !r.executionText.includes(`Order${r.staleOrderId}APPROVED`) &&
+      !r.executionText.includes('Commanded release1,000 m3/s');
+  });
+
   await signOnRole(page, ROLE.authority);
   const setupAudit = await page.evaluate((proposalId) => {
     const FT = window.FT;
