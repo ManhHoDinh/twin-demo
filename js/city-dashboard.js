@@ -10,6 +10,7 @@
     APPROVED: "APPROVED",
     NOTIFIED: "NOTIFIED",
     EXECUTING: "EXECUTING",
+    DEVIATING: "DEVIATING",
     VERIFIED: "VERIFIED",
     CLOSED: "CLOSED",
     ASSESSED: "ASSESSED",
@@ -65,6 +66,12 @@
     const workflow = workflowForFacility(snapshot, facility.id);
     if (workflow) return workflow;
     return facility.demoReservoirId ? DEMO_STATUS.ASSESSED : DEMO_STATUS.NOT_IN_CURRENT_DEMO;
+  }
+
+  function orderForFacility(snapshot, facilityId) {
+    const eventId = snapshot && snapshot.event && snapshot.event.id;
+    const orders = snapshot && snapshot.orders ? Object.values(snapshot.orders) : [];
+    return orders.find((item) => item.facilityId === facilityId && item.eventId === eventId) || null;
   }
 
   function reservoirStateFor(facility, hydroSnap) {
@@ -172,11 +179,12 @@
     section.append(text("h3", "", "Process timeline"));
     DEMO_ORDER.map((id) => facilities.find((facility) => facility.id === id)).filter(Boolean).forEach((facility) => {
       const state = statusForFacility(snapshot, facility);
+      const order = orderForFacility(snapshot, facility.id);
       const row = el("article", "cityProcessRow", {
         dataset: { processRow: "", state, facilityId: facility.id },
       });
       row.append(text("span", "cityProcessFacility", facility.name), text("strong", "cityProcessState", state));
-      row.append(text("span", "cityProcessNote", "Shared workflow state or assessed demo baseline; no plant execution control exposed."));
+      row.append(text("span", "cityProcessNote", order ? `approved_order_id ${order.id}; status ${order.status}; no plant execution control exposed.` : "Shared workflow state or assessed demo baseline; no plant execution control exposed."));
       section.append(row);
     });
     return section;
@@ -208,7 +216,19 @@
     return section;
   }
 
-  function renderReadiness() {
+  function latestRefusal(eventId) {
+    const entries = FT.ops && FT.ops.audit && Array.isArray(FT.ops.audit.entries) ? FT.ops.audit.entries : [];
+    return [...entries].reverse().find((entry) => entry.action === "decision.refused" &&
+      (!eventId || !entry.detail || !entry.detail.eventId || entry.detail.eventId === eventId)) || null;
+  }
+
+  function refusalText(refusal) {
+    return refusal
+      ? `Latest refused approval: ${refusal.detail.actorRole || "unknown role"} lacked ${refusal.detail.requiredRole || "required role"}; no approved order created.`
+      : "No refused approval recorded for the current event.";
+  }
+
+  function renderReadiness(snapshot) {
     const section = el("section", "cityReadiness", { dataset: { cityReadiness: "" }, "aria-label": "Notification and audit readiness" });
     section.append(text("h3", "", "Readiness"));
     const entries = FT.ops && FT.ops.audit && Array.isArray(FT.ops.audit.entries) ? FT.ops.audit.entries : [];
@@ -221,6 +241,7 @@
       kpi("Workflow evidence", decisions.length, "workflow", "release/decision trail")
     );
     section.append(grid);
+    section.append(text("p", "cityRefusalEvidence", refusalText(latestRefusal(snapshot && snapshot.event && snapshot.event.id))));
     section.append(text("p", "cityProvenance", "Readiness source/provenance: FT.ops.audit.entries. Zero means no recorded evidence in this browser session."));
     return section;
   }
@@ -245,7 +266,7 @@
       renderTimeline(facilities, snapshot),
       renderDecisionQueue(snapshot),
       renderImpact(hydroSnap),
-      renderReadiness()
+      renderReadiness(snapshot)
     );
     shell.append(renderHeader(coverage), renderKpis(coverage), renderUnresolved(coverage), grid);
     updateCity(shell);
@@ -278,17 +299,29 @@
       const row = root.querySelector(`[data-city-timeline] [data-process-row][data-facility-id="${facility.id}"]`);
       if (!row) return;
       const state = statusForFacility(snapshot, facility);
+      const order = orderForFacility(snapshot, facility.id);
       row.dataset.state = state;
       setText(row, ".cityProcessState", state);
+      setText(row, ".cityProcessNote", order ? `approved_order_id ${order.id}; status ${order.status}; no plant execution control exposed.` : "Shared workflow state or assessed demo baseline; no plant execution control exposed.");
     });
   }
 
   function updateDecisionQueue(root, snapshot) {
     const card = root.querySelector("[data-city-decision-card]");
     const decision = currentDecision();
+    const orders = currentEventItems(snapshot, "orders");
+    const decisions = snapshot && snapshot.decisions ? snapshot.decisions : {};
     if (card) {
       card.replaceChildren();
-      if (decision) {
+      if (orders.length) {
+        const order = orders[0];
+        const storedDecision = decisions[order.decisionId];
+        card.append(
+          text("strong", "", `${order.decisionId} · APPROVED_PLAN`),
+          text("p", "", `approved_order_id ${order.id}; event_id ${order.eventId}; facility_id ${order.facilityId}`),
+          text("p", "", storedDecision ? `Accountable approval: ${storedDecision.actor}; reason: ${storedDecision.reason}` : "Accountable approval evidence stored in audit trail.")
+        );
+      } else if (decision) {
         card.append(
           text("strong", "", `${decision.id} · ${decision.kind || "CURRENT_PACKAGE"}`),
           text("p", "", `Accountable role: ${decision.accountable || "unassigned in RACI"}`),
@@ -299,7 +332,6 @@
       }
     }
     const proposals = currentEventItems(snapshot, "proposals");
-    const orders = currentEventItems(snapshot, "orders");
     setText(root, ".cityQueueMeta", `${proposals.length} proposals · ${orders.length} approved orders in shared release workflow snapshot`);
   }
 
@@ -327,6 +359,7 @@
     setText(root, '[data-city-readiness] [data-city-kpi="audit"] .cityKpiValue', entries.length);
     setText(root, '[data-city-readiness] [data-city-kpi="notifications"] .cityKpiValue', notifications.length);
     setText(root, '[data-city-readiness] [data-city-kpi="workflow"] .cityKpiValue', decisions.length);
+    setText(root, ".cityRefusalEvidence", refusalText(latestRefusal(eventId)));
   }
 
   function updateCity(root) {
@@ -351,7 +384,7 @@
   }
 
   if (FT.bus) {
-    ["scrubbed", "hydroRebuilt", "opsAudit", "lang"].forEach((eventName) => {
+    ["scrubbed", "hydroRebuilt", "opsAudit", "releaseWorkflowChanged", "lang"].forEach((eventName) => {
       FT.bus.on(eventName, refreshCity);
     });
   }

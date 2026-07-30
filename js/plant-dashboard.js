@@ -125,6 +125,23 @@
     return button;
   }
 
+  function currentOrderForFacility(snapshot, facility) {
+    return facility ? orderForFacility(snapshot, facility.id) : null;
+  }
+
+  function checkLabels() {
+    return {
+      "order-valid": "Order ID, event and facility match current demo",
+      "notifications-acknowledged": "Downstream notifications acknowledged",
+      "plant-ready": "Plant crew ready",
+      "outlet-ready": "Outlet path ready",
+      "ramp-started": "Ramp started",
+      "actual-recorded": "Actual release recorded",
+      "downstream-monitored": "Downstream response monitored",
+      "completion-confirmed": "Completion confirmed",
+    };
+  }
+
   function renderHeader(root, facility) {
     const head = root.querySelector(".roleDashboardHead");
     if (!head) return;
@@ -342,11 +359,17 @@
       return;
     }
     section.dataset.plantLifecycleClass = order.lifecycleClass || "APPROVED_PLAN";
+    const decision = snapshot && snapshot.decisions ? snapshot.decisions[order.decisionId] : null;
     section.append(
       text("p", "plantLifecycleBadge approved", `Lifecycle class: ${order.lifecycleClass}; actionable: ${order.actionable ? "true" : "false"}`),
-      metric("Order", order.id, order.status),
-      metric("Package", order.packageId, `revision ${order.revision}`)
+      metric("Approved order ID", order.id, order.status),
+      metric("Package", order.packageId, `revision ${order.revision}`),
+      metric("Commanded target", Number.isFinite(order.commandedCms) ? `${fmtInt(order.commandedCms)} m3/s` : "—", "ASSUMED_FOR_DEMO command from approved package"),
+      metric("Decision audit", decision ? `#${decision.auditSeq}` : `#${order.auditSeq}`, decision ? `${decision.actor}; ${decision.reason}` : "stored approval evidence")
     );
+    const valid = text("p", "plantProvenance", `approved_order_id ${order.id}; event_id ${order.eventId}; facility_id ${order.facilityId}; proposal_id ${order.proposalId}; decision_id ${order.decisionId}.`);
+    valid.dataset.provenance = "workflow";
+    section.append(valid);
   }
 
   function renderChecklist(root, facility, snapshot) {
@@ -357,20 +380,27 @@
     section.setAttribute("aria-label", "Operational checklist");
     section.append(text("h3", "", "Checklist"));
     const order = facility ? orderForFacility(snapshot, facility.id) : null;
+    const checks = FT.releaseOps && FT.releaseOps.CHECKS ? FT.releaseOps.CHECKS : [];
+    const labels = checkLabels();
     if (!order) {
       section.append(text("p", "", "Checklist locked until an approved order exists."));
-      ["downstream notice", "operator handoff", "dam safety confirmation"].forEach((label) => {
+      checks.forEach((key) => {
         const row = el("label", "plantCheckRow");
-        const input = el("input", "", { type: "checkbox", disabled: "" });
-        row.append(input, text("span", "", label));
+        const input = el("input", "", { type: "checkbox", disabled: "", dataset: { checkKey: key } });
+        row.append(input, text("span", "", labels[key] || key));
         section.append(row);
       });
       return;
     }
-    Object.keys(order.checklist || {}).forEach((key) => {
+    checks.forEach((key) => {
       const row = el("label", "plantCheckRow");
-      const input = el("input", "", { type: "checkbox", disabled: "", checked: order.checklist[key] ? "" : null });
-      row.append(input, text("span", "", key));
+      const input = el("input", "", { type: "checkbox", checked: order.checklist && order.checklist[key] ? "" : null, dataset: { checkKey: key } });
+      input.addEventListener("change", () => {
+        const result = FT.releaseOps.setChecklist(order.id, key, input.checked);
+        if (!result) input.checked = !!(order.checklist && order.checklist[key]);
+        refreshPlant();
+      });
+      row.append(input, text("span", "", labels[key] || key));
       section.append(row);
     });
   }
@@ -384,14 +414,39 @@
     section.append(text("h3", "", "Execution"));
     const order = facility ? orderForFacility(snapshot, facility.id) : null;
     const execution = order ? executionForOrder(snapshot, order.id) : null;
-    if (!order || !execution) {
-      section.append(text("p", "", "No execution state. Execution controls remain unavailable until approval and Task 7 wiring."));
+    if (!order) {
+      section.append(text("p", "", "No execution state. Execution controls remain unavailable until approval."));
       return;
     }
+    const actual = FT.releaseOps && FT.releaseOps.actualVersusCommanded ? FT.releaseOps.actualVersusCommanded(order.id) : order.actual;
+    const canStart = FT.releaseOps && FT.releaseOps.prerequisitesSatisfied && FT.releaseOps.prerequisitesSatisfied(order.id);
+    const canClose = FT.releaseOps && FT.releaseOps.completeSatisfied && FT.releaseOps.completeSatisfied(order.id);
+    const start = actionButton("start-execution", "Start execution", "Requires order-valid, notifications-acknowledged, plant-ready and outlet-ready.");
+    if (canStart) { start.disabled = false; start.removeAttribute("disabled"); start.setAttribute("aria-disabled", "false"); }
+    start.addEventListener("click", () => { FT.releaseOps.startExecution(order.id); refreshPlant(); });
+    const observe = actionButton("record-actual", "Record simulated actual", "Records selected facility reservoir release from the synthetic model.");
+    if (execution && [FT.releaseOps.PROCESS.EXECUTING, FT.releaseOps.PROCESS.DEVIATING].includes(order.status)) {
+      observe.disabled = false; observe.removeAttribute("disabled"); observe.setAttribute("aria-disabled", "false");
+    }
+    observe.addEventListener("click", () => {
+      const snap = hydroSnapshot();
+      const rs = reservoirState(facility, snap);
+      if (rs && Number.isFinite(rs.O)) FT.releaseOps.recordObservedRelease(order.id, rs.O);
+      refreshPlant();
+    });
+    const close = actionButton("close-complete", "Close complete", "Requires execution observation and completion checks.");
+    if (canClose) { close.disabled = false; close.removeAttribute("disabled"); close.setAttribute("aria-disabled", "false"); }
+    close.addEventListener("click", () => { FT.releaseOps.close(order.id); refreshPlant(); });
     section.append(
-      metric("Execution", execution.id, execution.status),
-      metric("Observations", Array.isArray(execution.observations) ? execution.observations.length : 0, "stored workflow observations")
+      metric("Order", order.id, order.status),
+      metric("Execution", execution ? execution.id : "—", execution ? execution.status : "not started"),
+      metric("Commanded release", Number.isFinite(order.commandedCms) ? `${fmtInt(order.commandedCms)} m3/s` : "—", "approved command"),
+      metric("Observed release", actual && Number.isFinite(actual.observedCms) ? `${fmtInt(actual.observedCms)} m3/s` : "telemetry not supplied", actual && actual.provenance === "ASSUMED_FOR_DEMO" ? "ASSUMED_FOR_DEMO" : "MISSING"),
+      metric("Deviation", actual && Number.isFinite(actual.deviationCms) ? `${fmt(actual.deviationCms, 1)} m3/s` : "telemetry not supplied", actual && actual.status ? actual.status : "MISSING")
     );
+    section.dataset.state = actual && actual.status === "DEVIATING" ? "DEVIATING" : order.status;
+    section.append(text("p", "plantProvenance", `Actual-versus-commanded tolerance: ${FT.releaseOps.DEMO_TOLERANCE_CMS} m3/s demo assumption; not a regulatory threshold.`));
+    section.append(start, observe, close);
   }
 
   function renderMissingDependencies(root, facility) {
@@ -450,7 +505,7 @@
   }
 
   if (FT.bus) {
-    ["scrubbed", "hydroRebuilt", "opsAudit", "compareChanged", "lang"].forEach((eventName) => {
+    ["scrubbed", "hydroRebuilt", "opsAudit", "releaseWorkflowChanged", "compareChanged", "lang"].forEach((eventName) => {
       FT.bus.on(eventName, refreshPlant);
     });
   }

@@ -580,6 +580,7 @@
         OPS.audit.log("decision.refused", {
           decision: dId, requiredRole: FT.roles.accountable(dId),
           actorRole: OPS.audit.actor.role, package: pkg ? pkg.id : null,
+          eventId: FT.state ? `EVT-${FT.state.scenario}` : null,
         }, reason);
         FT.notify(FT.roles.refusal(dId).replace(/\*\*/g, ""), "warn");
         renderAudit();
@@ -587,10 +588,11 @@
       }
     }
 
-    OPS.audit.log(action, {
+    const auditEntry = OPS.audit.log(action, {
       decision: FT.roles ? FT.roles.decisionForProposal(pkg, FT.hydro.at(FT.state.timeH)) : null,
       actorRole: OPS.audit.actor.role,
       package: pkg ? pkg.id : null,
+      eventId: FT.state ? `EVT-${FT.state.scenario}` : null,
       feasible: pkg ? pkg.feasible : null,
       binding: pkg && pkg.binding ? pkg.binding.id : null,
       peak: pkg ? U.fmt(pkg.outcome.peak, 2) : null,
@@ -598,6 +600,12 @@
       confidence: pkg ? pkg.confidence : null,
       dataLevel: OPS.health().level,
     }, reason);
+    const storedAuditEntry = auditEntry && OPS.audit.entries.find((entry) =>
+      entry === auditEntry && entry.seq === auditEntry.seq && entry.snapshot === auditEntry.snapshot);
+    if (storedAuditEntry && pkg && pkg.kind === "PROPOSAL" && pkg.feasible !== false &&
+        (action === "decision.approve" || action === "decision.reject") && FT.bus) {
+      FT.bus.emit("releaseDecision", { action, auditEntry, package: pkg });
+    }
     el.dpReasonInput.value = "";
     renderAudit();
     return true;

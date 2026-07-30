@@ -2,7 +2,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { listen } from './serve.mjs';
 import { launchGpu } from './browser.mjs';
-import { step, check, usePage, bootApp, report, results, setTime, signOnRole, ROLE, openWorkspace } from './harness.mjs';
+import { step, check, usePage, bootApp, report, results, setTime, setScenario, setPolicy, signOnRole, ROLE, openWorkspace } from './harness.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
@@ -386,9 +386,9 @@ async function workspaceRouting(browser) {
       }, 'scenario boundary regression');
       const decision = FT.releaseOps.recordDecision(audit);
       const order = FT.releaseOps.createOrder(proposal.id, audit);
-      const notified = FT.releaseOps.markNotified(order.id);
+      const checks = FT.releaseOps.CHECKS.slice(0, 4);
+      const checklist = checks.map((key) => FT.releaseOps.setChecklist(order.id, key, true));
       const execution = FT.releaseOps.startExecution(order.id);
-      const checklist = FT.releaseOps.setChecklist(order.id, 'scenarioBoundary', true);
       const beforeSnapshot = FT.releaseOps.snapshot();
       FT.workspaces.navigate('plant', { facilityId: target.id });
       await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
@@ -401,11 +401,10 @@ async function workspaceRouting(browser) {
         decisionId: decision && decision.id,
         orderId: order && order.id,
         executionId: execution && execution.id,
-        checklistKey: 'scenarioBoundary',
         beforeFrozen: Object.isFrozen(beforeSnapshot) && Object.isFrozen(beforeSnapshot.orders[order.id]),
         orderEventId: beforeSnapshot.orders[order.id] && beforeSnapshot.orders[order.id].eventId,
-        notifiedStatus: notified && notified.status,
-        checklistStatus: checklist && checklist.status,
+        checklistKey: checks[0],
+        checklistStatus: checklist.every(Boolean) && checklist[checklist.length - 1].status,
         visibleBefore: document.querySelector('.plantDashboard')?.textContent || '',
       };
     });
@@ -449,7 +448,7 @@ async function workspaceRouting(browser) {
       setup.orderEventId === setup.eventId &&
       beforeVisible.currentEventId === setup.eventId &&
       beforeVisible.orderText.includes(setup.orderId) &&
-      beforeVisible.checklistText.includes(setup.checklistKey) &&
+      beforeVisible.checklistText.includes('Order ID, event and facility match current demo') &&
       beforeVisible.executionText.includes(setup.executionId) &&
       after.scenario === 'yagi' &&
       after.eventId === 'EVT-yagi' &&
@@ -458,7 +457,6 @@ async function workspaceRouting(browser) {
       after.oldOrderStillFrozen &&
       after.oldOrderEventId === setup.eventId &&
       !after.orderText.includes(setup.orderId) &&
-      !after.checklistText.includes(setup.checklistKey) &&
       !after.executionText.includes(setup.executionId) &&
       !after.dashboardText.includes(setup.orderId) &&
       !after.dashboardText.includes(setup.executionId);
@@ -1351,41 +1349,63 @@ async function sharedReleaseWorkflowStore(browser) {
     FT.ops.audit.log = originalLog;
     const directCloseBeforeAudit = FT.ops.audit.entries.length;
     const directCloseBefore = RO.snapshot();
-    const directClose = RO.close(order.id);
-    const directCloseAfter = RO.snapshot();
-    const directCloseAuditUnchanged = FT.ops.audit.entries.length === directCloseBeforeAudit;
-    const notified = RO.markNotified(order.id);
-    const execution = RO.startExecution(order.id);
-    const checklist = RO.setChecklist(order.id, 'downstreamNotice', true);
-    const observed = RO.recordObservedRelease(order.id, 420);
-    const closed = RO.close(order.id);
-    const closedSnap = RO.snapshot();
+      const directClose = RO.close(order.id);
+      const directCloseAfter = RO.snapshot();
+      const directCloseAuditUnchanged = FT.ops.audit.entries.length === directCloseBeforeAudit;
+      const unknownBeforeAudit = FT.ops.audit.entries.length;
+      const unknownBefore = RO.snapshot();
+      const unknownChecklist = RO.setChecklist(order.id, 'downstreamNotice', true);
+      const unknownAfter = RO.snapshot();
+      const unknownAuditUnchanged = FT.ops.audit.entries.length === unknownBeforeAudit;
+      const notified = RO.markNotified(order.id);
+      const startBlockedAfterOne = RO.startExecution(order.id);
+      const startChecks = RO.CHECKS.slice(0, 4);
+      const startPrereqs = startChecks
+        .filter((key) => key !== 'notifications-acknowledged')
+        .map((key) => RO.setChecklist(order.id, key, true));
+      const execution = RO.startExecution(order.id);
+      const closeBeforeCompletion = RO.close(order.id);
+      const observed = RO.recordObservedRelease(order.id, 420);
+      const closeChecks = RO.CHECKS.slice(4).map((key) => RO.setChecklist(order.id, key, true));
+      const completionRule = RO.completionRule(order.id);
+      const closed = RO.close(order.id);
+      const closedSnap = RO.snapshot();
     const closedAuditBefore = FT.ops.audit.entries.length;
     const closedNotify = RO.markNotified(order.id);
     const closedExecution = RO.startExecution(order.id);
-    const closedChecklist = RO.setChecklist(order.id, 'postClose', true);
-    const closedObserved = RO.recordObservedRelease(order.id, 430);
+      const closedChecklist = RO.setChecklist(order.id, 'completion-confirmed', false);
+      const closedObserved = RO.recordObservedRelease(order.id, 430);
     const closedAgain = RO.close(order.id);
     const snap2 = RO.snapshot();
-    return {
-      beforeAudit,
-      afterAudit: FT.ops.audit.entries.length,
-      decision,
-      blockedCreate,
+      return {
+        beforeAudit,
+        afterAudit: FT.ops.audit.entries.length,
+        checks: RO.CHECKS,
+        checksFrozen: Object.isFrozen(RO.CHECKS),
+        mutatedChecks: (() => { try { RO.CHECKS.push('mutated'); } catch (e) {} return RO.CHECKS.join('|'); })(),
+        decision,
+        blockedCreate,
       createAtomic: JSON.stringify(beforeCreate.orders) === JSON.stringify(afterBlockedCreate.orders) &&
         JSON.stringify(beforeCreate.decisions) === JSON.stringify(afterBlockedCreate.decisions),
       order,
       blockedNotify,
       notifyAtomic: snap1.orders[order.id].status === afterBlockedNotify.orders[order.id].status &&
         snap1.orders[order.id].revision === afterBlockedNotify.orders[order.id].revision,
-      directClose,
-      directCloseAtomic: directCloseAuditUnchanged &&
-        JSON.stringify(directCloseBefore.orders[order.id]) === JSON.stringify(directCloseAfter.orders[order.id]),
-      notified,
-      execution,
-      checklist,
-      observed,
-      closed,
+        directClose,
+        directCloseAtomic: directCloseAuditUnchanged &&
+          JSON.stringify(directCloseBefore.orders[order.id]) === JSON.stringify(directCloseAfter.orders[order.id]),
+        unknownChecklist,
+        unknownChecklistAtomic: unknownAuditUnchanged &&
+          JSON.stringify(unknownBefore.orders[order.id]) === JSON.stringify(unknownAfter.orders[order.id]),
+        notified,
+        startBlockedAfterOne,
+        startPrereqs,
+        execution,
+        closeBeforeCompletion,
+        observed,
+        closeChecks,
+        completionRule,
+        closed,
       closedNotify,
       closedExecution,
       closedChecklist,
@@ -1424,6 +1444,10 @@ async function sharedReleaseWorkflowStore(browser) {
   await check('release workflow refuses impossible and closed transitions without side effects', () =>
     workflow.directClose === null &&
     workflow.directCloseAtomic &&
+    workflow.unknownChecklist === null &&
+    workflow.unknownChecklistAtomic &&
+    workflow.startBlockedAfterOne === null &&
+    workflow.closeBeforeCompletion === null &&
     workflow.closedNotify === null &&
     workflow.closedExecution === null &&
     workflow.closedChecklist === null &&
@@ -1434,7 +1458,6 @@ async function sharedReleaseWorkflowStore(browser) {
   await check('workflow mutators append audit entries and preserve prior snapshots', () =>
     workflow.afterAudit >= workflow.beforeAudit + 6 &&
     workflow.auditActions.includes('release.order.create') &&
-    workflow.auditActions.includes('release.order.notified') &&
     workflow.auditActions.includes('release.execution.start') &&
     workflow.auditActions.includes('release.checklist.set') &&
     workflow.auditActions.includes('release.observed') &&
@@ -1446,7 +1469,18 @@ async function sharedReleaseWorkflowStore(browser) {
     workflow.snap1Order.status === 'APPROVED' &&
     workflow.snap2Order.status === 'CLOSED' &&
     workflow.snap1Order !== workflow.snap2Order &&
-    workflow.snap1Order.status !== workflow.snap2Order.status);
+      workflow.snap1Order.status !== workflow.snap2Order.status);
+
+  await check('workflow exposes the exact immutable checklist API and completion rule', (detail) => {
+    detail({ checks: workflow.checks, mutatedChecks: workflow.mutatedChecks, completionRule: workflow.completionRule });
+    return workflow.checksFrozen &&
+      workflow.checks.join('|') === 'order-valid|notifications-acknowledged|plant-ready|outlet-ready|ramp-started|actual-recorded|downstream-monitored|completion-confirmed' &&
+      workflow.mutatedChecks === workflow.checks.join('|') &&
+      workflow.startPrereqs.every(Boolean) &&
+      workflow.closeChecks.every(Boolean) &&
+      workflow.completionRule.requiresObservedActual === true &&
+      workflow.completionRule.requiredChecks.join('|') === 'ramp-started|actual-recorded|downstream-monitored|completion-confirmed';
+  });
 
   await check('workflow audit details carry current event evidence for readiness', async (detail) => {
     const readiness = await page.evaluate(() => {
@@ -1460,7 +1494,6 @@ async function sharedReleaseWorkflowStore(browser) {
     const currentEvent = workflow.snap1Order && workflow.snap1Order.eventId;
     return currentEvent === 'EVT-oct2020' &&
       byAction.get('release.order.create') === currentEvent &&
-      byAction.get('release.order.notified') === currentEvent &&
       byAction.get('release.execution.start') === currentEvent &&
       byAction.get('release.checklist.set') === currentEvent &&
       byAction.get('release.observed') === currentEvent &&
@@ -1575,6 +1608,331 @@ async function sharedReleaseWorkflowStore(browser) {
   await ctx.close();
 }
 
+async function approvalExecutionIntegration(browser) {
+  step('RW · Approval, order, checklist and execution integration');
+  const { ctx, page, errors } = await bootApp(browser, BASE);
+  usePage(page);
+  await setPolicy(page, 'mpc');
+  const setRainFactor = async (factor) => {
+    await page.evaluate((nextFactor) => {
+      const input = document.getElementById('rainScale');
+      if (!input) throw new Error('missing rain factor control');
+      input.value = String(Math.round(nextFactor * 100));
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    }, factor);
+    await page.waitForFunction((nextFactor) => Math.abs(FT.state.rainScale - nextFactor) < 0.001, factor);
+    await page.waitForTimeout(350);
+  };
+  const scanApprovalCandidates = () => page.evaluate(() => {
+    const start = (FT.hydro && Number.isFinite(FT.hydro.T0)) ? FT.hydro.T0 : -24;
+    const end = (FT.hydro && Number.isFinite(FT.hydro.T1)) ? FT.hydro.T1 : 48;
+    const candidates = [];
+    for (let t = start; t <= end; t += 1) {
+      const snap = FT.hydro.at(t);
+      const pkg = FT.ops.package(snap);
+      candidates.push({
+        t,
+        scenario: FT.state.scenario,
+        policy: FT.state.policy,
+        rainScale: FT.state.rainScale,
+        kind: pkg && pkg.kind,
+        feasible: pkg && pkg.feasible,
+        packageId: pkg && pkg.id,
+        eventId: `EVT-${FT.state.scenario}`,
+        binding: pkg && pkg.binding && pkg.binding.id,
+      });
+    }
+    const selected = candidates.find((item) => item.kind === 'PROPOSAL' && item.feasible === true);
+    return { selected, candidates };
+  });
+  let approvalCandidate = { selected: null, candidates: [], attempts: [] };
+  approvalCandidate = await scanApprovalCandidates();
+  approvalCandidate.attempts = [{
+    scenario: approvalCandidate.candidates[0] && approvalCandidate.candidates[0].scenario,
+    policy: approvalCandidate.candidates[0] && approvalCandidate.candidates[0].policy,
+    rainScale: approvalCandidate.candidates[0] && approvalCandidate.candidates[0].rainScale,
+    candidates: approvalCandidate.candidates,
+  }];
+  if (!approvalCandidate.selected) {
+    const scenarioIds = await page.evaluate(() => Object.keys(FT.data.SCENARIOS || {}));
+    const rainFactors = [1.0, 0.95, 0.9, 0.85, 0.8, 0.75, 0.7, 0.65, 0.6, 0.55, 0.5, 1.05, 1.1, 1.15, 1.2];
+    for (const scenario of scenarioIds) {
+      for (const policy of ['mpc', 'rule']) {
+        for (const rainScale of rainFactors) {
+          await setScenario(page, scenario);
+          await setPolicy(page, policy);
+          await setRainFactor(rainScale);
+          const attempt = await scanApprovalCandidates();
+          approvalCandidate.attempts.push({
+            scenario,
+            policy,
+            rainScale,
+            candidates: attempt.candidates,
+          });
+          approvalCandidate.candidates = attempt.candidates;
+          approvalCandidate.selected = attempt.selected;
+          if (attempt.selected) break;
+        }
+        if (approvalCandidate.selected) break;
+      }
+      if (approvalCandidate.selected) break;
+    }
+  }
+  await check('approval integration chooses a feasible proposal package', (detail) => {
+    const attempts = approvalCandidate.attempts.map((attempt) => {
+      const counts = attempt.candidates.reduce((acc, item) => {
+        acc[item.kind || 'UNKNOWN'] = (acc[item.kind || 'UNKNOWN'] || 0) + 1;
+        return acc;
+      }, {});
+      return {
+        scenario: attempt.scenario,
+        policy: attempt.policy,
+        rainScale: attempt.rainScale,
+        counts,
+        sample: attempt.candidates.slice(0, 4),
+        proposals: attempt.candidates
+          .filter((item) => item.kind === 'PROPOSAL')
+          .map((item) => ({
+            t: item.t,
+            scenario: item.scenario,
+            policy: item.policy,
+            rainScale: item.rainScale,
+            packageId: item.packageId,
+            eventId: item.eventId,
+            feasible: item.feasible,
+            binding: item.binding,
+          })),
+      };
+    });
+    detail({
+      selected: approvalCandidate.selected,
+      attempts,
+    });
+    return !!approvalCandidate.selected &&
+      approvalCandidate.selected.kind === 'PROPOSAL' &&
+      approvalCandidate.selected.feasible === true;
+  });
+  if (!approvalCandidate.selected) {
+    await ctx.close();
+    return;
+  }
+  await setScenario(page, approvalCandidate.selected.scenario);
+  await setPolicy(page, approvalCandidate.selected.policy);
+  await setRainFactor(approvalCandidate.selected.rainScale);
+  await setTime(page, approvalCandidate.selected.t);
+  const selectedEventId = approvalCandidate.selected.eventId || `EVT-${approvalCandidate.selected.scenario}`;
+
+  await check('the approval integration flow boots without application errors', (detail) => {
+    const app = errors.filter((error) => !/overpass|arcgisonline|elevation-tiles-prod|jsdelivr|unpkg|cdn\./i.test(error));
+    detail(app.slice(0, 4));
+    return app.length === 0;
+  });
+
+  await check('selected approval package remains feasible at driven time', async (detail) => {
+    const current = await page.evaluate(() => {
+      const snap = FT.hydro.at(FT.state.timeH);
+      const pkg = FT.ops.package(snap);
+      return {
+        t: FT.state.timeH,
+        scenario: FT.state.scenario,
+        policy: FT.state.policy,
+        rainScale: FT.state.rainScale,
+        kind: pkg && pkg.kind,
+        feasible: pkg && pkg.feasible,
+        packageId: pkg && pkg.id,
+        eventId: `EVT-${FT.state.scenario}`,
+        binding: pkg && pkg.binding && pkg.binding.id,
+      };
+    });
+    detail(current);
+    return current.t === approvalCandidate.selected.t &&
+      current.scenario === approvalCandidate.selected.scenario &&
+      current.policy === approvalCandidate.selected.policy &&
+      Math.abs(current.rainScale - approvalCandidate.selected.rainScale) < 0.001 &&
+      current.kind === 'PROPOSAL' &&
+      current.feasible === true &&
+      current.eventId === selectedEventId;
+  });
+
+  const refused = await page.evaluate(async (role) => {
+    const before = FT.releaseOps.snapshot();
+    const select = document.getElementById('opsActor');
+    for (const option of select.options) {
+      if (option.value.includes('|' + role)) {
+        select.value = option.value;
+        select.dispatchEvent(new Event('change'));
+        break;
+      }
+    }
+    document.getElementById('dpReasonInput').value = 'reservoir engineer proposes, authority must approve';
+    document.getElementById('mpcApprove').click();
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    FT.workspaces.navigate('city');
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const after = FT.releaseOps.snapshot();
+    const refusal = [...FT.ops.audit.entries].reverse().find((entry) => entry.action === 'decision.refused');
+    return {
+      beforeOrders: Object.keys(before.orders).length,
+      afterOrders: Object.keys(after.orders).length,
+      refusalAction: refusal && refusal.action,
+      refusalEventId: refusal && refusal.detail && refusal.detail.eventId,
+      cityText: document.querySelector('[data-city-readiness]')?.textContent || '',
+    };
+  }, ROLE.resEngineer);
+
+  await check('reservoir engineer approval is refused, visible in City, and creates no order', (detail) => {
+    detail(refused);
+    return refused.beforeOrders === 0 &&
+      refused.afterOrders === 0 &&
+      refused.refusalAction === 'decision.refused' &&
+      refused.refusalEventId === selectedEventId &&
+      /Latest refused approval|no approved order created/i.test(refused.cityText);
+  });
+
+  await signOnRole(page, ROLE.authority);
+  await setTime(page, approvalCandidate.selected.t);
+  const approved = await page.evaluate(async () => {
+    const pkg = FT.ops && FT.ops._last;
+    document.getElementById('dpReasonInput').value = 'authority approves pre flood drawdown for shared workflow';
+    document.getElementById('mpcApprove').click();
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const snap = FT.releaseOps.snapshot();
+    const order = Object.values(snap.orders).find((item) => item.eventId === snap.event.id);
+    const decision = order && snap.decisions[order.decisionId];
+    FT.workspaces.navigate('city');
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const cityText = document.querySelector('.cityDashboard')?.textContent || '';
+    if (order) {
+      FT.workspaces.navigate('plant', { facilityId: order.facilityId });
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    }
+    const plantText = document.querySelector('.plantDashboard')?.textContent || '';
+    const lastAudit = [...FT.ops.audit.entries].reverse().find((entry) => entry.action === 'decision.approve');
+    return {
+      pkgKind: pkg && pkg.kind,
+      pkgId: pkg && pkg.id,
+      pkgFeasible: pkg && pkg.feasible,
+      actor: FT.ops.audit.actor,
+      lastAudit,
+      orderCount: Object.keys(snap.orders).length,
+      orderId: order && order.id,
+      facilityId: order && order.facilityId,
+      commandedCms: order && order.commandedCms,
+      decisionActor: decision && decision.actor,
+      decisionReason: decision && decision.reason,
+      cityText,
+      plantText,
+      plantTextDigits: plantText.replace(/\D/g, ''),
+      locationSearch: location.search,
+    };
+  });
+
+  await check('authority approval creates the same approved order in City and Plant', (detail) => {
+    detail({ orderId: approved.orderId, facilityId: approved.facilityId, locationSearch: approved.locationSearch, approved });
+    return /^ORD-/.test(approved.orderId) &&
+      /Ban Chỉ huy PCTT&TKCN/.test(approved.decisionActor || '') &&
+      /authority approves/.test(approved.decisionReason || '') &&
+      approved.cityText.includes(`approved_order_id ${approved.orderId}`) &&
+      approved.plantText.includes(`approved_order_id ${approved.orderId}`) &&
+      approved.plantTextDigits.includes(String(Math.round(approved.commandedCms)));
+  });
+  if (!/^ORD-/.test(approved.orderId || '') || !approved.facilityId) {
+    await ctx.close();
+    return;
+  }
+
+  await openWorkspace(page, 'plant', approved.facilityId);
+  await page.waitForFunction(() =>
+    document.body.dataset.workspace === 'plant' &&
+    document.querySelectorAll('[data-plant-checklist] input[data-check-key]').length === 8 &&
+    document.querySelector('[data-plant-action="start-execution"]'));
+
+  const execution = await page.evaluate(async (approved) => {
+    const RO = FT.releaseOps;
+    const startBefore = RO.startExecution(approved.orderId);
+    const firstFour = RO.CHECKS.slice(0, 4);
+    const boxesBefore = [...document.querySelectorAll('[data-plant-checklist] input[data-check-key]')]
+      .map((input) => ({ key: input.dataset.checkKey, checked: input.checked, disabled: input.disabled }));
+    for (const key of firstFour) {
+      const input = document.querySelector(`[data-plant-checklist] input[data-check-key="${key}"]`);
+      if (!input) return { missingInput: key, boxesBefore, checks: RO.CHECKS };
+      input.click();
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+    }
+    const startButton = document.querySelector('[data-plant-action="start-execution"]');
+    const startEnabled = !!startButton && !startButton.disabled;
+    startButton.click();
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const afterStart = RO.snapshot();
+    FT.workspaces.navigate('city');
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const cityRow = document.querySelector(`[data-city-timeline] [data-process-row][data-facility-id="${approved.facilityId}"]`);
+    FT.workspaces.navigate('plant', { facilityId: approved.facilityId });
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const closeBefore = document.querySelector('[data-plant-action="close-complete"]');
+    const closeBeforeEnabled = closeBefore && !closeBefore.disabled;
+    document.querySelector('[data-plant-action="record-actual"]').click();
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const later = RO.CHECKS.slice(4);
+    for (const key of later) {
+      const input = document.querySelector(`[data-plant-checklist] input[data-check-key="${key}"]`);
+      input.click();
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+    }
+    const rule = RO.completionRule(approved.orderId);
+    const closeAfter = document.querySelector('[data-plant-action="close-complete"]');
+    const closeAfterEnabled = closeAfter && !closeAfter.disabled;
+    const actual = RO.actualVersusCommanded(approved.orderId);
+    return {
+      checks: RO.CHECKS,
+      boxesBefore,
+      startBefore,
+      startEnabled,
+      afterStartStatus: afterStart.orders[approved.orderId] && afterStart.orders[approved.orderId].status,
+      cityState: cityRow && cityRow.dataset.state,
+      cityText: cityRow && cityRow.textContent,
+      closeBeforeEnabled,
+      closeAfterEnabled,
+      rule,
+      actual,
+      plantText: document.querySelector('[data-plant-execution]')?.textContent || '',
+    };
+  }, approved);
+
+  await check('execution is refused before exact first-four checklist prerequisites, then starts from UI', (detail) => {
+    detail({ checks: execution.checks, boxesBefore: execution.boxesBefore, startEnabled: execution.startEnabled, afterStartStatus: execution.afterStartStatus });
+    return execution.startBefore === null &&
+      execution.checks.join('|') === 'order-valid|notifications-acknowledged|plant-ready|outlet-ready|ramp-started|actual-recorded|downstream-monitored|completion-confirmed' &&
+      execution.boxesBefore.length === 8 &&
+      execution.boxesBefore.every((box) => box.disabled === false) &&
+      execution.startEnabled &&
+      execution.afterStartStatus === 'EXECUTING';
+  });
+
+  await check('City updates in place to EXECUTING and Plant renders actual-versus-commanded evidence', (detail) => {
+    detail({ cityState: execution.cityState, actual: execution.actual, plantText: execution.plantText });
+    return execution.cityState === 'EXECUTING' &&
+      /EXECUTING/.test(execution.cityText || '') &&
+      Number.isFinite(execution.actual.commandedCms) &&
+      Number.isFinite(execution.actual.observedCms) &&
+      Number.isFinite(execution.actual.deviationCms) &&
+      ['ON_COMMAND', 'DEVIATING'].includes(execution.actual.status) &&
+      execution.actual.provenance === 'ASSUMED_FOR_DEMO' &&
+      /Actual-versus-commanded tolerance/i.test(execution.plantText);
+  });
+
+  await check('completion gate is explicit and remains locked until actual and later checks are present', (detail) => {
+    detail({ closeBeforeEnabled: execution.closeBeforeEnabled, closeAfterEnabled: execution.closeAfterEnabled, rule: execution.rule });
+    return execution.closeBeforeEnabled === false &&
+      execution.closeAfterEnabled === true &&
+      execution.rule.requiresObservedActual === true &&
+      execution.rule.requiredChecks.join('|') === 'ramp-started|actual-recorded|downstream-monitored|completion-confirmed' &&
+      /Close requires observed actual-versus-commanded evidence/.test(execution.rule.rule);
+  });
+
+  await ctx.close();
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const srv = await listen(4310, ROOT);
   BASE = `http://127.0.0.1:${srv.address().port}`;
@@ -1587,6 +1945,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     await workspaceRendererIsolation(browser);
     await workspaceShellYield(browser);
     await governedFacilityRegistry(browser);
+    await approvalExecutionIntegration(browser);
     await sharedReleaseWorkflowStore(browser);
   } finally {
     await browser.close();
