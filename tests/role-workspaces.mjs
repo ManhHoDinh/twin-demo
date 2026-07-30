@@ -1365,7 +1365,11 @@ async function sharedReleaseWorkflowStore(browser) {
         .map((key) => RO.setChecklist(order.id, key, true));
       const execution = RO.startExecution(order.id);
       const closeBeforeCompletion = RO.close(order.id);
-      const observed = RO.recordObservedRelease(order.id, 420);
+      const facility = FT.facilities.get(order.facilityId);
+      const snap = FT.hydro.at(FT.state.timeH);
+      const derivedObservedCms = snap.reservoirs[facility.demoReservoirId].O;
+      const observed = RO.recordObservedRelease(order.id, 999999);
+      const observedOrder = RO.snapshot().orders[order.id];
       const closeChecks = RO.CHECKS.slice(4).map((key) => RO.setChecklist(order.id, key, true));
       const completionRule = RO.completionRule(order.id);
       const closed = RO.close(order.id);
@@ -1402,7 +1406,9 @@ async function sharedReleaseWorkflowStore(browser) {
         startPrereqs,
         execution,
         closeBeforeCompletion,
+        derivedObservedCms,
         observed,
+        observedOrder,
         closeChecks,
         completionRule,
         closed,
@@ -1470,6 +1476,22 @@ async function sharedReleaseWorkflowStore(browser) {
     workflow.snap2Order.status === 'CLOSED' &&
     workflow.snap1Order !== workflow.snap2Order &&
       workflow.snap1Order.status !== workflow.snap2Order.status);
+
+  await check('workflow derives observed release from current demo telemetry, not caller input', (detail) => {
+    detail({
+      derivedObservedCms: workflow.derivedObservedCms,
+      storedObservedCms: workflow.observedOrder && workflow.observedOrder.observedCms,
+      actual: workflow.observedOrder && workflow.observedOrder.actual,
+    });
+    return Number.isFinite(workflow.derivedObservedCms) &&
+      workflow.observed &&
+      workflow.observedOrder &&
+      workflow.observedOrder.observedCms === workflow.derivedObservedCms &&
+      workflow.observedOrder.observedCms !== 999999 &&
+      workflow.observedOrder.actual &&
+      workflow.observedOrder.actual.observedCms === workflow.derivedObservedCms &&
+      Number.isFinite(workflow.observedOrder.actual.deviationCms);
+  });
 
   await check('workflow exposes the exact immutable checklist API and completion rule', (detail) => {
     detail({ checks: workflow.checks, mutatedChecks: workflow.mutatedChecks, completionRule: workflow.completionRule });
@@ -1613,17 +1635,23 @@ async function approvalExecutionIntegration(browser) {
   const { ctx, page, errors } = await bootApp(browser, BASE);
   usePage(page);
   await setPolicy(page, 'mpc');
-  const setRainFactor = async (factor) => {
-    await page.evaluate((nextFactor) => {
+  const setRainFactor = async (targetPage, factor) => {
+    await targetPage.evaluate((nextFactor) => {
       const input = document.getElementById('rainScale');
       if (!input) throw new Error('missing rain factor control');
       input.value = String(Math.round(nextFactor * 100));
       input.dispatchEvent(new Event('input', { bubbles: true }));
     }, factor);
-    await page.waitForFunction((nextFactor) => Math.abs(FT.state.rainScale - nextFactor) < 0.001, factor);
-    await page.waitForTimeout(350);
+    await targetPage.waitForFunction((nextFactor) => Math.abs(FT.state.rainScale - nextFactor) < 0.001, factor);
+    await targetPage.waitForTimeout(350);
   };
-  const scanApprovalCandidates = () => page.evaluate(() => {
+  const driveCandidateState = async (targetPage, candidate) => {
+    await setScenario(targetPage, candidate.scenario);
+    await setPolicy(targetPage, candidate.policy);
+    await setRainFactor(targetPage, candidate.rainScale);
+    await setTime(targetPage, candidate.t);
+  };
+  const scanApprovalCandidates = (targetPage) => targetPage.evaluate(() => {
     const start = (FT.hydro && Number.isFinite(FT.hydro.T0)) ? FT.hydro.T0 : -24;
     const end = (FT.hydro && Number.isFinite(FT.hydro.T1)) ? FT.hydro.T1 : 48;
     const candidates = [];
@@ -1646,7 +1674,7 @@ async function approvalExecutionIntegration(browser) {
     return { selected, candidates };
   });
   let approvalCandidate = { selected: null, candidates: [], attempts: [] };
-  approvalCandidate = await scanApprovalCandidates();
+  approvalCandidate = await scanApprovalCandidates(page);
   approvalCandidate.attempts = [{
     scenario: approvalCandidate.candidates[0] && approvalCandidate.candidates[0].scenario,
     policy: approvalCandidate.candidates[0] && approvalCandidate.candidates[0].policy,
@@ -1661,8 +1689,8 @@ async function approvalExecutionIntegration(browser) {
         for (const rainScale of rainFactors) {
           await setScenario(page, scenario);
           await setPolicy(page, policy);
-          await setRainFactor(rainScale);
-          const attempt = await scanApprovalCandidates();
+          await setRainFactor(page, rainScale);
+          const attempt = await scanApprovalCandidates(page);
           approvalCandidate.attempts.push({
             scenario,
             policy,
@@ -1716,10 +1744,7 @@ async function approvalExecutionIntegration(browser) {
     await ctx.close();
     return;
   }
-  await setScenario(page, approvalCandidate.selected.scenario);
-  await setPolicy(page, approvalCandidate.selected.policy);
-  await setRainFactor(approvalCandidate.selected.rainScale);
-  await setTime(page, approvalCandidate.selected.t);
+  await driveCandidateState(page, approvalCandidate.selected);
   const selectedEventId = approvalCandidate.selected.eventId || `EVT-${approvalCandidate.selected.scenario}`;
 
   await check('the approval integration flow boots without application errors', (detail) => {
@@ -1753,6 +1778,47 @@ async function approvalExecutionIntegration(browser) {
       current.feasible === true &&
       current.eventId === selectedEventId;
   });
+
+  const rejectProbe = await bootApp(browser, BASE);
+  usePage(rejectProbe.page);
+  await driveCandidateState(rejectProbe.page, approvalCandidate.selected);
+  await signOnRole(rejectProbe.page, ROLE.authority);
+  const rejected = await rejectProbe.page.evaluate(async () => {
+    const before = FT.releaseOps.snapshot();
+    document.getElementById('dpReasonInput').value = 'authority rejects feasible package for rejection semantics test';
+    document.getElementById('mpcReject').click();
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const after = FT.releaseOps.snapshot();
+    const proposal = Object.values(after.proposals).find((item) => item.eventId === after.event.id);
+    const rejectAudit = [...FT.ops.audit.entries].reverse().find((entry) => entry.action === 'release.proposal.reject');
+    const decisionReject = [...FT.ops.audit.entries].reverse().find((entry) => entry.action === 'decision.reject');
+    return {
+      beforeProposals: Object.keys(before.proposals).length,
+      beforeOrders: Object.keys(before.orders).length,
+      afterOrders: Object.keys(after.orders).length,
+      proposalStatus: proposal && proposal.status,
+      proposalId: proposal && proposal.id,
+      rejectedDecisionId: proposal && proposal.rejectedDecisionId,
+      rejectAuditAction: rejectAudit && rejectAudit.action,
+      rejectAuditProposalId: rejectAudit && rejectAudit.detail && rejectAudit.detail.proposalId,
+      decisionRejectAction: decisionReject && decisionReject.action,
+    };
+  });
+
+  await check('authority rejection records a rejected proposal and creates no order', (detail) => {
+    detail(rejected);
+    return rejected.beforeProposals === 0 &&
+      rejected.beforeOrders === 0 &&
+      rejected.afterOrders === 0 &&
+      rejected.proposalStatus === 'REJECTED' &&
+      /^PRP-/.test(rejected.proposalId || '') &&
+      /^DEC-/.test(rejected.rejectedDecisionId || '') &&
+      rejected.rejectAuditAction === 'release.proposal.reject' &&
+      rejected.rejectAuditProposalId === rejected.proposalId &&
+      rejected.decisionRejectAction === 'decision.reject';
+  });
+  await rejectProbe.ctx.close();
+  usePage(page);
 
   const refused = await page.evaluate(async (role) => {
     const before = FT.releaseOps.snapshot();

@@ -429,9 +429,7 @@
       observe.disabled = false; observe.removeAttribute("disabled"); observe.setAttribute("aria-disabled", "false");
     }
     observe.addEventListener("click", () => {
-      const snap = hydroSnapshot();
-      const rs = reservoirState(facility, snap);
-      if (rs && Number.isFinite(rs.O)) FT.releaseOps.recordObservedRelease(order.id, rs.O);
+      FT.releaseOps.recordObservedRelease(order.id);
       refreshPlant();
     });
     const close = actionButton("close-complete", "Close complete", "Requires execution observation and completion checks.");

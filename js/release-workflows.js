@@ -212,13 +212,23 @@
     return order && FT.facilities && FT.facilities.get ? FT.facilities.get(order.facilityId) : null;
   }
 
-  function actualState(order, observedCms) {
-    const facility = demoFacility(order);
+  function missingActual(order) {
     const commandedCms = Number.isFinite(order && order.commandedCms) ? order.commandedCms : null;
-    if (!facility || facility.operationalDataState !== "ASSUMED_FOR_DEMO" || !facility.demoReservoirId || !Number.isFinite(commandedCms)) {
-      return deepFreeze({ status: "MISSING", message: "telemetry not supplied", provenance: "MISSING" });
-    }
-    const value = Number.isFinite(observedCms) ? observedCms : null;
+    return deepFreeze({ commandedCms, observedCms: null, status: "MISSING", message: "telemetry not supplied", provenance: "MISSING" });
+  }
+
+  function observedReleaseFromDemo(order) {
+    const facility = demoFacility(order);
+    if (!facility || facility.operationalDataState !== "ASSUMED_FOR_DEMO" || !facility.demoReservoirId) return null;
+    const snap = FT.hydro && typeof FT.hydro.at === "function" ? FT.hydro.at(FT.state.timeH) : null;
+    const reservoir = snap && snap.reservoirs ? snap.reservoirs[facility.demoReservoirId] : null;
+    return reservoir && Number.isFinite(reservoir.O) ? reservoir.O : null;
+  }
+
+  function actualState(order) {
+    const commandedCms = Number.isFinite(order && order.commandedCms) ? order.commandedCms : null;
+    if (!Number.isFinite(commandedCms)) return missingActual(order);
+    const value = observedReleaseFromDemo(order);
     if (!Number.isFinite(value)) {
       return deepFreeze({ commandedCms, observedCms: null, status: "MISSING", message: "telemetry not supplied", provenance: "ASSUMED_FOR_DEMO", toleranceCms: DEMO_TOLERANCE_CMS });
     }
@@ -306,7 +316,7 @@
       action: proposal.action,
       lifecycleClass: FT.lifecycle.CLASS.APPROVED_PLAN, actionable: true,
       revision: 1, createdAtH: FT.state.timeH, status: PROCESS.APPROVED,
-      checklist: Object.freeze({}), actual: actualState({ facilityId: proposal.facilityId, commandedCms: proposal.action.commandedCms }, null),
+      checklist: Object.freeze({}), actual: missingActual({ facilityId: proposal.facilityId, commandedCms: proposal.action.commandedCms }),
       observedCms: null, auditSeq: stored.seq,
     });
     const orderAudit = log("release.order.create", { eventId: proposal.eventId, orderId: id, proposalId: proposal.id, decisionId: decision.id, package: proposal.packageId });
@@ -368,13 +378,14 @@
     return commitOrder(orderId, prev.status, "release.checklist.set", { checklist, checklistKey: key, checked: !!checked });
   };
 
-  R.recordObservedRelease = function (orderId, observedCms) {
-    if (!isFinite(observedCms)) return null;
+  R.recordObservedRelease = function (orderId) {
     const prevOrder = state.orders[orderId];
     if (!prevOrder || !mutableOrder(prevOrder) || ![PROCESS.EXECUTING, PROCESS.DEVIATING].includes(prevOrder.status)) return null;
     const id = `EXE-${orderId}`;
     const prev = state.executions[id] || { id, orderId, revision: 0, observations: [] };
-    const actual = actualState(prevOrder, observedCms);
+    const actual = actualState(prevOrder);
+    if (!actual || !Number.isFinite(actual.observedCms)) return null;
+    const observedCms = actual.observedCms;
     const status = actual.status === "DEVIATING" ? PROCESS.DEVIATING : PROCESS.EXECUTING;
     const observations = (prev.observations || []).concat([{ tH: FT.state.timeH, observedCms, actual }]);
     const order = deepFreeze(Object.assign({}, prevOrder, {
@@ -408,7 +419,7 @@
   R.actualVersusCommanded = function (orderId) {
     const order = state.orders[orderId];
     if (!order) return Object.freeze({ status: "MISSING", message: "telemetry not supplied", provenance: "MISSING" });
-    return order.actual || actualState(order, order.observedCms);
+    return order.actual || missingActual(order);
   };
 
   R.prerequisitesSatisfied = function (orderId) {
