@@ -1273,6 +1273,56 @@ async function sharedReleaseWorkflowStore(browser) {
   });
 
   await signOnRole(page, ROLE.authority);
+  await check('same package id with changed action cannot create an order from stale proposal action', async (detail) => {
+    const r = await page.evaluate(() => {
+      const FT = window.FT;
+      const RO = FT.releaseOps;
+      const original = {
+        kind: 'PROPOSAL',
+        id: 'DP-stale-action',
+        reservoir: { id: 'avuong' },
+        action: { q0: 100, q1: 1000, tStart: 4, rampMax: 20, endCondition: 'old', gates: 'old gates' },
+      };
+      const changed = {
+        kind: 'PROPOSAL',
+        id: 'DP-stale-action',
+        reservoir: { id: 'avuong' },
+        action: { q0: 200, q1: 2222, tStart: 8, rampMax: 40, endCondition: 'new', gates: 'new gates' },
+      };
+      const first = RO.ingestProposal(original);
+      const before = RO.snapshot();
+      const second = RO.ingestProposal(changed);
+      const audit = FT.ops.audit.log('decision.approve', {
+        decision: 'D-03',
+        actorRole: FT.ops.audit.actor.role,
+        package: changed.id,
+        eventId: before.event.id,
+        feasible: true,
+      }, 'changed action approval must not reuse stale proposal');
+      const decision = RO.recordDecision(audit);
+      const order = RO.createOrder(first && first.id, audit);
+      const after = RO.snapshot();
+      return {
+        firstAction: first && first.action,
+        second,
+        decision,
+        order,
+        orderCountBefore: Object.keys(before.orders).length,
+        orderCountAfter: Object.keys(after.orders).length,
+        staleOrder: after.orders['ORD-DP-stale-action'],
+      };
+    });
+    detail(r);
+    return r.firstAction &&
+      r.firstAction.commandedCms === 1000 &&
+      r.second === null &&
+      r.decision === null &&
+      r.order === null &&
+      r.orderCountAfter === r.orderCountBefore &&
+      !r.staleOrder;
+  });
+
+  await signOnRole(page, ROLE.authority);
   const setupAudit = await page.evaluate((proposalId) => {
     const FT = window.FT;
     const entry = FT.ops.audit.log('decision.approve', {
@@ -1819,6 +1869,33 @@ async function approvalExecutionIntegration(browser) {
   });
   await rejectProbe.ctx.close();
   usePage(page);
+
+  const unscopedRefusal = await page.evaluate(async () => {
+    FT.ops.audit.log('decision.refused', {
+      actorRole: 'Legacy unscoped role',
+      requiredRole: 'Legacy required role',
+      package: 'DP-legacy',
+    }, 'legacy unscoped refusal');
+    FT.ops.audit.log('decision.refused', {
+      actorRole: 'Yagi role',
+      requiredRole: 'Yagi required role',
+      package: 'DP-yagi',
+      eventId: 'EVT-yagi',
+    }, 'cross event refusal');
+    FT.workspaces.navigate('city');
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    return {
+      eventId: FT.releaseOps.snapshot().event.id,
+      cityText: document.querySelector('[data-city-readiness]')?.textContent || '',
+    };
+  });
+
+  await check('City readiness ignores unscoped and cross-event refusal audit entries', (detail) => {
+    detail(unscopedRefusal);
+    return unscopedRefusal.eventId === selectedEventId &&
+      /No refused approval recorded for the current event/i.test(unscopedRefusal.cityText) &&
+      !/Legacy unscoped role|Yagi role|Latest refused approval/i.test(unscopedRefusal.cityText);
+  });
 
   const refused = await page.evaluate(async (role) => {
     const before = FT.releaseOps.snapshot();

@@ -111,8 +111,12 @@
     return syncEvent().id === proposal.eventId;
   }
 
+  function activeProposal(proposal) {
+    return !!(proposal && proposal.eventId === syncEvent().id && !proposal.supersededBy && proposal.status !== PROCESS.REJECTED);
+  }
+
   function matchesApproval(proposal, entry) {
-    if (!proposal || !entry || entry.action !== "decision.approve" || !attributed(entry)) return false;
+    if (!activeProposal(proposal) || !entry || entry.action !== "decision.approve" || !attributed(entry)) return false;
     if (!proposalEventAuthorized(proposal, entry)) return false;
     const detail = entry.detail || {};
     if (detail.package !== proposal.packageId && detail.package !== proposal.id) return false;
@@ -122,7 +126,7 @@
   }
 
   function matchesRejection(proposal, entry) {
-    if (!proposal || !entry || entry.action !== "decision.reject" || !attributed(entry)) return false;
+    if (!activeProposal(proposal) || !entry || entry.action !== "decision.reject" || !attributed(entry)) return false;
     if (!proposalEventAuthorized(proposal, entry)) return false;
     const detail = entry.detail || {};
     if (detail.package !== proposal.packageId && detail.package !== proposal.id) return false;
@@ -180,6 +184,25 @@
       endCondition: action && action.endCondition ? String(action.endCondition) : null,
       gates: action && action.gates ? String(action.gates) : null,
     });
+  }
+
+  function actionSignature(action) {
+    return JSON.stringify([
+      action && action.commandedCms,
+      action && action.previousCms,
+      action && action.tStart,
+      action && action.rampMax,
+      action && action.endCondition,
+      action && action.gates,
+    ]);
+  }
+
+  function proposalMatchesPackage(proposal, pkg, facility, action) {
+    return !!(proposal &&
+      proposal.eventId === syncEvent().id &&
+      proposal.facilityId === facility.id &&
+      proposal.packageId === pkg.id &&
+      actionSignature(proposal.action) === actionSignature(action));
   }
 
   function currentOrder(order) {
@@ -252,10 +275,11 @@
     const facility = FT.facilities.all().find((item) => item.demoReservoirId === pkg.reservoir.id);
     if (!facility) return null;
     const id = `PRP-${pkg.id}`;
+    const action = immutableAction(pkg);
     if (!state.proposals[id]) {
       const next = deepFreeze({
         id, eventId: state.event.id, facilityId: facility.id, packageId: pkg.id,
-        action: immutableAction(pkg),
+        action,
         lifecycleClass: FT.lifecycle.CLASS.RECOMMENDATION, actionable: false,
         revision: 1, createdAtH: FT.state.timeH, status: PROCESS.SUBMITTED,
       });
@@ -265,7 +289,27 @@
       state.activeFacilityId = facility.id;
       return state.proposals[id];
     }
-    return state.proposals[id];
+    const existing = state.proposals[id];
+    if (!proposalMatchesPackage(existing, pkg, facility, action)) {
+      const next = deepFreeze(Object.assign({}, existing, {
+        status: "SUPERSEDED",
+        supersededBy: `${id}:action-mismatch:${existing.revision + 1}`,
+        revision: existing.revision + 1,
+        updatedAtH: FT.state.timeH,
+      }));
+      const auditEntry = log("release.proposal.supersede", {
+        eventId: state.event.id,
+        proposalId: id,
+        package: pkg.id,
+        facilityId: facility.id,
+        reason: "action-signature-mismatch",
+      });
+      if (!auditEntry) return null;
+      state.proposals[id] = next;
+      emitWorkflowChanged("release.proposal.supersede", { eventId: state.event.id, proposalId: id, status: next.status });
+      return null;
+    }
+    return activeProposal(existing) ? existing : null;
   };
 
   R.recordDecision = function (auditEntry) {

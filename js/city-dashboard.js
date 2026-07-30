@@ -219,7 +219,7 @@
   function latestRefusal(eventId) {
     const entries = FT.ops && FT.ops.audit && Array.isArray(FT.ops.audit.entries) ? FT.ops.audit.entries : [];
     return [...entries].reverse().find((entry) => entry.action === "decision.refused" &&
-      (!eventId || !entry.detail || !entry.detail.eventId || entry.detail.eventId === eventId)) || null;
+      entry.detail && entry.detail.eventId === eventId) || null;
   }
 
   function refusalText(refusal) {
