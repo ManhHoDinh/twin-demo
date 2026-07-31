@@ -15,6 +15,11 @@
   let originalMapParent = null;
   let originalMapNext = null;
   let route = Object.freeze({ workspace: "map", facilityId: DEFAULT_FACILITY_ID });
+  let returnFocus = null;
+
+  function tr(key) {
+    return FT.i18n && FT.i18n.t ? FT.i18n.t(key) : key;
+  }
 
   function normalizeWorkspace(value) {
     const key = String(value || "map").toLowerCase();
@@ -179,9 +184,13 @@
     }
     nav && nav.querySelectorAll("[data-workspace]").forEach((button) => {
       const active = button.dataset.workspace === route.workspace;
+      const labelKey = button.dataset.workspace === "plant" ? "workspace.plant" : "workspace.city";
+      button.textContent = tr(labelKey);
+      button.setAttribute("aria-label", tr(labelKey));
       button.classList.toggle("isActive", active);
       button.setAttribute("aria-current", active ? "page" : "false");
     });
+    if (nav) nav.setAttribute("aria-label", tr("workspace.nav"));
 
     if (route.workspace === "map") {
       restoreMapNode();
@@ -210,6 +219,8 @@
       const nextUrl = fullUrlFor(route);
       const currentUrl = `${location.pathname}${location.search}${location.hash}`;
       if (nextUrl !== currentUrl) history.pushState(route, "", nextUrl);
+    } else if (options && options.replace && changed) {
+      history.replaceState(route, "", fullUrlFor(route));
     }
     if (FT.bus && changed) FT.bus.emit("workspaceChanged", current());
   }
@@ -240,6 +251,30 @@
     return true;
   }
 
+  function rememberReturnFocus(node) {
+    if (!node || !node.dataset) return false;
+    const workspace = route.workspace;
+    const facilityId = route.facilityId;
+    let selector = null;
+    if (node.dataset.plantFacilityId) selector = `[data-plant-facility-id="${CSS.escape(node.dataset.plantFacilityId)}"]`;
+    else if (node.dataset.workspace) selector = `[data-workspace="${CSS.escape(node.dataset.workspace)}"]`;
+    if (!selector) return false;
+    returnFocus = Object.freeze({ workspace, facilityId, selector });
+    return true;
+  }
+
+  function restoreReturnFocus() {
+    if (!returnFocus) return false;
+    const target = returnFocus;
+    returnFocus = null;
+    applyRoute({ workspace: target.workspace, facilityId: target.facilityId }, { replace: true });
+    requestAnimationFrame(() => {
+      const node = document.querySelector(target.selector);
+      if (node && typeof node.focus === "function") node.focus();
+    });
+    return true;
+  }
+
   function init() {
     if (initialized) return;
     host = document.getElementById("roleWorkspaceHost");
@@ -254,10 +289,15 @@
       nav.addEventListener("click", (event) => {
         const button = event.target.closest("[data-workspace]");
         if (!button || !nav.contains(button)) return;
+        rememberReturnFocus(button);
         navigate(button.dataset.workspace, {});
       });
     }
     window.addEventListener("popstate", () => applyRoute(parseRoute(), { push: false }));
+    document.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") return;
+      if (restoreReturnFocus()) event.preventDefault();
+    });
     route = Object.freeze(parseRoute());
     history.replaceState(route, "", fullUrlFor(route));
     render();
@@ -270,6 +310,7 @@
     navigate: { value: navigate, enumerable: true },
     current: { value: current, enumerable: true },
     render: { value: render, enumerable: true },
+    rememberReturnFocus: { value: rememberReturnFocus, enumerable: true },
     sharedMapNode: { get: () => sharedMapNode, enumerable: true },
   });
 

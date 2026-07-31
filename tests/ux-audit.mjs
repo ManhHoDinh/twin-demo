@@ -783,6 +783,58 @@ async function performance_(page) {
 }
 
 /* ==========================================================================
+   12. Role workspace responsive accessibility
+   ========================================================================== */
+async function roleWorkspaces(page) {
+  g('Role workspaces (Task 8)');
+
+  await must('city and plant workspaces do not overflow horizontally at 390×844 or 1440×900', async (d) => {
+    const viewports = [
+      { width: 390, height: 844 },
+      { width: 1440, height: 900 },
+    ];
+    const measurements = [];
+    for (const viewport of viewports) {
+      await page.setViewportSize(viewport);
+      for (const workspace of ['city', 'plant']) {
+        await page.evaluate((name) => {
+          window.FT.workspaces.navigate(name, name === 'plant' ? { facilityId: 'a-vuong' } : {});
+        }, workspace);
+        await page.waitForFunction((name) => document.body.dataset.workspace === name && document.querySelector(`.${name}Dashboard`), workspace);
+        await page.waitForTimeout(120);
+        measurements.push(await page.evaluate((name) => {
+          const map = document.querySelector('.roleDashboardMap')?.getBoundingClientRect();
+          const banner = document.querySelector(`.${name}SyntheticBanner`)?.getBoundingClientRect();
+          const controls = [...document.querySelectorAll('#workspaceNav button, .cityPlantLink, [data-plant-facility-selector], [data-plant-action]')].map((node) => {
+            const rect = node.getBoundingClientRect();
+            return { tag: node.tagName, text: node.textContent.replace(/\s+/g, ' ').trim().slice(0, 40), height: Math.round(rect.height), visible: rect.width > 0 && rect.height > 0 };
+          }).filter((item) => item.visible);
+          return {
+            workspace: name,
+            width: innerWidth,
+            height: innerHeight,
+            scrollWidth: document.documentElement.scrollWidth,
+            bodyScrollWidth: document.body.scrollWidth,
+            map: map && { top: Math.round(map.top), width: Math.round(map.width), height: Math.round(map.height) },
+            bannerVisible: !!banner && banner.top >= 0 && banner.bottom <= innerHeight,
+            shortControls: controls.filter((item) => item.height < 44),
+          };
+        }, workspace));
+      }
+    }
+    d(measurements);
+    return measurements.every((item) =>
+      item.scrollWidth <= item.width + 1 &&
+      item.bodyScrollWidth <= item.width + 1 &&
+      item.bannerVisible &&
+      item.map &&
+      item.map.width <= item.width &&
+      item.map.height >= (item.width <= 720 ? 280 : 210) &&
+      item.shortControls.length === 0);
+  });
+}
+
+/* ==========================================================================
    report
    ========================================================================== */
 function report() {
@@ -837,6 +889,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     await scenarioCompareUX(page);
     await antiPatterns(page);
     await performance_(page);
+    await roleWorkspaces(page);
   } finally {
     await ctx.close();
     await browser.close();

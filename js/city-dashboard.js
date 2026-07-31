@@ -38,6 +38,11 @@
     return el(tag, className, { text: value == null || value === "" ? "—" : String(value) });
   }
 
+  function tr(key, values) {
+    const template = FT.i18n && FT.i18n.t ? FT.i18n.t(key) : key;
+    return Object.keys(values || {}).reduce((out, name) => out.replaceAll(`{${name}}`, values[name]), template);
+  }
+
   function fmt(value, digits) {
     if (!Number.isFinite(value)) return "—";
     return value.toLocaleString("en-US", { maximumFractionDigits: digits == null ? 1 : digits });
@@ -111,12 +116,12 @@
     const head = el("header", "roleDashboardHead");
     const titleWrap = el("div", "roleDashboardTitle");
     titleWrap.append(
-      text("p", "roleEyebrow", "City operations"),
-      text("h2", "", "Municipal coordination dashboard"),
-      text("p", "roleDashboardLead", "Registry coverage, accountable decisions, downstream simulation and readiness evidence for the shared flood workflow.")
+      text("p", "roleEyebrow", tr("city.eyebrow")),
+      text("h2", "", tr("city.title")),
+      text("p", "roleDashboardLead", tr("city.lead"))
     );
     const banner = el("p", "citySyntheticBanner", { dataset: { provenance: "synthetic" } });
-    banner.textContent = `Synthetic simulation workspace · ${coverage.total} municipal facilities in source scope · ${relTime()}`;
+    banner.textContent = tr("city.synthetic", { total: coverage.total, time: relTime() });
     head.append(titleWrap, banner);
     return head;
   }
@@ -124,16 +129,16 @@
   function renderKpis(coverage) {
     const wrap = el("div", "cityKpis");
     wrap.append(
-      kpi("Municipal scope", coverage.total, "total", "DN registry source"),
-      kpi("Named facilities", coverage.named, "named", "authoritative names"),
-      kpi("Unresolved identities", coverage.unresolved, "unresolved", "not row-expanded")
+      kpi(tr("city.scope"), coverage.total, "total", tr("city.registrySource")),
+      kpi(tr("city.named"), coverage.named, "named", tr("city.authoritativeNames")),
+      kpi(tr("city.unresolved"), coverage.unresolved, "unresolved", tr("city.notRowExpanded"))
     );
     return wrap;
   }
 
   function renderPortfolio(facilities, snapshot, hydroSnap) {
-    const aside = el("aside", "cityPortfolio", { dataset: { cityPortfolio: "" }, "aria-label": "Governed hydropower portfolio" });
-    aside.append(text("h3", "", "Governed portfolio"));
+    const aside = el("aside", "cityPortfolio", { dataset: { cityPortfolio: "" }, "aria-label": tr("city.portfolioLabel") });
+    aside.append(text("h3", "", tr("city.portfolio")));
     const list = el("div", "cityFacilityList");
     const sorted = facilities.slice().sort((a, b) => {
       const da = DEMO_ORDER.indexOf(a.id);
@@ -150,19 +155,27 @@
       const meta = el("span", "cityFacilityMeta");
       meta.append(
         text("span", "statePill", state),
-        text("span", "", facility.demoReservoirId ? "Demo-mapped hydro state" : "Registry-only municipal identity")
+        text("span", "", facility.demoReservoirId ? tr("city.demoMapped") : tr("city.registryOnly"))
       );
       row.append(meta);
       const reservoir = reservoirStateFor(facility, hydroSnap);
       if (facility.demoReservoirId) {
-        row.append(text("span", "cityFacilityMetric", reservoir ? `Z ${fmt(reservoir.Z, 1)} m · O ${fmt(reservoir.O, 0)} m3/s` : "Simulation pending"));
+        row.append(text("span", "cityFacilityMetric", reservoir ? `Z ${fmt(reservoir.Z, 1)} m · O ${fmt(reservoir.O, 0)} m3/s` : tr("city.simPending")));
         const button = el("button", "cityPlantLink", {
           type: "button",
           dataset: { plantFacilityId: facility.id },
-          "aria-label": `Open plant workspace for ${facility.name}`,
+          "aria-label": tr("city.openPlant", { name: facility.name }),
         });
-        button.textContent = "Plant route";
-        button.addEventListener("click", () => FT.workspaces.navigate("plant", { facilityId: facility.id }));
+        button.textContent = tr("city.plantRoute");
+        button.addEventListener("click", () => {
+          if (FT.workspaces.rememberReturnFocus) FT.workspaces.rememberReturnFocus(button);
+          FT.workspaces.navigate("plant", { facilityId: facility.id });
+        });
+        button.addEventListener("keydown", (event) => {
+          if (event.key !== "Enter" && event.key !== " ") return;
+          event.preventDefault();
+          button.click();
+        });
         row.append(button);
       }
       list.append(row);
@@ -172,8 +185,8 @@
   }
 
   function renderTimeline(facilities, snapshot) {
-    const section = el("section", "cityTimeline", { dataset: { cityTimeline: "" }, "aria-label": "Facility process timeline" });
-    section.append(text("h3", "", "Process timeline"));
+    const section = el("section", "cityTimeline", { dataset: { cityTimeline: "" }, "aria-label": tr("city.processTimelineLabel") });
+    section.append(text("h3", "", tr("city.processTimeline")));
     DEMO_ORDER.map((id) => facilities.find((facility) => facility.id === id)).filter(Boolean).forEach((facility) => {
       const state = statusForFacility(snapshot, facility);
       const order = orderForFacility(snapshot, facility.id);
@@ -181,23 +194,23 @@
         dataset: { processRow: "", state, facilityId: facility.id },
       });
       row.append(text("span", "cityProcessFacility", facility.name), text("strong", "cityProcessState", state));
-      row.append(text("span", "cityProcessNote", order ? `approved_order_id ${order.id}; status ${order.status}; no plant execution control exposed.` : "Shared workflow state or assessed demo baseline; no plant execution control exposed."));
+      row.append(text("span", "cityProcessNote", order ? tr("city.noExecutionOrder", { id: order.id, status: order.status }) : tr("city.noExecution")));
       section.append(row);
     });
     return section;
   }
 
   function renderDecisionQueue(snapshot) {
-    const section = el("section", "cityDecisionQueue", { dataset: { cityDecisionQueue: "" }, "aria-label": "Decision queue" });
-    section.append(text("h3", "", "Decision queue"));
+    const section = el("section", "cityDecisionQueue", { dataset: { cityDecisionQueue: "" }, "aria-label": tr("city.decisionQueueLabel") });
+    section.append(text("h3", "", tr("workspace.decisionQueue")));
     section.append(el("article", "cityDecisionCard pending", { dataset: { cityDecisionCard: "" } }));
     section.append(text("p", "cityQueueMeta", "—"));
     return section;
   }
 
   function renderImpact(hydroSnap) {
-    const section = el("section", "cityImpact", { dataset: { cityImpact: "" }, "aria-label": "Downstream simulation impact" });
-    section.append(text("h3", "", "Downstream impact"));
+    const section = el("section", "cityImpact", { dataset: { cityImpact: "" }, "aria-label": tr("city.downstreamImpactLabel") });
+    section.append(text("h3", "", tr("city.downstreamImpact")));
     const gauges = FT.data && FT.data.GAUGES ? FT.data.GAUGES.slice(0, 4) : [];
     gauges.forEach((gauge) => {
       const state = hydroSnap && hydroSnap.gauges ? hydroSnap.gauges[gauge.id] : null;
@@ -205,11 +218,11 @@
       item.append(
         text("span", "", gauge.name),
         text("strong", "", state ? `${fmt(state.stage, 2)} m` : "—"),
-        text("span", "cityGaugeState", state ? `Alert ${state.alert} · trend ${fmt(state.trend, 2)} m/3h` : "Simulation unavailable")
+        text("span", "cityGaugeState", state ? tr("city.alertTrend", { alert: state.alert, trend: fmt(state.trend, 2) }) : tr("city.simUnavailable"))
       );
       section.append(item);
     });
-    section.append(text("p", "cityProvenance", "Simulation provenance: FT.hydro.at(FT.state.timeH), synthetic demo data; not observed real-time telemetry."));
+    section.append(text("p", "cityProvenance", tr("city.simProvenance")));
     return section;
   }
 
@@ -221,31 +234,31 @@
 
   function refusalText(refusal) {
     return refusal
-      ? `Latest refused approval: ${refusal.detail.actorRole || "unknown role"} lacked ${refusal.detail.requiredRole || "required role"}; no approved order created.`
-      : "No refused approval recorded for the current event.";
+      ? tr("city.refusal", { actor: refusal.detail.actorRole || "unknown role", role: refusal.detail.requiredRole || "required role" })
+      : tr("city.noRefusal");
   }
 
   function renderReadiness(snapshot) {
-    const section = el("section", "cityReadiness", { dataset: { cityReadiness: "" }, "aria-label": "Notification and audit readiness" });
-    section.append(text("h3", "", "Readiness"));
+    const section = el("section", "cityReadiness", { dataset: { cityReadiness: "" }, "aria-label": tr("city.readinessLabel") });
+    section.append(text("h3", "", tr("city.readiness")));
     const entries = FT.ops && FT.ops.audit && Array.isArray(FT.ops.audit.entries) ? FT.ops.audit.entries : [];
     const notifications = entries.filter((entry) => /^notify|notification/i.test(entry.action || ""));
     const decisions = entries.filter((entry) => /^decision|release\./i.test(entry.action || ""));
     const grid = el("div", "cityReadinessGrid");
     grid.append(
-      kpi("Audit entries", entries.length, "audit", "append-only local log"),
-      kpi("Notification evidence", notifications.length, "notifications", "dispatch not assumed"),
-      kpi("Workflow evidence", decisions.length, "workflow", "release/decision trail")
+      kpi(tr("city.auditEntries"), entries.length, "audit", tr("city.auditNote")),
+      kpi(tr("city.notificationEvidence"), notifications.length, "notifications", tr("city.notificationNote")),
+      kpi(tr("city.workflowEvidence"), decisions.length, "workflow", tr("city.workflowNote"))
     );
     section.append(grid);
     section.append(text("p", "cityRefusalEvidence", refusalText(latestRefusal(snapshot && snapshot.event && snapshot.event.id))));
-    section.append(text("p", "cityProvenance", "Readiness source/provenance: FT.ops.audit.entries. Zero means no recorded evidence in this browser session."));
+    section.append(text("p", "cityProvenance", tr("city.readinessProvenance")));
     return section;
   }
 
   function renderUnresolved(coverage) {
     const card = el("article", "cityUnresolvedEvidence", { dataset: { cityUnresolvedEvidence: "", provenance: "registry" } });
-    card.textContent = `${coverage.unresolved} identities awaiting authoritative registry`;
+    card.textContent = tr("city.unresolvedText", { count: coverage.unresolved });
     return card;
   }
 
@@ -274,8 +287,8 @@
     setText(root, '[data-city-kpi="total"] .cityKpiValue', coverage.total);
     setText(root, '[data-city-kpi="named"] .cityKpiValue', coverage.named);
     setText(root, '[data-city-kpi="unresolved"] .cityKpiValue', coverage.unresolved);
-    setText(root, ".citySyntheticBanner", `Synthetic simulation workspace · ${coverage.total} municipal facilities in source scope · ${relTime()}`);
-    setText(root, "[data-city-unresolved-evidence]", `${coverage.unresolved} identities awaiting authoritative registry`);
+    setText(root, ".citySyntheticBanner", tr("city.synthetic", { total: coverage.total, time: relTime() }));
+    setText(root, "[data-city-unresolved-evidence]", tr("city.unresolvedText", { count: coverage.unresolved }));
   }
 
   function updatePortfolio(root, facilities, snapshot, hydroSnap) {
@@ -287,7 +300,7 @@
       setText(row, ".statePill", state);
       const reservoir = reservoirStateFor(facility, hydroSnap);
       const metric = row.querySelector(".cityFacilityMetric");
-      if (metric) metric.textContent = reservoir ? `Z ${fmt(reservoir.Z, 1)} m · O ${fmt(reservoir.O, 0)} m3/s` : "Simulation pending";
+      if (metric) metric.textContent = reservoir ? `Z ${fmt(reservoir.Z, 1)} m · O ${fmt(reservoir.O, 0)} m3/s` : tr("city.simPending");
     });
   }
 
@@ -299,7 +312,7 @@
       const order = orderForFacility(snapshot, facility.id);
       row.dataset.state = state;
       setText(row, ".cityProcessState", state);
-      setText(row, ".cityProcessNote", order ? `approved_order_id ${order.id}; status ${order.status}; no plant execution control exposed.` : "Shared workflow state or assessed demo baseline; no plant execution control exposed.");
+      setText(row, ".cityProcessNote", order ? tr("city.noExecutionOrder", { id: order.id, status: order.status }) : tr("city.noExecution"));
     });
   }
 
@@ -316,20 +329,20 @@
         card.append(
           text("strong", "", `${order.decisionId} · APPROVED_PLAN`),
           text("p", "", `approved_order_id ${order.id}; event_id ${order.eventId}; facility_id ${order.facilityId}`),
-          text("p", "", storedDecision ? `Accountable approval: ${storedDecision.actor}; reason: ${storedDecision.reason}` : "Accountable approval evidence stored in audit trail.")
+          text("p", "", storedDecision ? `Accountable approval: ${storedDecision.actor}; reason: ${storedDecision.reason}` : tr("city.approvalEvidence"))
         );
       } else if (decision) {
         card.append(
           text("strong", "", `${decision.id} · ${decision.kind || "CURRENT_PACKAGE"}`),
-          text("p", "", `Accountable role: ${decision.accountable || "unassigned in RACI"}`),
-          text("p", "", decision.consulted && decision.consulted.length ? `Consulted: ${decision.consulted.join(", ")}` : "Consulted roles: none recorded")
+          text("p", "", tr("city.accountableRole", { role: decision.accountable || "unassigned in RACI" })),
+          text("p", "", decision.consulted && decision.consulted.length ? tr("city.consulted", { roles: decision.consulted.join(", ") }) : tr("city.consultedNone"))
         );
       } else {
-        card.append(text("strong", "", "No active release decision package"), text("p", "", "Accountable role label unavailable until a proposal-class package exists."));
+        card.append(text("strong", "", tr("city.noPackage")), text("p", "", tr("city.noPackageNote")));
       }
     }
     const proposals = currentEventItems(snapshot, "proposals");
-    setText(root, ".cityQueueMeta", `${proposals.length} proposals · ${orders.length} approved orders in shared release workflow snapshot`);
+    setText(root, ".cityQueueMeta", tr("city.queueMeta", { proposals: proposals.length, orders: orders.length }));
   }
 
   function updateImpact(root, hydroSnap) {
@@ -339,7 +352,7 @@
       const state = hydroSnap && hydroSnap.gauges ? hydroSnap.gauges[gauge.id] : null;
       if (!card) return;
       setText(card, "strong", state ? `${fmt(state.stage, 2)} m` : "—");
-      setText(card, ".cityGaugeState", state ? `Alert ${state.alert} · trend ${fmt(state.trend, 2)} m/3h` : "Simulation unavailable");
+      setText(card, ".cityGaugeState", state ? tr("city.alertTrend", { alert: state.alert, trend: fmt(state.trend, 2) }) : tr("city.simUnavailable"));
     });
   }
 
@@ -403,9 +416,15 @@
     updateCity(document.querySelector(".cityDashboard"));
   }
 
+  function rerenderCity() {
+    if (!FT.workspaces || !FT.workspaces.current || FT.workspaces.current().workspace !== "city") return;
+    FT.workspaces.render();
+  }
+
   if (FT.bus) {
-    ["scrubbed", "hydroRebuilt", "opsAudit", "releaseWorkflowChanged", "lang"].forEach((eventName) => {
+    ["scrubbed", "hydroRebuilt", "opsAudit", "releaseWorkflowChanged"].forEach((eventName) => {
       FT.bus.on(eventName, refreshCity);
     });
+    FT.bus.on("lang", rerenderCity);
   }
 })();

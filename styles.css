@@ -110,6 +110,7 @@ canvas { display: block; }
   background: transparent;
   color: var(--ink-1);
   border-radius: 7px;
+  min-height: 44px;
   padding: 7px 10px;
   font-size: 12px;
   font-weight: 700;
@@ -409,6 +410,7 @@ body[data-workspace="city"] .roleWorkspaceHost {
 }
 .cityPlantLink {
   justify-self: start;
+  min-height: 44px;
   border: 1px solid rgba(20, 143, 134, 0.34);
   border-radius: 7px;
   background: #e7f5f1;
@@ -459,7 +461,7 @@ body[data-workspace="city"] .roleWorkspaceHost {
 .cityDashboard .roleDashboardGrid > *:nth-child(2) { animation-delay: .03s; }
 .cityDashboard .roleDashboardGrid > *:nth-child(3) { animation-delay: .06s; }
 .cityDashboard .roleDashboardGrid > *:nth-child(4) { animation-delay: .09s; }
-@media (min-width: 701px) and (max-width: 1299px) {
+@media (min-width: 721px) and (max-width: 1299px) {
   .roleDashboardHead {
     display: grid;
     align-items: start;
@@ -477,7 +479,7 @@ body[data-workspace="city"] .roleWorkspaceHost {
       "portfolio timeline";
   }
 }
-@media (max-width: 700px) {
+@media (max-width: 720px) {
   .workspaceNav {
     left: 8px;
     right: 8px;
@@ -486,7 +488,7 @@ body[data-workspace="city"] .roleWorkspaceHost {
   }
   .workspaceNav button {
     flex: 1 1 0;
-    min-height: 40px;
+    min-height: 44px;
     padding: 7px 6px;
   }
   .workspacePlaceholder { padding-top: 72px; }
@@ -633,7 +635,7 @@ body[data-workspace="plant"] .roleWorkspaceHost {
 .plantFacilitySelect select {
   min-width: 0;
   width: 100%;
-  min-height: 30px;
+  min-height: 44px;
   border: 1px solid var(--plant-line-strong);
   border-radius: 7px;
   background: #07131d;
@@ -753,7 +755,7 @@ body[data-workspace="plant"] .roleWorkspaceHost {
 }
 .plantAction {
   width: 100%;
-  min-height: 30px;
+  min-height: 44px;
   margin: 5px 0 0;
   border: 1px solid rgba(145, 187, 208, 0.2);
   border-radius: 7px;
@@ -793,7 +795,7 @@ body[data-workspace="plant"] .roleWorkspaceHost {
 .plantDashboard .roleDashboardGrid > * {
   animation: plantEnter .24s ease-out both;
 }
-@media (min-width: 701px) and (max-width: 1299px) {
+@media (min-width: 721px) and (max-width: 1299px) {
   .plantDashboard {
     padding-top: 68px;
   }
@@ -813,7 +815,7 @@ body[data-workspace="plant"] .roleWorkspaceHost {
       "alternatives alternatives checklist";
   }
 }
-@media (min-width: 701px) and (max-width: 1099px) {
+@media (min-width: 721px) and (max-width: 1099px) {
   .plantDashboard .roleDashboardGrid {
     grid-template-columns: minmax(320px, 1fr) minmax(220px, 0.62fr);
     grid-template-rows: repeat(5, minmax(0, 1fr));
@@ -825,7 +827,7 @@ body[data-workspace="plant"] .roleWorkspaceHost {
       "alternatives checklist";
   }
 }
-@media (max-width: 700px) {
+@media (max-width: 720px) {
   .plantDashboard {
     padding: 74px 8px 8px;
     overflow: auto;

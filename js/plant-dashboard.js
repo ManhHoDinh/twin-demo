@@ -31,6 +31,11 @@
     return el(tag, className, { text: value == null || value === "" ? "—" : String(value) });
   }
 
+  function tr(key, values) {
+    const template = FT.i18n && FT.i18n.t ? FT.i18n.t(key) : key;
+    return Object.keys(values || {}).reduce((out, name) => out.replaceAll(`{${name}}`, values[name]), template);
+  }
+
   function fmt(value, digits) {
     if (!Number.isFinite(value)) return "—";
     return value.toLocaleString("en-US", { maximumFractionDigits: digits == null ? 1 : digits });
@@ -164,12 +169,12 @@
     head.replaceChildren();
     const titleWrap = el("div", "roleDashboardTitle");
     titleWrap.append(
-      text("p", "roleEyebrow", "Plant operations"),
-      el("h2", "", { text: facility ? facility.name : "Unknown facility" }),
-      text("p", "roleDashboardLead", "Reservoir state, recommendation lifecycle, approval boundary and execution readiness for the selected governed facility.")
+      text("p", "roleEyebrow", tr("plant.eyebrow")),
+      el("h2", "", { text: facility ? facility.name : tr("plant.unknownFacility") }),
+      text("p", "roleDashboardLead", tr("plant.lead"))
     );
     const banner = el("p", "plantSyntheticBanner", { dataset: { provenance: "synthetic" } });
-    banner.textContent = `Synthetic operations workspace · source-labelled data · ${relTime()}`;
+    banner.textContent = tr("plant.synthetic", { time: relTime() });
     head.append(titleWrap, banner);
   }
 
@@ -181,12 +186,12 @@
     const identity = el("div", "plantFacilityIdentity", { dataset: { plantFacilityIdentity: "" } });
     identity.append(
       text("strong", "", facility ? facility.name : "Unknown facility"),
-      text("span", "", facility ? `${facility.id} · ${facility.entityType} · inspection ${facility.inspectionStatus}` : "No governed registry match")
+      text("span", "", facility ? `${facility.id} · ${facility.entityType} · inspection ${facility.inspectionStatus}` : tr("plant.noRegistry"))
     );
 
     const label = el("label", "plantFacilitySelect");
-    label.append(text("span", "", "Facility"));
-    const select = el("select", "", { dataset: { plantFacilitySelector: "" }, "aria-label": "Plant facility" });
+    label.append(text("span", "", tr("plant.facility")));
+    const select = el("select", "", { dataset: { plantFacilitySelector: "" }, "aria-label": tr("plant.facilityAria") });
     FT.facilities.all().forEach((item) => {
       const option = el("option", "", { value: item.id, text: item.name });
       select.appendChild(option);
@@ -204,8 +209,8 @@
 
     const source = el("p", "plantSourceLine", { dataset: { provenance: "registry" } });
     source.textContent = facility
-      ? `Registry provenance/source: ${facility.sourceId}; source date ${facility.validFrom}; operational state ${facility.operationalDataState}.`
-      : "Registry provenance/source: selected facility is not available in the governed registry.";
+      ? tr("plant.registrySource", { source: facility.sourceId, date: facility.validFrom, state: facility.operationalDataState })
+      : tr("plant.registryMissing");
     bar.append(identity, label, source);
   }
 
@@ -214,15 +219,15 @@
     if (!section) return;
     section.replaceChildren();
     section.className = "plantPanel plantCurrentState";
-    section.setAttribute("aria-label", "Current plant state");
+    section.setAttribute("aria-label", tr("plant.currentStateLabel"));
     const state = facility ? facility.operationalDataState : "NOT_IN_CURRENT_DEMO";
     section.dataset.plantDataState = state;
-    section.append(text("h3", "", "Current state"));
+    section.append(text("h3", "", tr("plant.currentState")));
 
     if (!facility || state === "NOT_IN_CURRENT_DEMO") {
       section.append(
-        text("p", "plantUnavailableText", facility ? `${facility.name} is a governed ${facility.entityType} identity, but operational plant data are NOT_IN_CURRENT_DEMO.` : "Selected facility is not available in the governed registry."),
-        text("p", "plantProvenance", facility ? `Inspection status: ${facility.inspectionStatus}; evidence/source ${facility.sourceId}; date ${facility.validFrom}.` : "No source record available for this selection.")
+        text("p", "plantUnavailableText", facility ? tr("plant.noPlantData", { name: facility.name, type: facility.entityType }) : tr("plant.selectedUnavailable")),
+        text("p", "plantProvenance", facility ? tr("plant.inspectionSource", { status: facility.inspectionStatus, source: facility.sourceId, date: facility.validFrom }) : tr("plant.noSource"))
       );
       section.querySelector(".plantProvenance").dataset.provenance = "registry";
       return;
@@ -234,18 +239,18 @@
     section.dataset.plantMarginState = marginResult ? marginResult.state : "MISSING";
     const grid = el("div", "plantMetricGrid");
     grid.append(
-      metric("Reservoir level", rs ? `${fmt(rs.Z, 1)} m` : "—", "synthetic reservoir state"),
-      metric("Inflow", rs ? `${fmtInt(rs.I)} m3/s` : "—", "simulated, not telemetry"),
-      metric("Current release", rs ? `${fmtInt(rs.O)} m3/s` : "—", "simulated active policy"),
-      metric("Freeboard", margins && Number.isFinite(margins.freeboard) ? `${fmt(margins.freeboard, 1)} m` : "MISSING", marginResult && marginResult.state === "OK" ? "assumed design values" : "safety margin unavailable")
+      metric(tr("plant.reservoirLevel"), rs ? `${fmt(rs.Z, 1)} m` : "—", tr("plant.syntheticReservoir")),
+      metric(tr("plant.inflow"), rs ? `${fmtInt(rs.I)} m3/s` : "—", tr("plant.simNotTelemetry")),
+      metric(tr("plant.currentRelease"), rs ? `${fmtInt(rs.O)} m3/s` : "—", tr("plant.simActivePolicy")),
+      metric(tr("plant.freeboard"), margins && Number.isFinite(margins.freeboard) ? `${fmt(margins.freeboard, 1)} m` : "MISSING", marginResult && marginResult.state === "OK" ? tr("plant.assumedDesign") : tr("plant.marginUnavailable"))
     );
     section.append(grid);
     if (marginResult && marginResult.state !== "OK") {
-      const warning = text("p", "plantNotice missing", `${marginResult.state}: safety margin could not be calculated for ${facility.name}; no numeric freeboard or margin value is substituted.`);
+      const warning = text("p", "plantNotice missing", tr("plant.marginFailed", { state: marginResult.state, name: facility.name }));
       warning.dataset.provenance = "diagnostic";
       section.append(warning);
     }
-    const prov = text("p", "plantProvenance", `State provenance: FT.hydro.at(FT.state.timeH), hydro.js synthetic reservoir model; source date ${facility.validFrom}; values are simulated/assumed, not observations.`);
+    const prov = text("p", "plantProvenance", tr("plant.stateProvenance", { date: facility.validFrom }));
     prov.dataset.provenance = "simulation";
     section.append(prov);
   }
@@ -256,13 +261,13 @@
     const scrollTop = section.scrollTop;
     section.replaceChildren();
     section.className = "plantPanel plantAdvisory";
-    section.setAttribute("aria-label", "Advisory recommendation");
-    section.append(text("h3", "", "Advisory recommendation"));
+    section.setAttribute("aria-label", tr("plant.advisoryLabel"));
+    section.append(text("h3", "", tr("plant.advisory")));
 
     if (!facility || facility.operationalDataState === "NOT_IN_CURRENT_DEMO") {
       section.dataset.plantLifecycleClass = "MISSING";
       section.dataset.plantActionable = "false";
-      section.append(text("p", "plantNotice missing", "NOT_IN_CURRENT_DEMO: no plant advisory, release recommendation, gate instruction, release-comparison metric or operational guidance is computed for this facility."));
+      section.append(text("p", "plantNotice missing", tr("plant.noAdvisory")));
       section.scrollTop = scrollTop;
       return;
     }
@@ -271,12 +276,12 @@
     if (!targeted) {
       section.dataset.plantLifecycleClass = "MISSING";
       section.dataset.plantActionable = "false";
-      section.append(text("p", "plantLifecycleBadge", "Lifecycle class: MISSING; actionable: false"));
-      section.append(text("p", "plantNotice missing", `${facility.name} is not currently targeted by a proposal-class package. No release recommendation, gate instruction, proposal validity or package alternative is rendered for this facility.`));
-      section.append(actionButton("propose", "Propose plan unavailable", "Task 7 wires proposal events; Task 6 keeps recommendations non-actionable."));
-      section.append(actionButton("approve", "Approve unavailable", "Only an attributed entitled approval can create an approved order."));
-      section.append(actionButton("execute", "Execute unavailable", "No approved order is current for this renderer."));
-      const source = text("p", "plantProvenance", `Advisory source/provenance: ${facility.name} registry and hydro state only; recommendation outputs are hidden unless the selected facility is the package target.`);
+      section.append(text("p", "plantLifecycleBadge", tr("plant.lifecycle", { class: "MISSING", actionable: "false" })));
+      section.append(text("p", "plantNotice missing", tr("plant.notTargeted", { name: facility.name })));
+      section.append(actionButton("propose", tr("plant.proposeUnavailable"), tr("plant.proposeReason")));
+      section.append(actionButton("approve", tr("plant.approveUnavailable"), tr("plant.approveReason")));
+      section.append(actionButton("execute", tr("plant.executeUnavailable"), tr("plant.executeReason")));
+      const source = text("p", "plantProvenance", tr("plant.advisoryHiddenSource", { name: facility.name }));
       source.dataset.provenance = "workflow";
       section.append(source);
       section.scrollTop = scrollTop;
@@ -292,33 +297,33 @@
     };
     section.dataset.plantLifecycleClass = advisory.lifecycleClass;
     section.dataset.plantActionable = String(advisory.actionable);
-    section.append(text("p", "plantLifecycleBadge", `Lifecycle class: ${advisory.lifecycleClass}; actionable: ${advisory.actionable ? "true" : "false"}`));
-    section.append(text("p", "plantNotice", advisory.notice || "No actionable advisory is available."));
+    section.append(text("p", "plantLifecycleBadge", tr("plant.lifecycle", { class: advisory.lifecycleClass, actionable: advisory.actionable ? "true" : "false" })));
+    section.append(text("p", "plantNotice", advisory.notice || tr("plant.noActionable")));
 
     const proposal = proposalForFacility(snapshot, facility.id);
     if (!pkg || pkg.kind !== "PROPOSAL") {
-      section.append(text("p", "", pkg && pkg.reason ? pkg.reason : "No proposal-class package is available at the current time."));
+      section.append(text("p", "", pkg && pkg.reason ? pkg.reason : tr("plant.noProposal")));
     } else if (targeted) {
       const grid = el("div", "plantMetricGrid");
       grid.append(
-        metric("Proposed release", `${fmtInt(pkg.action.q0)} -> ${fmtInt(pkg.action.q1)} m3/s`, "RECOMMENDATION only"),
-        metric("Start", relTimeLabel(pkg.action.tStart), "requires approval"),
-        metric("Control point", pkg.gauge ? pkg.gauge.name : "—", "downstream simulation"),
-        metric("Peak cut", Number.isFinite(pkg.cut) ? `${fmt(pkg.cut, 2)} m` : "—", "modelled comparison")
+        metric(tr("plant.proposedRelease"), `${fmtInt(pkg.action.q0)} -> ${fmtInt(pkg.action.q1)} m3/s`, "RECOMMENDATION only"),
+        metric(tr("plant.start"), relTimeLabel(pkg.action.tStart), tr("plant.requiresApproval")),
+        metric(tr("plant.controlPoint"), pkg.gauge ? pkg.gauge.name : "—", tr("plant.downstreamSimulation")),
+        metric(tr("plant.peakCut"), Number.isFinite(pkg.cut) ? `${fmt(pkg.cut, 2)} m` : "—", tr("plant.modelledComparison"))
       );
       section.append(grid);
     }
 
     if (pkg && pkg.action && pkg.action.gates) {
-      const gate = text("p", "plantAssumption", `ASSUMED_FOR_DEMO: package gate note for ${pkg.reservoir.name}: ${pkg.action.gates}. Individual gate geometry is not modelled; no verified gate openings are available.`);
+      const gate = text("p", "plantAssumption", tr("plant.gateAssumption", { name: pkg.reservoir.name, gates: pkg.action.gates }));
       gate.dataset.provenance = "assumption";
       section.append(gate);
     }
 
-    section.append(actionButton("propose", "Propose plan unavailable", "Task 7 wires proposal events; Task 6 keeps recommendations non-actionable."));
-    section.append(actionButton("approve", "Approve unavailable", "Only an attributed entitled approval can create an approved order."));
-    section.append(actionButton("execute", "Execute unavailable", "No approved order is current for this renderer."));
-    const source = text("p", "plantProvenance", `Advisory source/provenance: FT.ops.package and FT.lifecycle; snapshot proposal for this facility: ${proposal ? proposal.id : "none stored"}.`);
+    section.append(actionButton("propose", tr("plant.proposeUnavailable"), tr("plant.proposeReason")));
+    section.append(actionButton("approve", tr("plant.approveUnavailable"), tr("plant.approveReason")));
+    section.append(actionButton("execute", tr("plant.executeUnavailable"), tr("plant.executeReason")));
+    const source = text("p", "plantProvenance", tr("plant.advisorySource", { proposal: proposal ? proposal.id : "none stored" }));
     source.dataset.provenance = "workflow";
     section.append(source);
     section.scrollTop = scrollTop;
@@ -334,27 +339,27 @@
     if (!section) return;
     section.replaceChildren();
     section.className = "plantPanel plantAlternatives";
-    section.setAttribute("aria-label", "Alternatives");
-    section.append(text("h3", "", "Alternatives"));
+    section.setAttribute("aria-label", tr("plant.alternatives"));
+    section.append(text("h3", "", tr("plant.alternatives")));
     if (!facility || facility.operationalDataState === "NOT_IN_CURRENT_DEMO") {
-      section.append(text("p", "plantNotice missing", "No numeric alternatives are computed for NOT_IN_CURRENT_DEMO facilities."));
+      section.append(text("p", "plantNotice missing", tr("plant.noNumericNotDemo")));
       return;
     }
     const targeted = isPackageTarget(pkg, facility);
     if (!targeted) {
-      section.append(text("p", "plantNotice missing", `No numeric alternatives are rendered for ${facility.name} because it is not currently targeted by the proposal package.`));
+      section.append(text("p", "plantNotice missing", tr("plant.noNumericNotTarget", { name: facility.name })));
       return;
     }
     if (!pkg || !Array.isArray(pkg.alternatives) || !pkg.alternatives.length) {
-      section.append(text("p", "", "No comparable alternatives are available at the current time."));
+      section.append(text("p", "", tr("plant.noAlternatives")));
       return;
     }
     pkg.alternatives.slice(0, 3).forEach((alt) => {
       const card = el("article", "plantAlternative");
       card.append(
         text("strong", "", alt.label || alt.key),
-        text("span", "", Number.isFinite(alt.peak) ? `Modelled peak ${fmt(alt.peak, 2)} m` : "Modelled peak unavailable"),
-        text("p", "", alt.note || "No note available.")
+        text("span", "", Number.isFinite(alt.peak) ? tr("plant.modelledPeak", { peak: fmt(alt.peak, 2) }) : tr("plant.modelledPeakUnavailable")),
+        text("p", "", alt.note || tr("plant.noNote"))
       );
       section.append(card);
     });
@@ -365,23 +370,23 @@
     if (!section) return;
     section.replaceChildren();
     section.className = "plantPanel plantApprovedOrder";
-    section.setAttribute("aria-label", "Approved order");
-    section.append(text("h3", "", "Approved order"));
+    section.setAttribute("aria-label", tr("plant.approvedOrderLabel"));
+    section.append(text("h3", "", tr("workspace.approvedOrder")));
     const order = facility ? orderForFacility(snapshot, facility.id) : null;
     if (!order) {
       section.dataset.plantLifecycleClass = "NONE";
-      section.append(text("p", "plantOrderEmpty", "No approved/current operational order for this facility."));
-      section.append(text("p", "plantNotice", "Recommendations remain separate from approved orders. This renderer does not create operational orders."));
+      section.append(text("p", "plantOrderEmpty", tr("plant.noApprovedOrder")));
+      section.append(text("p", "plantNotice", tr("plant.recommendationBoundary")));
       return;
     }
     section.dataset.plantLifecycleClass = order.lifecycleClass || "APPROVED_PLAN";
     const decision = snapshot && snapshot.decisions ? snapshot.decisions[order.decisionId] : null;
     section.append(
-      text("p", "plantLifecycleBadge approved", `Lifecycle class: ${order.lifecycleClass}; actionable: ${order.actionable ? "true" : "false"}`),
-      metric("Approved order ID", order.id, order.status),
-      metric("Package", order.packageId, `revision ${order.revision}`),
-      metric("Commanded target", Number.isFinite(order.commandedCms) ? `${fmtInt(order.commandedCms)} m3/s` : "—", "ASSUMED_FOR_DEMO command from approved package"),
-      metric("Decision audit", decision ? `#${decision.auditSeq}` : `#${order.auditSeq}`, decision ? `${decision.actor}; ${decision.reason}` : "stored approval evidence")
+      text("p", "plantLifecycleBadge approved", tr("plant.lifecycle", { class: order.lifecycleClass, actionable: order.actionable ? "true" : "false" })),
+      metric(tr("plant.approvedOrderId"), order.id, order.status),
+      metric(tr("plant.package"), order.packageId, `revision ${order.revision}`),
+      metric(tr("plant.commandedTarget"), Number.isFinite(order.commandedCms) ? `${fmtInt(order.commandedCms)} m3/s` : "—", "ASSUMED_FOR_DEMO command from approved package"),
+      metric(tr("plant.decisionAudit"), decision ? `#${decision.auditSeq}` : `#${order.auditSeq}`, decision ? `${decision.actor}; ${decision.reason}` : "stored approval evidence")
     );
     const valid = text("p", "plantProvenance", `approved_order_id ${order.id}; event_id ${order.eventId}; facility_id ${order.facilityId}; proposal_id ${order.proposalId}; decision_id ${order.decisionId}.`);
     valid.dataset.provenance = "workflow";
@@ -393,13 +398,13 @@
     if (!section) return;
     section.replaceChildren();
     section.className = "plantPanel plantChecklist";
-    section.setAttribute("aria-label", "Operational checklist");
-    section.append(text("h3", "", "Checklist"));
+    section.setAttribute("aria-label", tr("plant.checklistLabel"));
+    section.append(text("h3", "", tr("workspace.checklist")));
     const order = facility ? orderForFacility(snapshot, facility.id) : null;
     const checks = FT.releaseOps && FT.releaseOps.CHECKS ? FT.releaseOps.CHECKS : [];
     const labels = checkLabels();
     if (!order) {
-      section.append(text("p", "", "Checklist locked until an approved order exists."));
+      section.append(text("p", "", tr("plant.checklistLocked")));
       checks.forEach((key) => {
         const row = el("label", "plantCheckRow");
         const input = el("input", "", { type: "checkbox", disabled: "", dataset: { checkKey: key } });
@@ -426,21 +431,21 @@
     if (!section) return;
     section.replaceChildren();
     section.className = "plantPanel plantExecution";
-    section.setAttribute("aria-label", "Execution status");
-    section.append(text("h3", "", "Execution"));
+    section.setAttribute("aria-label", tr("plant.executionLabel"));
+    section.append(text("h3", "", tr("plant.execution")));
     const order = facility ? orderForFacility(snapshot, facility.id) : null;
     const execution = order ? executionForOrder(snapshot, order.id) : null;
     if (!order) {
-      section.append(text("p", "", "No execution state. Execution controls remain unavailable until approval."));
+      section.append(text("p", "", tr("plant.noExecutionState")));
       return;
     }
     const actual = FT.releaseOps && FT.releaseOps.actualVersusCommanded ? FT.releaseOps.actualVersusCommanded(order.id) : order.actual;
     const canStart = FT.releaseOps && FT.releaseOps.prerequisitesSatisfied && FT.releaseOps.prerequisitesSatisfied(order.id);
     const canClose = FT.releaseOps && FT.releaseOps.completeSatisfied && FT.releaseOps.completeSatisfied(order.id);
-    const start = actionButton("start-execution", "Start execution", "Requires order-valid, notifications-acknowledged, plant-ready and outlet-ready.");
+    const start = actionButton("start-execution", tr("plant.startExecution"), tr("plant.startReason"));
     if (canStart) { start.disabled = false; start.removeAttribute("disabled"); start.setAttribute("aria-disabled", "false"); }
     start.addEventListener("click", () => { FT.releaseOps.startExecution(order.id); refreshPlant(); });
-    const observe = actionButton("record-actual", "Record simulated actual", "Records selected facility reservoir release from the synthetic model.");
+    const observe = actionButton("record-actual", tr("plant.recordActual"), tr("plant.recordReason"));
     if (execution && [FT.releaseOps.PROCESS.EXECUTING, FT.releaseOps.PROCESS.DEVIATING].includes(order.status)) {
       observe.disabled = false; observe.removeAttribute("disabled"); observe.setAttribute("aria-disabled", "false");
     }
@@ -448,18 +453,18 @@
       FT.releaseOps.recordObservedRelease(order.id);
       refreshPlant();
     });
-    const close = actionButton("close-complete", "Close complete", "Requires execution observation and completion checks.");
+    const close = actionButton("close-complete", tr("plant.closeComplete"), tr("plant.closeReason"));
     if (canClose) { close.disabled = false; close.removeAttribute("disabled"); close.setAttribute("aria-disabled", "false"); }
     close.addEventListener("click", () => { FT.releaseOps.close(order.id); refreshPlant(); });
     section.append(
-      metric("Order", order.id, order.status),
-      metric("Execution", execution ? execution.id : "—", execution ? execution.status : "not started"),
-      metric("Commanded release", Number.isFinite(order.commandedCms) ? `${fmtInt(order.commandedCms)} m3/s` : "—", "approved command"),
-      metric("Observed release", actual && Number.isFinite(actual.observedCms) ? `${fmtInt(actual.observedCms)} m3/s` : "telemetry not supplied", actual && actual.provenance === "ASSUMED_FOR_DEMO" ? "ASSUMED_FOR_DEMO" : "MISSING"),
-      metric("Deviation", actual && Number.isFinite(actual.deviationCms) ? `${fmt(actual.deviationCms, 1)} m3/s` : "telemetry not supplied", actual && actual.status ? actual.status : "MISSING")
+      metric(tr("plant.order"), order.id, order.status),
+      metric(tr("plant.execution"), execution ? execution.id : "—", execution ? execution.status : tr("plant.notStarted")),
+      metric(tr("plant.commandedRelease"), Number.isFinite(order.commandedCms) ? `${fmtInt(order.commandedCms)} m3/s` : "—", tr("plant.approvedCommand")),
+      metric(tr("plant.observedRelease"), actual && Number.isFinite(actual.observedCms) ? `${fmtInt(actual.observedCms)} m3/s` : tr("plant.telemetryMissing"), actual && actual.provenance === "ASSUMED_FOR_DEMO" ? "ASSUMED_FOR_DEMO" : "MISSING"),
+      metric(tr("plant.deviation"), actual && Number.isFinite(actual.deviationCms) ? `${fmt(actual.deviationCms, 1)} m3/s` : tr("plant.telemetryMissing"), actual && actual.status ? actual.status : "MISSING")
     );
     section.dataset.state = actual && actual.status === "DEVIATING" ? "DEVIATING" : order.status;
-    section.append(text("p", "plantProvenance", `Actual-versus-commanded tolerance: ${FT.releaseOps.DEMO_TOLERANCE_CMS} m3/s demo assumption; not a regulatory threshold.`));
+    section.append(text("p", "plantProvenance", tr("plant.tolerance", { value: FT.releaseOps.DEMO_TOLERANCE_CMS })));
     section.append(start, observe, close);
   }
 
@@ -471,7 +476,7 @@
     if (!section) return;
     const list = el("ul", "plantMissingDependencies", { dataset: { plantMissingDependencies: "" } });
     MISSING_DEPENDENCIES.forEach((item) => list.appendChild(text("li", "", item)));
-    section.append(text("h4", "", "Missing operational dependencies"));
+    section.append(text("h4", "", tr("plant.missingDependencies")));
     section.append(list);
   }
 
@@ -518,9 +523,15 @@
     updatePlant(document.querySelector(".plantDashboard"));
   }
 
+  function rerenderPlant() {
+    if (!FT.workspaces || !FT.workspaces.current || FT.workspaces.current().workspace !== "plant") return;
+    FT.workspaces.render();
+  }
+
   if (FT.bus) {
-    ["scrubbed", "hydroRebuilt", "opsAudit", "releaseWorkflowChanged", "compareChanged", "lang"].forEach((eventName) => {
+    ["scrubbed", "hydroRebuilt", "opsAudit", "releaseWorkflowChanged", "compareChanged"].forEach((eventName) => {
       FT.bus.on(eventName, refreshPlant);
     });
+    FT.bus.on("lang", rerenderPlant);
   }
 })();

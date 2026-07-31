@@ -74,11 +74,84 @@ async function workspaceRouting(browser) {
       city.map === true &&
       city.plantLinkFacilityId === 'a-vuong' &&
       city.unresolvedCards.length === 1 &&
-      city.unresolvedCards[0] === '10 identities awaiting authoritative registry' &&
+      /10 (identities awaiting authoritative registry|danh tính đang chờ sổ đăng ký có thẩm quyền)/i.test(city.unresolvedCards[0]) &&
       city.rowStates.every((row) => row.text.length > 0 && row.state.length > 0 && /[A-Z_]+/.test(row.text)) &&
       /simulation|mô phỏng|synthetic|provenance|nguồn/i.test(city.downstream || '') &&
       /audit|notification|thông báo|provenance|source|nguồn/i.test(city.readiness || '') &&
-      /simulation|synthetic|source|provenance|registry|audit/i.test(city.provenance || '');
+      /simulation|synthetic|source|provenance|registry|audit|nguồn|đăng ký|kiểm toán/i.test(city.provenance || '');
+  });
+
+  await check('workspace navigation exposes current page and labels route controls accessibly', async (detail) => {
+    const nav = await directCity.page.evaluate(() => {
+      const controls = [...document.querySelectorAll('#workspaceNav [data-workspace]')].map((button) => ({
+        workspace: button.dataset.workspace,
+        text: button.textContent.replace(/\s+/g, ' ').trim(),
+        ariaCurrent: button.getAttribute('aria-current'),
+        name: button.getAttribute('aria-label') || button.textContent.replace(/\s+/g, ' ').trim(),
+        minHeight: Math.round(button.getBoundingClientRect().height),
+      }));
+      return { current: FT.workspaces.current(), controls };
+    });
+    detail(nav);
+    return nav.current.workspace === 'city' &&
+      nav.controls.length >= 2 &&
+      nav.controls.filter((item) => item.ariaCurrent === 'page').length === 1 &&
+      nav.controls.some((item) => item.workspace === 'city' && item.ariaCurrent === 'page') &&
+      nav.controls.every((item) => item.name.length > 0 && item.minHeight >= 40);
+  });
+
+  await check('city and plant workspace copy refreshes bilingually without changing identifiers or numeric values', async (detail) => {
+    const result = await directCity.page.evaluate(async () => {
+      const text = (selector) => document.querySelector(selector)?.textContent.replace(/\s+/g, ' ').trim() || '';
+      const stateRows = () => [...document.querySelectorAll('[data-city-timeline] [data-process-row]')]
+        .map((row) => ({
+          facilityId: row.getAttribute('data-facility-id') || '',
+          state: row.getAttribute('data-state') || '',
+          text: row.textContent.replace(/\s+/g, ' ').trim(),
+        }));
+      const nums = () => ({
+        total: text('[data-city-kpi="total"] .cityKpiValue'),
+        named: text('[data-city-kpi="named"] .cityKpiValue'),
+        unresolved: text('[data-city-kpi="unresolved"] .cityKpiValue'),
+        unresolvedText: text('[data-city-unresolved-evidence]'),
+      });
+      FT.i18n.setLang('en');
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const en = {
+        title: text('.cityDashboard .roleDashboardTitle h2'),
+        queue: text('[data-city-decision-queue] h3'),
+        nums: nums(),
+        states: stateRows(),
+      };
+      FT.i18n.setLang('vi');
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const vi = {
+        title: text('.cityDashboard .roleDashboardTitle h2'),
+        queue: text('[data-city-decision-queue] h3'),
+        nums: nums(),
+        states: stateRows(),
+      };
+      return { en, vi };
+    });
+    detail(result);
+    const valuesStable = ['total', 'named', 'unresolved'].every((key) => result.en.nums[key] === result.vi.nums[key]) &&
+      result.en.nums.total === '44' &&
+      result.en.nums.named === '34' &&
+      result.en.nums.unresolved === '10';
+    const tokensStable = result.en.states.length === result.vi.states.length &&
+      result.en.states.every((row, index) =>
+        row.facilityId === result.vi.states[index].facilityId &&
+        row.state === result.vi.states[index].state &&
+        /ASSESSED/.test(row.text) &&
+        /ASSESSED/.test(result.vi.states[index].text));
+    return /Municipal coordination dashboard/i.test(result.en.title) &&
+      /Decision queue/i.test(result.en.queue) &&
+      /Bảng điều phối đô thị/i.test(result.vi.title) &&
+      /Hàng chờ quyết định/i.test(result.vi.queue) &&
+      /10 identities awaiting authoritative registry/i.test(result.en.nums.unresolvedText) &&
+      /10 danh tính đang chờ sổ đăng ký có thẩm quyền/i.test(result.vi.nums.unresolvedText) &&
+      valuesStable &&
+      tokensStable;
   });
 
   await check('city dashboard layout remains usable across desktop, tablet and mobile widths', async (detail) => {
@@ -113,7 +186,7 @@ async function workspaceRouting(browser) {
         const mapNode = rect('#stageWrap');
         const mapShare = map && grid ? (map.width * map.height) / (grid.width * grid.height) : 0;
         const overflowX = document.documentElement.scrollWidth > window.innerWidth || document.body.scrollWidth > window.innerWidth;
-        const mobile = window.innerWidth <= 700;
+        const mobile = window.innerWidth <= 720;
         return {
           viewport: { width: window.innerWidth, height: window.innerHeight },
           overflowX,
@@ -128,7 +201,7 @@ async function workspaceRouting(browser) {
     }
     detail(measurements);
     return measurements.every((layout) => {
-      const mobile = layout.viewport.width <= 700;
+      const mobile = layout.viewport.width <= 720;
       const fullDesktop = layout.viewport.width >= 1366;
       return layout.overflowX === false &&
         layout.grid &&
@@ -211,6 +284,43 @@ async function workspaceRouting(browser) {
       state.current.facilityId === 'a-vuong' &&
       new URLSearchParams(state.search).get('facility') === 'a-vuong' &&
       state.mapInPlantSlot;
+  });
+
+  await openWorkspace(directCity.page, 'city');
+  await check('keyboard activation opens plant deep link and Escape restores focus to the originating workspace control', async (detail) => {
+    const state = await directCity.page.evaluate(async () => {
+      const link = document.querySelector('[data-city-portfolio] [data-plant-facility-id="a-vuong"]');
+      if (!link) return { hasLink: false };
+      link.focus();
+      const focusedBefore = document.activeElement === link;
+      link.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true }));
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const plantSelector = document.querySelector('[data-plant-facility-selector]');
+      const selectorLabel = plantSelector ? (plantSelector.labels && plantSelector.labels[0] && plantSelector.labels[0].textContent || plantSelector.getAttribute('aria-label') || '') : '';
+      const workspaceAfterEnter = FT.state.workspace;
+      const facilityAfterEnter = FT.state.selectedFacilityId;
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }));
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      return {
+        hasLink: true,
+        focusedBefore,
+        workspaceAfterEnter,
+        facilityAfterEnter,
+        workspaceAfterEscape: FT.state.workspace,
+        selectorLabel: selectorLabel.replace(/\s+/g, ' ').trim(),
+        focusedAfterEscapeFacility: document.activeElement?.dataset?.plantFacilityId || '',
+        focusedAfterEscapeText: document.activeElement?.textContent?.replace(/\s+/g, ' ').trim() || '',
+      };
+    });
+    detail(state);
+    return state.hasLink &&
+      state.focusedBefore &&
+      state.workspaceAfterEnter === 'plant' &&
+      state.facilityAfterEnter === 'a-vuong' &&
+      state.workspaceAfterEscape === 'city' &&
+      /Facility|Công trình/i.test(state.selectorLabel) &&
+      state.focusedAfterEscapeFacility === 'a-vuong' &&
+      /Plant|Nhà máy/i.test(state.focusedAfterEscapeText);
   });
   await directCity.ctx.close();
 
@@ -296,14 +406,14 @@ async function workspaceRouting(browser) {
       plant.advisoryActionable === 'false' &&
       /RECOMMENDATION|not in force|not actionable|CHƯA có hiệu lực/i.test(plant.advisory) &&
       /ASSUMED_FOR_DEMO|individual gate geometry is not modelled|not modelled/i.test(plant.advisory) &&
-      /alternative|rule|coordinate|peak|modelled/i.test(plant.alternatives) &&
-      /approved order|none approved|no approved/i.test(plant.approved) &&
+      /alternative|rule|coordinate|peak|modelled|phương án|đỉnh mô hình/i.test(plant.alternatives) &&
+      /approved order|none approved|no approved|lệnh đã phê duyệt|không có lệnh/i.test(plant.approved) &&
       /plantApprovedOrder/.test(plant.approvedClass) &&
-      /checklist/i.test(plant.checklist) &&
-      /execution|no execution|approval/i.test(plant.execution) &&
+      /checklist|danh sách kiểm tra/i.test(plant.checklist) &&
+      /execution|no execution|approval|thực thi|phê duyệt/i.test(plant.execution) &&
       plant.map &&
       plant.provenance.length >= 3 &&
-      plant.provenance.join(' | ').match(/source|provenance|synthetic|2026-05-06|hydro\.js/i) &&
+      plant.provenance.join(' | ').match(/source|provenance|synthetic|2026-05-06|hydro\.js|nguồn|tổng hợp/i) &&
       plant.actions.length >= 3 &&
       plant.actions.every((button) => button.disabled === true) &&
       plant.actions.some((button) => /propose/i.test(button.action || button.text)) &&
@@ -357,7 +467,7 @@ async function workspaceRouting(browser) {
         row.currentState === 'ASSUMED_FOR_DEMO' &&
         row.advisoryClass === 'MISSING' &&
         row.advisoryActionable === 'false' &&
-        /not currently targeted|MISSING/i.test(row.advisory) &&
+        /not currently targeted|hiện không được|MISSING/i.test(row.advisory) &&
         row.advisory.includes(row.selectedName) &&
         !row.advisory.includes('A Vương release advice') &&
         !row.advisory.includes(result.target.name) &&
@@ -366,8 +476,8 @@ async function workspaceRouting(browser) {
       result.targetView &&
       result.targetView.selectedId === result.target.id &&
       result.targetView.advisoryClass === 'RECOMMENDATION' &&
-      /ASSUMED_FOR_DEMO|package gate|not modelled/i.test(result.targetView.advisory) &&
-      /Modelled peak|peak/i.test(result.targetView.alternatives);
+      /ASSUMED_FOR_DEMO|package gate|not modelled|ghi chú cửa van|không được mô hình/i.test(result.targetView.advisory) &&
+      /Modelled peak|peak|Đỉnh mô hình/i.test(result.targetView.alternatives);
   });
 
   await check('plant workflow state is isolated to the current scenario event', async (detail) => {
@@ -634,7 +744,7 @@ async function workspaceRouting(browser) {
         const mapNode = rect('#stageWrap');
         const banner = rect('.plantSyntheticBanner');
         const overflowX = document.documentElement.scrollWidth > window.innerWidth || document.body.scrollWidth > window.innerWidth;
-        const mobile = window.innerWidth <= 700;
+        const mobile = window.innerWidth <= 720;
         return {
           viewport: { width: window.innerWidth, height: window.innerHeight },
           overflowX,
@@ -649,7 +759,7 @@ async function workspaceRouting(browser) {
     }
     detail(measurements);
     return measurements.every((layout) => {
-      const mobile = layout.viewport.width <= 700;
+      const mobile = layout.viewport.width <= 720;
       return layout.overflowX === false &&
         layout.grid &&
         layout.map &&
@@ -2140,8 +2250,8 @@ async function approvalExecutionIntegration(browser) {
   await check('City readiness ignores unscoped and cross-event refusal audit entries', (detail) => {
     detail(unscopedRefusal);
     return unscopedRefusal.eventId === selectedEventId &&
-      /No refused approval recorded for the current event/i.test(unscopedRefusal.cityText) &&
-      !/Legacy unscoped role|Yagi role|Latest refused approval/i.test(unscopedRefusal.cityText);
+      /No refused approval recorded for the current event|Chưa ghi nhận từ chối phê duyệt cho sự kiện hiện tại/i.test(unscopedRefusal.cityText) &&
+      !/Legacy unscoped role|Yagi role|Latest refused approval|Phê duyệt bị từ chối gần nhất/i.test(unscopedRefusal.cityText);
   });
 
   const refused = await page.evaluate(async (role) => {
@@ -2176,7 +2286,7 @@ async function approvalExecutionIntegration(browser) {
       refused.afterOrders === 0 &&
       refused.refusalAction === 'decision.refused' &&
       refused.refusalEventId === selectedEventId &&
-      /Latest refused approval|no approved order created/i.test(refused.cityText);
+      /Latest refused approval|no approved order created|Phê duyệt bị từ chối gần nhất|không tạo lệnh đã phê duyệt/i.test(refused.cityText);
   });
 
   await signOnRole(page, ROLE.authority);
@@ -2308,7 +2418,7 @@ async function approvalExecutionIntegration(browser) {
       Number.isFinite(execution.actual.deviationCms) &&
       ['ON_COMMAND', 'DEVIATING'].includes(execution.actual.status) &&
       execution.actual.provenance === 'ASSUMED_FOR_DEMO' &&
-      /Actual-versus-commanded tolerance/i.test(execution.plantText);
+      /Actual-versus-commanded tolerance|Dung sai thực tế-so-với-lệnh/i.test(execution.plantText);
   });
 
   await check('completion gate is explicit and remains locked until actual and later checks are present', (detail) => {
