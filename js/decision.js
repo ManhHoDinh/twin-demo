@@ -422,10 +422,10 @@
     for (const child of Object.values(value)) freezeAuditValue(child);
     return value;
   }
-  function storeAuditEntry(entry) {
+  function storeAuditEntry(entry, trusted) {
     const frozen = freezeAuditValue(entry);
     auditEntries.push(frozen);
-    storedAuditEntries.add(frozen);
+    if (trusted) storedAuditEntries.add(frozen);
     return frozen;
   }
   const audit = (OPS.audit = {
@@ -440,7 +440,7 @@
       auditEntries.length = 0;
       try {
         const loaded = JSON.parse(localStorage.getItem(KEY) || "[]");
-        if (Array.isArray(loaded)) loaded.forEach((entry) => storeAuditEntry(entry));
+        if (Array.isArray(loaded)) loaded.forEach((entry) => storeAuditEntry(entry, false));
       } catch (e) {
         auditEntries.length = 0;
       }
@@ -466,7 +466,7 @@
         versions: OPS.versions,
       };
       e.snapshot = audit.hash({ a: action, d: detail, t: e.simT, s: e.scenario });
-      const stored = storeAuditEntry(e);
+      const stored = storeAuditEntry(e, true);
       audit.save();
       FT.bus.emit("opsAudit", stored);
       return stored;

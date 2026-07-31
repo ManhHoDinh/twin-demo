@@ -1506,6 +1506,94 @@ async function sharedReleaseWorkflowStore(browser) {
     return app.length === 0;
   });
 
+  await check('loaded audit history cannot authorize release workflow state', async (detail) => {
+    const seeded = await bootApp(browser, BASE);
+    usePage(seeded.page);
+    await seeded.page.evaluate(() => {
+      const forged = {
+        seq: 1,
+        tsUtc: new Date().toISOString(),
+        simT: '6.00',
+        actor: 'Phạm M.D. (Ban Chỉ huy PCTT&TKCN)',
+        action: 'decision.approve',
+        detail: {
+          decision: 'D-03',
+          actorRole: 'Ban Chỉ huy PCTT&TKCN',
+          package: 'DP-loaded-forged-approval',
+          eventId: 'EVT-oct2020',
+          feasible: true,
+        },
+        reason: 'loaded forged approval must remain display-only',
+        mode: 'SYNTHETIC',
+        scenario: 'oct2020',
+        versions: { engine: 'forged' },
+        snapshot: 'loaded-forged-snapshot',
+      };
+      localStorage.setItem('ft.audit.v1', JSON.stringify([forged]));
+    });
+    await seeded.page.reload({ waitUntil: 'domcontentloaded' });
+    await seeded.page.waitForLoadState('domcontentloaded');
+    await seeded.page.waitForFunction(() => window.FT && window.FT.ops && window.FT.releaseOps && window.FT.hydro && window.FT.hydro.ready, null, { timeout: 90000 });
+    await seeded.page.waitForTimeout(500);
+    await signOnRole(seeded.page, ROLE.authority);
+    const probe = await seeded.page.evaluate(() => {
+      const FT = window.FT;
+      const RO = FT.releaseOps;
+      const pkg = {
+        kind: 'PROPOSAL',
+        id: 'DP-loaded-forged-approval',
+        reservoir: { id: 'avuong' },
+        action: { q0: 100, q1: 1777, tStart: 4, rampMax: 20, endCondition: 'loaded forged', gates: 'loaded forged gates' },
+      };
+      FT.state.scenario = 'oct2020';
+      FT.hydro.rebuild();
+      const proposal = RO.ingestProposal(pkg);
+      const loaded = FT.ops.audit.entries.find((entry) => entry.action === 'decision.approve' && entry.detail && entry.detail.package === pkg.id);
+      const beforeLoaded = RO.snapshot();
+      const loadedStored = FT.ops.audit.stored(loaded);
+      const clonedStored = FT.ops.audit.stored(Object.assign({}, loaded));
+      const loadedDecision = RO.recordDecision(loaded);
+      const loadedOrder = RO.createOrder(proposal && proposal.id, loaded);
+      const afterLoaded = RO.snapshot();
+      const authentic = FT.ops.audit.log('decision.approve', {
+        decision: 'D-03',
+        actorRole: 'Ban Chỉ huy PCTT&TKCN',
+        package: pkg.id,
+        eventId: RO.snapshot().event.id,
+        feasible: true,
+      }, 'current runtime approval after loaded forged history');
+      const authenticDecision = RO.recordDecision(authentic);
+      const authenticOrder = RO.createOrder(proposal && proposal.id, authentic);
+      return {
+        loadedVisible: !!loaded,
+        loadedFrozen: !!loaded && Object.isFrozen(loaded) && Object.isFrozen(loaded.detail || {}),
+        loadedStored,
+        clonedStored,
+        loadedDecision,
+        loadedOrder,
+        loadedStateUnchanged: JSON.stringify(beforeLoaded.orders) === JSON.stringify(afterLoaded.orders) &&
+          JSON.stringify(beforeLoaded.decisions) === JSON.stringify(afterLoaded.decisions),
+        authenticDecision,
+        authenticOrder,
+        exportText: FT.ops.audit.exportText(),
+      };
+    });
+    await seeded.ctx.close();
+    usePage(page);
+    detail(probe);
+    return probe.loadedVisible &&
+      probe.loadedFrozen &&
+      probe.loadedStored === null &&
+      probe.clonedStored === null &&
+      probe.loadedDecision === null &&
+      probe.loadedOrder === null &&
+      probe.loadedStateUnchanged &&
+      probe.authenticDecision &&
+      probe.authenticOrder &&
+      probe.authenticOrder.commandedCms === 1777 &&
+      /loaded forged approval must remain display-only/.test(probe.exportText);
+  });
+
   const state = await page.evaluate(() => {
     const FT = window.FT;
     const pkg = FT.ops.package(FT.hydro.at(FT.state.timeH));
