@@ -668,7 +668,8 @@
   function buildCities() {
     const geo = new THREE.BoxGeometry(0.11, 1, 0.11);
     geo.translate(0, 0.5, 0);
-    const mat = new THREE.MeshLambertMaterial({ color: 0x9aa4ad });
+    const mat = makeBuildingMaterial({ extrude: false });
+    mat.color = new THREE.Color(0x9aa4ad);
     let count = 0;
     const placements = [];
     /* nearest-road bearing → buildings align to real street grid */
@@ -796,21 +797,39 @@
       }
     }
     cityMesh = new THREE.InstancedMesh(geo, mat, count);
+    /* per-instance: the building's own height in metres, and the water standing
+       against it — together these let the shader draw a waterline on every box */
+    const hArr = new Float32Array(count), fArr = new Float32Array(count);
+    geo.setAttribute("aHeightM", new THREE.InstancedBufferAttribute(hArr, 1));
+    geo.setAttribute("aFloodM", new THREE.InstancedBufferAttribute(fArr, 1));
+    cityMesh.userData.floodAttr = geo.getAttribute("aFloodM");
     const dummy = new THREE.Object3D();
     const baseC = new THREE.Color(0x9aa4ad);
+    const hFix0 = buildingHeightFix(roadCloseF);
     placements.forEach((p, i) => {
       const f = p[5] || 1;                  // p[5]: chân đế thật cố định (nhà đô thị từ ảnh z14)
       dummy.position.set(p[0], p[1], p[2]);
-      dummy.scale.set(f, p[3], f);
+      dummy.scale.set(f, p[3] * hFix0, f);
       dummy.rotation.y = p[4] !== undefined ? -p[4] : (i % 7) * 0.22;
       dummy.updateMatrix();
       cityMesh.setMatrixAt(i, dummy.matrix);
       cityMesh.setColorAt(i, baseC);
+      hArr[i] = p[3] / 0.02;               // p[3] was metres * 0.02 → back to metres
     });
     bldgPlacements = placements;
     scene.add(cityMesh);
   }
 
+  /* Buildings must NOT inherit the terrain's vertical exaggeration.
+     `p[3]` is metres * 0.02, i.e. the same 20x stretch elevToY applies to lowland relief.
+     Mountains can take that; buildings cannot — at overview (scene.scale.y = 1) a 10 m
+     house rendered 200 m tall and a 56 m block became a 1.1 km black tower, which is what
+     covered the delta in black slabs. True height is metres * 0.001 (1 unit = 1 km), and
+     because scene.scale.y squashes the whole scene it has to be divided back out so the
+     drawn height is right at every zoom, not just one. */
+  function buildingHeightFix(cf) {
+    return (0.001 / 0.02) / Math.max(0.1, 1 - cf * 0.9);
+  }
   /* cận cảnh: co nhà về gần kích thước thật (110 m → ~15 m chân đế) để đúng tỉ lệ với ảnh nền */
   let bldgScaleF = -1;
   function updateBuildingScale(cf) {
@@ -818,15 +837,77 @@
     bldgScaleF = cf;
     const dummy = new THREE.Object3D();
     const sB = 1 - cf * 0.86;
+    const hFix = buildingHeightFix(cf);
     bldgPlacements.forEach((p, i) => {
       const f = p[5] ? p[5] : sB;         // nhà đô thị đã đúng cỡ thật → không co thêm theo cf
       dummy.position.set(p[0], p[1], p[2]);
-      dummy.scale.set(f, p[3], f);        // cao giữ nguyên — scene.scale.y đã hạ phóng đại dọc toàn cục
+      dummy.scale.set(f, p[3] * hFix, f);
       dummy.rotation.y = p[4] !== undefined ? -p[4] : (i % 7) * 0.22;
       dummy.updateMatrix();
       cityMesh.setMatrixAt(i, dummy.matrix);
     });
     cityMesh.instanceMatrix.needsUpdate = true;
+  }
+
+  /* Building material: extrudes in the vertex shader and paints a flood waterline.
+
+     Two jobs, one hook. Height comes from `aUpM` (metres above ground) scaled by
+     `uMetreY`, so buildings never inherit the terrain's 20x vertical exaggeration and
+     stay true-scale at every zoom. `aFloodM` is the water standing against that
+     building, so the fragment shader can ask "is this point below the waterline?" and
+     pick one of two colours. Doing it per-fragment gives a crisp, level waterline
+     without subdividing any geometry at the water height. */
+  const BLDG_UNIFORMS = { uMetreY: { value: 0.001 }, uFloodOn: { value: 1 } };
+  function makeBuildingMaterial(opts) {
+    const extrude = !opts || opts.extrude !== false;
+    const m = new THREE.MeshLambertMaterial(
+      extrude ? { vertexColors: true, side: THREE.DoubleSide } : {});
+    m.onBeforeCompile = (sh) => {
+      sh.uniforms.uMetreY = BLDG_UNIFORMS.uMetreY;
+      sh.uniforms.uFloodOn = BLDG_UNIFORMS.uFloodOn;
+      sh.vertexShader = sh.vertexShader
+        .replace("#include <common>", `#include <common>
+          attribute float aFloodM;
+          ${extrude ? "attribute float aUpM;" : "attribute float aHeightM;"}
+          uniform float uMetreY;
+          varying float vUpM;
+          varying float vFloodM;
+          varying float vRoof;`)
+        .replace("#include <begin_vertex>", extrude ? `#include <begin_vertex>
+          vRoof = step(0.5, normal.y);
+          vUpM = aUpM;
+          vFloodM = aFloodM;
+          transformed.y += aUpM * uMetreY;` : `#include <begin_vertex>
+          /* instanced boxes: local y runs 0..1 from base to roof, and the instance
+             matrix already carries the real height, so metres-above-ground is just
+             the fraction times the building's own height */
+          vRoof = step(0.5, normal.y);
+          vUpM = position.y * aHeightM;
+          vFloodM = aFloodM;`);
+      sh.fragmentShader = sh.fragmentShader
+        .replace("#include <common>", `#include <common>
+          uniform float uFloodOn;
+          varying float vUpM;
+          varying float vFloodM;
+          varying float vRoof;`)
+        .replace("#include <dithering_fragment>", `
+          /* below the waterline = submerged; a small feather stops the line crawling
+             with vertex interpolation without blurring it into a gradient */
+          float wet = uFloodOn * (1.0 - smoothstep(vFloodM - 0.18, vFloodM + 0.18, vUpM));
+          gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(0.88, 0.20, 0.16), wet * 0.82);
+          /* a bright rule exactly at the waterline so the depth is readable, not guessed */
+          float line = (1.0 - smoothstep(0.0, 0.32, abs(vUpM - vFloodM))) * step(0.05, vFloodM) * uFloodOn;
+          gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(1.0, 0.95, 0.72), line * 0.85);
+          /* Roofs carry the severity class. True-scale buildings are seen mostly from
+             above, where every wall — and therefore the whole waterline — is hidden, so
+             without this a flooded house reads as dry at any angle but street level. */
+          float sev = smoothstep(0.15, 0.5, vFloodM) * 0.55 + smoothstep(0.5, 2.0, vFloodM) * 0.45;
+          vec3 roofCol = mix(vec3(0.96, 0.63, 0.29), vec3(0.91, 0.29, 0.25), smoothstep(0.5, 2.0, vFloodM));
+          gl_FragColor.rgb = mix(gl_FragColor.rgb, roofCol, vRoof * sev * uFloodOn * 0.9);
+          #include <dithering_fragment>`);
+    };
+    m.customProgramCacheKey = () => (extrude ? "ft-bldg-flood-x" : "ft-bldg-flood-i");
+    return m;
   }
 
   /* ---------- REAL OSM building footprints (extruded) — swap in khi dữ liệu về ---------- */
@@ -836,6 +917,11 @@
     const fps = FT.geo && FT.geo.osmBuildings;
     if (!fps || !fps.length) return;
     const pos = [], col = [], idx = [], ranges = [], shade = [];
+    /* Per-vertex metres above ground. Height then belongs to the shader, not the mesh:
+       the same 20x terrain exaggeration that turned a 10 m house into a 200 m tower is
+       divided back out at draw time, and the flood waterline can be compared against
+       these metres directly instead of subdividing geometry. */
+    const upM = [], nrm = [];
     const rng = U.mulberry(77);
     for (const fp of fps) {
       const n = fp.pts.length;
@@ -843,22 +929,22 @@
       if (te > 60 || te < 0.2) continue;
       const y0 = groundY(fp.cx, fp.cy, 0.25);
       const hM = 4 + rng() * 6 + (n > 12 ? 5 : 0);
-      const y1 = y0 + hM * 0.02;
+      const y1 = y0;                    // extrusion now happens in the shader, from aUpM
       const vStart = pos.length / 3;
       /* Walls and roof get their OWN vertices. Sharing the top ring makes
          computeVertexNormals average a horizontal wall normal with a vertical roof
          normal, so every edge rounds off and the massing reads as a smudge instead
          of a block — the single biggest reason these looked like dark blobs. */
-      for (const p of fp.pts) pos.push(p[0], y0, p[1]);          // wall bottom
-      for (const p of fp.pts) pos.push(p[0], y1, p[1]);          // wall top
+      for (const p of fp.pts) { pos.push(p[0], y0, p[1]); upM.push(0); }        // wall bottom
+      for (const p of fp.pts) { pos.push(p[0], y1, p[1]); upM.push(hM); }      // wall top
       for (let i = 0; i < n; i++) {
         const j = (i + 1) % n;
         idx.push(vStart + i, vStart + j, vStart + n + i, vStart + n + i, vStart + j, vStart + n + j);
       }
       const roofStart = pos.length / 3;
-      for (const p of fp.pts) pos.push(p[0], y1, p[1]);          // roof ring, separate
+      for (const p of fp.pts) { pos.push(p[0], y1, p[1]); upM.push(hM); }      // roof ring, separate
       const cIdx = pos.length / 3;
-      pos.push(fp.cx, y1, fp.cy);
+      pos.push(fp.cx, y1, fp.cy); upM.push(hM);
       for (let i = 0; i < n; i++) idx.push(roofStart + i, roofStart + ((i + 1) % n), cIdx);
       const vCount = pos.length / 3 - vStart;
       /* roofs catch the sky, walls do not — bake that into the base colour so the
@@ -868,15 +954,31 @@
         shade.push(s);
         col.push(0.62 * s, 0.65 * s, 0.68 * s);
       }
+      /* Normals by hand. computeVertexNormals cannot help here any more: the mesh is
+         stored flat (walls have zero height until the shader extrudes them), so it would
+         see degenerate triangles. A prism's wall normal is horizontal and independent of
+         height — take it as the direction away from the footprint centroid — and the roof
+         simply faces up. */
+      for (let i = 0; i < vCount; i++) {
+        const vi = vStart + i;
+        if (vi >= roofStart) { nrm.push(0, 1, 0); continue; }
+        const px = pos[vi * 3], pz = pos[vi * 3 + 2];
+        let dx = px - fp.cx, dz = pz - fp.cy;
+        const L = Math.hypot(dx, dz) || 1;
+        nrm.push(dx / L, 0, dz / L);
+      }
       ranges.push({ cx: fp.cx, cy: fp.cy, start: vStart, count: vCount, last: -1 });
     }
     if (!ranges.length) return;
     const g = new THREE.BufferGeometry();
     g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(pos), 3));
     g.setAttribute("color", new THREE.BufferAttribute(new Float32Array(col), 3));
+    g.setAttribute("aUpM", new THREE.BufferAttribute(new Float32Array(upM), 1));
+    /* metres of floodwater standing against each building, written by updateBuildingImpact */
+    g.setAttribute("aFloodM", new THREE.BufferAttribute(new Float32Array(upM.length), 1));
+    g.setAttribute("normal", new THREE.BufferAttribute(new Float32Array(nrm), 3));
     g.setIndex(idx);
-    g.computeVertexNormals();
-    const mesh = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }));
+    const mesh = new THREE.Mesh(g, makeBuildingMaterial());
     scene.add(mesh);
     osmBldg = { mesh, ranges, shade: new Float32Array(shade) };
     console.info(`[3d] OSM buildings — ${ranges.length} nhà thật`);
@@ -905,41 +1007,38 @@
     bldgClock += dtReal;
     if (bldgClock < 1) return;
     bldgClock = 0;
-    const cRed = new THREE.Color(0xe84a3f), cOrg = new THREE.Color(0xf5a04a), cBase = new THREE.Color(0x9aa4ad);
+    const cBase = new THREE.Color(0x9aa4ad);   // flood depth is drawn as a waterline now, not a flat tint
     let flooded = 0;
     const impactOn = FT.state.layers.impact;
+    const fAttr = cityMesh.userData.floodAttr;
     for (let i = 0; i < bldgPlacements.length; i++) {
       const p = bldgPlacements[i];
       const d = W.sampleExcess(p[0], p[2]);
-      let c = cBase;
-      if (impactOn && d >= 0.5) { c = cRed; flooded++; }
-      else if (impactOn && d >= 0.15) { c = cOrg; flooded++; }
-      cityMesh.setColorAt(i, c);
+      /* Depth goes to the shader as metres so the waterline lands at the real height on
+         the wall. The instance colour stays the dry base: saying "this house is flooded"
+         with one flat colour cannot say how deep, which is the whole question. */
+      if (fAttr) fAttr.array[i] = impactOn ? d : 0;
+      if (impactOn && d >= 0.15) flooded++;
+      cityMesh.setColorAt(i, cBase);
     }
+    if (fAttr) fAttr.needsUpdate = true;
     if (cityMesh.instanceColor) cityMesh.instanceColor.needsUpdate = true;
-    /* nhà OSM thật: tô lại theo độ ngập từng móng (theo dải màu tác động) */
+    /* Real OSM buildings: write the standing water depth per building so the shader can
+       draw the waterline. This replaces the old whole-building recolour — one flat colour
+       could say "this house is flooded" but never "the water is up to here". */
     let osmFlooded = 0;
-    if (osmBldg) {
-      const colA = osmBldg.mesh.geometry.attributes.color;
-      let dirty = false;
+    if (osmBldg && osmBldg.mesh.geometry.attributes.aFloodM) {
+      const fa = osmBldg.mesh.geometry.attributes.aFloodM;
+      let fdirty = false;
       for (const rr of osmBldg.ranges) {
-        const d = W.sampleExcess(rr.cx, rr.cy);
-        const cls = !impactOn ? 0 : d >= 0.5 ? 2 : d >= 0.15 ? 1 : 0;
-        if (cls > 0) osmFlooded++;
-        if (cls === rr.last) continue;
-        rr.last = cls;
-        const c = cls === 2 ? cRed : cls === 1 ? cOrg : null;
-        const sh = osmBldg.shade;
-        for (let i = rr.start; i < rr.start + rr.count; i++) {
-          /* keep the roof/wall tint through the impact recolour, or the flooded
-             buildings go flat and stop reading as blocks */
-          const s = sh[i];
-          const r = c ? c.r : 0.62, g2 = c ? c.g : 0.65, b = c ? c.b : 0.68;
-          colA.array[i * 3] = r * s; colA.array[i * 3 + 1] = g2 * s; colA.array[i * 3 + 2] = b * s;
-        }
-        dirty = true;
+        const d = impactOn ? W.sampleExcess(rr.cx, rr.cy) : 0;
+        if (d >= 0.15) osmFlooded++;
+        if (Math.abs(d - (rr.lastD || 0)) < 0.02) continue;
+        rr.lastD = d;
+        fa.array.fill(d, rr.start, rr.start + rr.count);
+        fdirty = true;
       }
-      if (dirty) colA.needsUpdate = true;
+      if (fdirty) fa.needsUpdate = true;
     }
     S3.homesFlooded = flooded * 9 + osmFlooded;          // procedural block ≈ cluster; móng OSM = 1 nhà thật
   }
@@ -1908,6 +2007,10 @@
     waterMat.uniforms.uGhost.value = cf;
     /* đúng tỉ lệ dọc/ngang: toàn cảnh giữ phóng đại 20× cho dễ đọc, ghé sát hạ về ~2× (gần thực) */
     scene.scale.y = 1 - cf * 0.9;
+    /* Buildings hold true height through that squash: 1 unit = 1 km, so a metre is
+       0.001, divided by the scene squash that is about to be applied to everything. */
+    BLDG_UNIFORMS.uMetreY.value = 0.001 / Math.max(0.1, scene.scale.y);
+    BLDG_UNIFORMS.uFloodOn.value = FT.state.layers.impact ? 1 : 0;
     /* rebuild nặng (ma trận nhà + màu đường) dồn về nhịp 0,25s và ngưỡng 0,08 — zoom không còn khựng */
     cfAcc += dtReal;
     let cfJump = false;
