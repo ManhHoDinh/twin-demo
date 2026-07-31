@@ -414,21 +414,49 @@
      C-08 · append-only audit trail (FR-04) + identity (FR-05)
      ================================================================ */
   const KEY = "ft.audit.v1";
+  const auditEntries = [];
+  const storedAuditEntries = new WeakSet();
+  function freezeAuditValue(value) {
+    if (!value || typeof value !== "object" || Object.isFrozen(value)) return value;
+    Object.freeze(value);
+    for (const child of Object.values(value)) freezeAuditValue(child);
+    return value;
+  }
+  function storeAuditEntry(entry) {
+    const frozen = freezeAuditValue(entry);
+    auditEntries.push(frozen);
+    storedAuditEntries.add(frozen);
+    return frozen;
+  }
   const audit = (OPS.audit = {
-    entries: [],
+    get entries() {
+      return Object.freeze(auditEntries.slice());
+    },
+    set entries(_value) {
+      return false;
+    },
     actor: { name: "", role: "" },
     load() {
-      try { audit.entries = JSON.parse(localStorage.getItem(KEY) || "[]"); } catch (e) { audit.entries = []; }
+      auditEntries.length = 0;
+      try {
+        const loaded = JSON.parse(localStorage.getItem(KEY) || "[]");
+        if (Array.isArray(loaded)) loaded.forEach((entry) => storeAuditEntry(entry));
+      } catch (e) {
+        auditEntries.length = 0;
+      }
     },
-    save() { try { localStorage.setItem(KEY, JSON.stringify(audit.entries.slice(-500))); } catch (e) { /* quota */ } },
+    save() { try { localStorage.setItem(KEY, JSON.stringify(auditEntries.slice(-500))); } catch (e) { /* quota */ } },
     hash(o) {                                            // cheap snapshot hash — production requires a cryptographic one
       const s = JSON.stringify(o); let h = 2166136261;
       for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
       return ("0000000" + (h >>> 0).toString(16)).slice(-8);
     },
+    stored(entry) {
+      return storedAuditEntries.has(entry) ? entry : null;
+    },
     log(action, detail, reason) {
       const e = {
-        seq: audit.entries.length + 1,
+        seq: auditEntries.length + 1,
         tsUtc: new Date().toISOString(),
         simT: FT.state ? U.fmt(FT.state.timeH, 2) : null,
         actor: audit.actor.name ? `${audit.actor.name} (${audit.actor.role})` : "unattributed",
@@ -438,13 +466,13 @@
         versions: OPS.versions,
       };
       e.snapshot = audit.hash({ a: action, d: detail, t: e.simT, s: e.scenario });
-      audit.entries.push(e);
+      const stored = storeAuditEntry(e);
       audit.save();
-      FT.bus.emit("opsAudit", e);
-      return e;
+      FT.bus.emit("opsAudit", stored);
+      return stored;
     },
     exportText() {
-      return audit.entries.map((e) =>
+      return auditEntries.map((e) =>
         `#${e.seq} ${e.tsUtc} T${e.simT} [${e.mode}] ${e.actor} — ${e.action} ${JSON.stringify(e.detail)}${e.reason ? ` · reason: ${e.reason}` : ""} · snap ${e.snapshot}`
       ).join("\n");
     },

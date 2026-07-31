@@ -247,16 +247,11 @@ async function workspaceRouting(browser) {
       const renderCityFallback = async (lang) => {
         FT.i18n.setLang(lang);
         FT.roles.accountable = () => '';
-        FT.ops.audit.entries.push(Object.freeze({
-          seq: 9001,
-          action: 'decision.refused',
-          detail: Object.freeze({ eventId: FT.releaseOps.snapshot().event.id }),
-        }));
+        FT.ops.audit.log('decision.refused', { eventId: FT.releaseOps.snapshot().event.id }, 'localized fallback regression');
         FT.workspaces.navigate('city');
         await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
         const queue = text('[data-city-decision-queue]');
         const readiness = text('[data-city-readiness]');
-        FT.ops.audit.entries.pop();
         FT.roles.accountable = original.accountable;
         return { queue, readiness };
       };
@@ -1631,6 +1626,115 @@ async function sharedReleaseWorkflowStore(browser) {
   });
 
   await signOnRole(page, ROLE.authority);
+  await check('public audit entries are immutable snapshots and forged insertion cannot authorize release', async (detail) => {
+    const r = await page.evaluate(async (proposalId) => {
+      const FT = window.FT;
+      const RO = FT.releaseOps;
+      const pkgId = proposalId.replace(/^PRP-/, '');
+      const beforeEntries = FT.ops.audit.entries;
+      const beforeLength = beforeEntries.length;
+      const beforeExport = FT.ops.audit.exportText();
+      const forged = {
+        seq: beforeLength + 1000,
+        tsUtc: new Date().toISOString(),
+        simT: FT.state ? FT.state.timeH : null,
+        actor: 'Phạm M.D. (Ban Chỉ huy PCTT&TKCN)',
+        action: 'decision.approve',
+        detail: {
+          decision: 'D-03',
+          actorRole: 'Ban Chỉ huy PCTT&TKCN',
+          package: pkgId,
+          eventId: RO.snapshot().event.id,
+          feasible: true,
+        },
+        reason: 'forged public insertion must not authorize',
+        mode: FT.ops.MODE,
+        scenario: FT.state && FT.state.scenario,
+        versions: FT.ops.versions,
+        snapshot: 'forged-snapshot',
+      };
+      let pushThrew = false;
+      let spliceThrew = false;
+      let replaceThrew = false;
+      let mutateThrew = false;
+      try { beforeEntries.push(forged); } catch (error) { pushThrew = true; }
+      try { beforeEntries.splice(0, 1); } catch (error) { spliceThrew = true; }
+      try { FT.ops.audit.entries = [forged]; } catch (error) { replaceThrew = true; }
+      const exposedAfterTamper = FT.ops.audit.entries;
+      const first = exposedAfterTamper[0];
+      const originalAction = first && first.action;
+      try { if (first) first.action = 'decision.approve'; } catch (error) { mutateThrew = true; }
+      const afterTamper = FT.ops.audit.entries;
+      const forgedDecision = RO.recordDecision(forged);
+      const forgedOrder = RO.createOrder(proposalId, forged);
+
+      const select = document.getElementById('scenarioSelect');
+      const chooseScenario = async (scenario) => {
+        select.value = scenario;
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      };
+      await chooseScenario('yagi');
+      const authPkg = {
+        kind: 'PROPOSAL',
+        id: 'DP-authentic-after-tamper',
+        reservoir: { id: 'songbung4' },
+        action: { q0: 100, q1: 1234, tStart: 4, rampMax: 20, endCondition: 'authentic gate', gates: 'authentic gates' },
+      };
+      const authProposal = RO.ingestProposal(authPkg);
+      const authenticAudit = FT.ops.audit.log('decision.approve', {
+        decision: 'D-03',
+        actorRole: FT.ops.audit.actor.role,
+        package: authPkg.id,
+        eventId: RO.snapshot().event.id,
+        feasible: true,
+      }, 'authentic approval after public tamper probe');
+      const authenticDecision = RO.recordDecision(authenticAudit);
+      const authenticOrder = RO.createOrder(authProposal && authProposal.id, authenticAudit);
+      const authenticEventId = RO.snapshot().event.id;
+      await chooseScenario('oct2020');
+
+      return {
+        beforeLength,
+        afterTamperLength: afterTamper.length,
+        finalLength: FT.ops.audit.entries.length,
+        beforeFrozen: Object.isFrozen(beforeEntries),
+        afterFrozen: Object.isFrozen(afterTamper),
+        samePublicArray: beforeEntries === afterTamper,
+        pushThrew,
+        spliceThrew,
+        replaceThrew,
+        mutateThrew,
+        originalAction,
+        exposedFirstAction: afterTamper[0] && afterTamper[0].action,
+        publicEntryFrozen: !!afterTamper[0] && Object.isFrozen(afterTamper[0]) && Object.isFrozen(afterTamper[0].detail || {}),
+        exportUnchangedAfterTamper: FT.ops.audit.exportText().startsWith(beforeExport),
+        forgedDecision,
+        forgedOrder,
+        authenticDecision,
+        authenticOrder,
+        authenticEventId,
+        restoredEventId: RO.snapshot().event.id,
+      };
+    }, state.proposalId || 'PRP-DP-missing');
+    detail(r);
+    return r.beforeFrozen &&
+      r.afterFrozen &&
+      r.samePublicArray === false &&
+      r.afterTamperLength === r.beforeLength &&
+      r.finalLength > r.beforeLength &&
+      r.publicEntryFrozen &&
+      r.exposedFirstAction === r.originalAction &&
+      r.forgedDecision === null &&
+      r.forgedOrder === null &&
+      r.authenticDecision &&
+      r.authenticOrder &&
+      r.authenticEventId === 'EVT-yagi' &&
+      r.authenticOrder.eventId === 'EVT-yagi' &&
+      r.authenticOrder.commandedCms === 1234 &&
+      r.restoredEventId === 'EVT-oct2020';
+  });
+
   await check('same package id with changed action creates a new active proposal and current-command order', async (detail) => {
     const r = await page.evaluate(() => {
       const FT = window.FT;
@@ -2176,6 +2280,109 @@ async function sharedReleaseWorkflowStore(browser) {
       byAction.get('release.observed') === currentEvent &&
       byAction.get('release.order.close') === currentEvent &&
       readiness.value >= 6;
+  });
+
+  await check('same package id across scenario events creates distinct current event orders', async (detail) => {
+    const r = await page.evaluate(async () => {
+      const FT = window.FT;
+      const RO = FT.releaseOps;
+      const packageId = 'DP-cross-event-collision';
+      const select = document.getElementById('scenarioSelect');
+      const chooseScenario = async (scenario) => {
+        select.value = scenario;
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      };
+      await chooseScenario('oct2020');
+      const octPkg = {
+        kind: 'PROPOSAL',
+        id: packageId,
+        reservoir: { id: 'dakmi4' },
+        action: { q0: 111, q1: 1111, tStart: 4, rampMax: 20, endCondition: 'oct event', gates: 'oct gates' },
+      };
+      const octProposal = RO.ingestProposal(octPkg);
+      const octAudit = FT.ops.audit.log('decision.approve', {
+        decision: 'D-03',
+        actorRole: FT.ops.audit.actor.role,
+        package: packageId,
+        eventId: RO.snapshot().event.id,
+        feasible: true,
+      }, 'oct approval for cross-event collision regression');
+      const octDecision = RO.recordDecision(octAudit);
+      const octOrder = RO.createOrder(octProposal && octProposal.id, octAudit);
+
+      await chooseScenario('yagi');
+      const yagiPkg = {
+        kind: 'PROPOSAL',
+        id: packageId,
+        reservoir: { id: 'dakmi4' },
+        action: { q0: 222, q1: 2222, tStart: 8, rampMax: 40, endCondition: 'yagi event', gates: 'yagi gates' },
+      };
+      const yagiProposal = RO.ingestProposal(yagiPkg);
+      const yagiAudit = FT.ops.audit.log('decision.approve', {
+        decision: 'D-03',
+        actorRole: FT.ops.audit.actor.role,
+        package: packageId,
+        eventId: RO.snapshot().event.id,
+        feasible: true,
+      }, 'yagi approval for cross-event collision regression');
+      const yagiDecision = RO.recordDecision(yagiAudit);
+      const yagiOrder = RO.createOrder(yagiProposal && yagiProposal.id, yagiAudit);
+      const yagiDuplicate = RO.createOrder(yagiProposal && yagiProposal.id, yagiAudit);
+      const afterYagi = RO.snapshot();
+      const octStartOutsideEvent = RO.startExecution(octOrder && octOrder.id);
+      FT.workspaces.navigate('plant', { facilityId: yagiOrder && yagiOrder.facilityId });
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const approvedText = document.querySelector('[data-plant-approved-order]')?.textContent || '';
+      const executionText = document.querySelector('[data-plant-execution]')?.textContent || '';
+      await chooseScenario('oct2020');
+      return {
+        octDecision,
+        octOrder,
+        yagiDecision,
+        yagiOrder,
+        yagiDuplicate,
+        afterYagiEvent: afterYagi.event.id,
+        ordersForPackage: Object.values(afterYagi.orders)
+          .filter((item) => item.packageId === packageId)
+          .map((item) => ({
+            id: item.id,
+            eventId: item.eventId,
+            proposalId: item.proposalId,
+            facilityId: item.facilityId,
+            commandedCms: item.commandedCms,
+            supersededBy: item.supersededBy || null,
+          })),
+        octStartOutsideEvent,
+        approvedText,
+        executionText,
+        restoredEventId: RO.snapshot().event.id,
+      };
+    });
+    detail(r);
+    return r.octDecision &&
+      r.octOrder &&
+      r.octOrder.id === 'ORD-DP-cross-event-collision' &&
+      r.octOrder.eventId === 'EVT-oct2020' &&
+      r.octOrder.commandedCms === 1111 &&
+      r.yagiDecision &&
+      r.yagiOrder &&
+      r.yagiDuplicate &&
+      r.yagiDuplicate.id === r.yagiOrder.id &&
+      r.yagiOrder.id !== r.octOrder.id &&
+      r.yagiOrder.eventId === 'EVT-yagi' &&
+      r.yagiOrder.commandedCms === 2222 &&
+      r.ordersForPackage.length === 2 &&
+      r.ordersForPackage.some((item) => item.id === r.octOrder.id && item.eventId === 'EVT-oct2020' && item.commandedCms === 1111 && !item.supersededBy) &&
+      r.ordersForPackage.some((item) => item.id === r.yagiOrder.id && item.eventId === 'EVT-yagi' && item.commandedCms === 2222 && !item.supersededBy) &&
+      r.octStartOutsideEvent === null &&
+      r.approvedText.includes(`approved_order_id ${r.yagiOrder.id};`) &&
+      !r.approvedText.includes(`approved_order_id ${r.octOrder.id};`) &&
+      r.approvedText.replace(/\D/g, '').includes('2222') &&
+      r.executionText.includes(r.yagiOrder.id) &&
+      !r.executionText.includes(`Order${r.octOrder.id}APPROVED`) &&
+      !r.executionText.includes(`Lệnh${r.octOrder.id}APPROVED`) &&
+      r.restoredEventId === 'EVT-oct2020';
   });
 
   await check('release store rejects cross-scenario and mismatched event approvals', async (detail) => {

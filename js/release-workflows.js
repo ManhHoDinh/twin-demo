@@ -65,8 +65,11 @@
       .sort((a, b) => b.revision - a.revision)[0] || null;
   }
 
-  function orderForProposalId(proposalId) {
-    return Object.values(state.orders).find((item) => item.proposalId === proposalId) || null;
+  function orderForProposal(proposal) {
+    return Object.values(state.orders).find((item) => item &&
+      item.eventId === proposal.eventId &&
+      item.facilityId === proposal.facilityId &&
+      item.proposalId === proposal.id) || null;
   }
 
   function currentPriorOrdersForProposal(proposal) {
@@ -82,7 +85,7 @@
 
   function storedAuditEntry(entry) {
     if (!entry || entry.seq == null || !entry.snapshot || !FT.ops || !FT.ops.audit) return null;
-    return FT.ops.audit.entries.find((item) => item.seq === entry.seq && item.snapshot === entry.snapshot) || null;
+    return typeof FT.ops.audit.stored === "function" ? FT.ops.audit.stored(entry) : null;
   }
 
   function roleIdOf(label) {
@@ -217,6 +220,23 @@
       h = Math.imul(h, 16777619);
     }
     return (h >>> 0).toString(16).slice(0, 8);
+  }
+
+  function compatibleOrder(order, proposal) {
+    return !!(order &&
+      order.eventId === proposal.eventId &&
+      order.facilityId === proposal.facilityId &&
+      order.proposalId === proposal.id);
+  }
+
+  function uniqueOrderId(baseId, proposal, staleOrders) {
+    const preferred = staleOrders.length ? `${baseId}-R${proposal.revision}` : baseId;
+    if (!state.orders[preferred] || compatibleOrder(state.orders[preferred], proposal)) return preferred;
+    const eventScoped = `${baseId}-${proposal.eventId}`;
+    if (!state.orders[eventScoped] || compatibleOrder(state.orders[eventScoped], proposal)) return eventScoped;
+    const facilityScoped = `${eventScoped}-${proposal.facilityId}`;
+    if (!state.orders[facilityScoped] || compatibleOrder(state.orders[facilityScoped], proposal)) return facilityScoped;
+    return `${facilityScoped}-${shortHash(proposal.id)}`;
   }
 
   function proposalMatchesPackage(proposal, pkg, facility, action) {
@@ -384,14 +404,13 @@
     if (!stored) return null;
     const decisionId = `DEC-${stored.seq}`;
     const decision = state.decisions[decisionId] || buildDecision(proposal, stored, PROCESS.APPROVED);
-    if (orderForProposalId(proposal.id)) return orderForProposalId(proposal.id);
+    const existingOrder = orderForProposal(proposal);
+    if (existingOrder) return existingOrder;
     const baseId = `ORD-${proposal.packageId}`;
     const staleOrders = currentPriorOrdersForProposal(proposal);
     const supersededOrderIds = staleOrders.map((order) => order.id);
-    const id = staleOrders.length
-      ? `${baseId}-R${proposal.revision}`
-      : baseId;
-    if (state.orders[id]) return state.orders[id];
+    const id = uniqueOrderId(baseId, proposal, staleOrders);
+    if (state.orders[id] && compatibleOrder(state.orders[id], proposal)) return state.orders[id];
     const order = deepFreeze({
       id, eventId: proposal.eventId, proposalId: proposal.id, decisionId: decision.id,
       facilityId: proposal.facilityId, packageId: proposal.packageId,
