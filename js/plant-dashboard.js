@@ -292,7 +292,7 @@
     const advisory = {
       lifecycleClass: cls || "MISSING",
       actionable: FT.lifecycle && cls ? FT.lifecycle.isActionable(cls) : false,
-      notice: FT.lifecycle && cls ? FT.lifecycle.reviewNotice(cls) : "No current proposal-class decision package.",
+      notice: FT.lifecycle && cls ? FT.lifecycle.reviewNotice(cls) : tr("plant.noProposalClass"),
       gateInstructionsAvailable: false,
     };
     section.dataset.plantLifecycleClass = advisory.lifecycleClass;

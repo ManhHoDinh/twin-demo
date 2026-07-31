@@ -234,7 +234,7 @@
 
   function refusalText(refusal) {
     return refusal
-      ? tr("city.refusal", { actor: refusal.detail.actorRole || "unknown role", role: refusal.detail.requiredRole || "required role" })
+      ? tr("city.refusal", { actor: refusal.detail.actorRole || tr("city.unknownRole"), role: refusal.detail.requiredRole || tr("city.requiredRole") })
       : tr("city.noRefusal");
   }
 
@@ -334,7 +334,7 @@
       } else if (decision) {
         card.append(
           text("strong", "", `${decision.id} · ${decision.kind || "CURRENT_PACKAGE"}`),
-          text("p", "", tr("city.accountableRole", { role: decision.accountable || "unassigned in RACI" })),
+          text("p", "", tr("city.accountableRole", { role: decision.accountable || tr("city.unassignedRaci") })),
           text("p", "", decision.consulted && decision.consulted.length ? tr("city.consulted", { roles: decision.consulted.join(", ") }) : tr("city.consultedNone"))
         );
       } else {

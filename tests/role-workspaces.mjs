@@ -237,6 +237,57 @@ async function workspaceRouting(browser) {
       JSON.stringify(state.enTokens) === JSON.stringify(state.viTokens);
   });
 
+  await check('missing-data i18n fallbacks are localized without changing canonical tokens', async (detail) => {
+    const state = await directCity.page.evaluate(async () => {
+      const text = (selector) => document.querySelector(selector)?.textContent.replace(/\s+/g, ' ').trim() || '';
+      const original = {
+        accountable: FT.roles.accountable,
+        classifyDecision: FT.lifecycle && FT.lifecycle.classifyDecision,
+      };
+      const renderCityFallback = async (lang) => {
+        FT.i18n.setLang(lang);
+        FT.roles.accountable = () => '';
+        FT.ops.audit.entries.push(Object.freeze({
+          seq: 9001,
+          action: 'decision.refused',
+          detail: Object.freeze({ eventId: FT.releaseOps.snapshot().event.id }),
+        }));
+        FT.workspaces.navigate('city');
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        const queue = text('[data-city-decision-queue]');
+        const readiness = text('[data-city-readiness]');
+        FT.ops.audit.entries.pop();
+        FT.roles.accountable = original.accountable;
+        return { queue, readiness };
+      };
+      const renderPlantFallback = async (lang) => {
+        FT.i18n.setLang(lang);
+        FT.lifecycle.classifyDecision = () => null;
+        FT.workspaces.navigate('plant', { facilityId: 'song-tranh-2' });
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        const advisory = text('[data-plant-advisory]');
+        FT.lifecycle.classifyDecision = original.classifyDecision;
+        return advisory;
+      };
+      const enCity = await renderCityFallback('en');
+      const enPlant = await renderPlantFallback('en');
+      const viCity = await renderCityFallback('vi');
+      const viPlant = await renderPlantFallback('vi');
+      FT.i18n.setLang('vi');
+      FT.workspaces.navigate('city');
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      return { enCity, enPlant, viCity, viPlant };
+    });
+    detail(state);
+    const viText = `${state.viCity.queue} ${state.viCity.readiness} ${state.viPlant}`;
+    return /unassigned in RACI|unknown role|required role/i.test(`${state.enCity.queue} ${state.enCity.readiness}`) &&
+      /No current proposal-class decision package/i.test(state.enPlant) &&
+      /chưa phân công trong RACI|vai trò không xác định|vai trò bắt buộc/i.test(viText) &&
+      /Không có gói quyết định loại đề xuất tại thời điểm hiện tại/i.test(state.viPlant) &&
+      !/unassigned in RACI|unknown role|required role|No current proposal-class decision package/i.test(viText) &&
+      /PROPOSAL|RECOMMENDATION|MISSING/i.test(`${state.viCity.queue} ${state.viPlant}`);
+  });
+
   await check('role workspace DOM order puts critical decision content before shared map for keyboard flow', async (detail) => {
     const order = await directCity.page.evaluate(async () => {
       FT.workspaces.navigate('city');
