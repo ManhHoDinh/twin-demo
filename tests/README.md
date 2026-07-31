@@ -66,6 +66,67 @@ From `SkyLabs_SURF2026/scripts/` — the parts that were expensive to learn:
 4. **Invariant tests, not just interaction tests.** Determinism, state purity, message
    numeric consistency, constraint feasibility — properties, not clicks.
 5. **Machine-readable `report.json`** for diffing runs.
+6. **Pixel-level visual gating** (`zoom-visual.mjs`, `npm run test:zoom`). Nothing else in
+   the suite looks at what the WebGL canvas actually draws — e2e asserts state, ux-audit
+   asserts layout — so a scene can render as dark mush with every check green.
+
+---
+
+## `zoom-visual.mjs` — read this before changing it
+
+Four things about it are deliberate, and each one was learned by getting it wrong first:
+
+- **Screenshots, not canvas reads.** The renderer has no `preserveDrawingBuffer`, so
+  drawing the app canvas into a 2D canvas yields a transparent image and every metric
+  silently reads 0 — it looks like a measurement, not an error.
+- **The sim clock is pinned** (`SIM_TIME_H`). The app auto-plays, so an unpinned run
+  samples a different moment of the flood each time; an 11-point metric swing that looked
+  like a code regression turned out to be nothing but clock drift.
+- **Regression gate against a per-view baseline, not a fixed threshold.** `murkPct`
+  reflects scene content as well as scene defects: a clean Đà Nẵng street view is ~36%
+  because the river and bay sit in that luma band, while clean Ái Nghĩa inland is ~23%.
+- **Thresholds sit below the measured effect, never on it.** A claim first written at
+  `detail ≥ 0.4` then measured 0.43 and 0.35 across two runs — a gate on the mean, which
+  would have flaked half the time.
+
+`--compare[=switch]` re-sweeps with a kill switch (`drapelegacy`, `waterlegacy`) so
+before/after is a live measurement of both code paths rather than a stale file. A run with
+failed tile feeds is reported, skipped, and refused as a baseline.
+
+It also guards a bug class that has now been found **five separate times**: objects sized
+for the 96 km overview that never shrink when the camera comes down — the deep-zoom drape,
+110 m building footprints, 600 m road ribbons, 300 m vehicles, 310 m gauge markers. At
+street zoom nothing may draw wider than 250 m.
+
+**Two things about that guard were wrong on the first attempt, and both are worth knowing
+before you touch it.** It sampled `instance 0` of each instanced mesh — but unused vehicle
+slots are parked at scale 0.001, so an idle slot 0 let a 300 m vehicle straight through;
+the gate was proved useless by reintroducing the real bug in a scratch copy and watching it
+stay green. And it measured whole-mesh bounding boxes, so the merged road mesh reported
+79 km while every individual ribbon was 108 m wide. It now scans all instances for the max
+and only measures instanced meshes and single marker primitives, where the bounding box
+really is the object's size.
+
+**Verify a new gate by breaking the code it protects.** A gate that has never failed is
+decoration.
+
+---
+
+## `map-errors.mjs` — the sweep that fails on swallowed exceptions
+
+`npm run test:map-errors`. Drives the map the way a user does — 3D flies to four cities at
+three zoom intents, deep zoom, camera presets, orbit, every layer toggled off and on, a full
+scrub of the flood, the 2D view and back — and fails on any console error, `pageerror`, or
+failed same-origin request.
+
+It exists because every other suite asserts an *outcome*. This app swallows exceptions on
+purpose (`try { buildOsmRoads() } catch { console.warn(...) }`), so a 3D layer that throws
+looks identical to a slow network and no outcome assertion notices.
+
+Third-party tile failures are **reported but do not fail the run** — Esri and Overpass go
+down often enough that a suite which reddens on someone else's CDN is a suite people learn
+to ignore. That reporting is what surfaced `overpass-api.de` refusing connections, which in
+turn led to finding that Hội An had zero buildings whenever OSM was unavailable.
 
 ---
 

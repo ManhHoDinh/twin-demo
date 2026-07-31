@@ -17,7 +17,7 @@
 ```
 hydro.js  (giải tích T−24h→T+48h, rule & mpc, ensemble, sự kiện)
    ▼ stage/outflow/alert
-world.js  (SWE virtual-pipes 144² CHỈ trên đồng bằng <28 m; núi diagnostic;
+world.js  (SWE virtual-pipes 288² CHỈ trên đồng bằng <28 m; núi diagnostic;
            đáy sông bám địa hình; hBase = max(giải tích, settle); floodCap vật lý)
    ▼ depth/velocity/excess          ▼ excess trên mẫu đoạn đường
 scene3d / map2d / charts        traffic.js (Dijkstra, đóng ≥30 cm, ETA)
@@ -57,7 +57,7 @@ SWE giới hạn đồng bằng · đáy sông theo bucket-min thực khắc · 
 ## 6. Bản đồ THẬT & lớp tác động (v36–v60)
 
 - `js/geo.js`: DEM AWS Terrain z11 + Esri World Imagery **z12** (5 cửa sổ z14 + patch gốc ~9 m/px cho zoom sâu) + Esri World Transportation (đường thật raster) + Overpass OSM vector (2 mirror, progressive); bbox 107,55–108,45°E / 15,30–16,16°N (96 km); fallback procedural khi offline.
-- Địa hình 3D 384² drape ảnh thật, tách khỏi lưới sim 144²; nước hiển thị 240² bilinear, **5 dải độ sâu rời rạc** đồng bộ 2D/3D; nước overbank màu phù sa.
+- Địa hình 3D 384² drape ảnh thật, tách khỏi lưới sim 288²; nước hiển thị 240² bilinear, **5 dải độ sâu rời rạc** đồng bộ 2D/3D; nước overbank màu phù sa.
 - Tác động: tòa nhà đặt theo pixel ảnh (cam ≥15 cm/đỏ ≥50 cm, đếm "Nhà ngập"), nhiệt đồ dân×ngập, choropleth khu vực theo **độ sâu TB** + nhãn "max · TB", thanh đo meanD từng khu.
 - Vận hành: glyph hồ = cột mực nước + vạch trần trước lũ; camera toàn cảnh chéo xuống; kiosk tự phát lại; deep-link `#tour #2d #focus #yagi #monsoon #en`; ghi công dữ liệu footer.
 

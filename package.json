@@ -17,10 +17,13 @@
     "shell": "node tests/shell-smoke.mjs && node tests/shell-interactions.mjs && node tests/shell-layout.mjs",
     "shell:layout": "node tests/shell-layout.mjs",
     "test:earth-map": "node tests/earth-map.mjs",
+    "test:zoom": "node tests/zoom-visual.mjs",
+    "zoom:compare": "node tests/zoom-visual.mjs --compare",
     "physics": "node tests/physics-conservation.mjs",
-    "test": "npm run docs:engineering && npm run docs:objective && npm run docs:integrated && npm run docs:workflow && npm run test:explainability && npm run compare && node tests/e2e.mjs && node tests/ux-audit.mjs && npm run shell && npm run test:earth-map && npm run physics",
+    "test": "npm run docs:engineering && npm run docs:objective && npm run docs:integrated && npm run docs:workflow && npm run test:explainability && npm run compare && node tests/e2e.mjs && node tests/ux-audit.mjs && npm run shell && npm run test:earth-map && npm run test:zoom && npm run test:map-errors && npm run physics",
     "ux": "node tests/ux-audit.mjs",
-    "ux:strict": "node tests/ux-audit.mjs --strict"
+    "ux:strict": "node tests/ux-audit.mjs --strict",
+    "test:map-errors": "node tests/map-errors.mjs"
   },
   "devDependencies": {
     "playwright": "^1.62.0"

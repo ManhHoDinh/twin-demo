@@ -16,7 +16,7 @@
 
 ## Điểm neo kỹ thuật
 - **Bản đồ thật**: DEM AWS z11 · Esri Imagery z12 + live-tiles theo khung nhìn tới z19 · Esri Transportation (raster) + OSM vector (3 mirror, tự bật ở trình duyệt thật — footer "OSM ✓ N") · tọa độ đập/trạm/đường/khu là thật · ghi công ở footer.
-- **Mô phỏng**: SWE virtual-pipes 144² trên đồng bằng (<28 m) + đồng hóa mực trạm; hydrology giải tích T−24→+48 h, 2 chính sách (Rule/MPC) + ensemble; giao thông Dijkstra đóng ≥30 cm; 12 khu giám sát; tác động (nhà ngập theo pixel ảnh, nhiệt đồ dân×ngập, 5 dải mật độ nước, max·TB).
+- **Mô phỏng**: SWE virtual-pipes 288² (~333 m/ô) trên đồng bằng (<28 m) + nudging theo chuỗi mực trạm tổng hợp; hydrology giải tích T−24→+48 h, 2 chính sách (Rule/MPC) + ensemble; giao thông Dijkstra đóng ≥30 cm; 12 khu giám sát; tác động (nhà ngập theo pixel ảnh, nhiệt đồ dân×ngập, 5 dải mật độ nước, max·TB).
 - **Tự kiểm định**: mỗi lần mở app chạy `selfTestHydro` (MPC cắt đỉnh · BĐ3 · quantile · cân bằng khối) — footer hiện **H✓**; FAIL sẽ toast đỏ.
 - Quy tắc chống thoái lui + lịch sử chi tiết: `IMPROVEMENT_LOG.md`, `PLAN.md`, memory nội bộ `floodtwin-q1-demo`.
 

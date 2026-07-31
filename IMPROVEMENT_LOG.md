@@ -3,6 +3,225 @@
 > File này là TRẠNG THÁI BỀN của phiên cải tiến dài. Mỗi batch: cập nhật Done + chọn mục Backlog kế tiếp.
 > Quy tắc bất di bất dịch: xem memory `floodtwin-q1-demo` (do-not-regress list). Bump `?v=N` mỗi lần sửa để pane reload.
 
+## v133 — Hội An không có một ngôi nhà nào khi OSM sập, và quét lỗi bản đồ
+
+Thêm `tests/map-errors.mjs` (`npm run test:map-errors`, đã nối vào `npm test`): lái bản đồ
+như người dùng — 3D bay tới 4 thành phố × 3 mức zoom, deep zoom, preset camera, orbit,
+bật/tắt **mọi** layer, scrub suốt trận lũ, chuyển 2D và bay tiếp, rồi kiểm tra sức khoẻ
+WebGL — và **đỏ khi có bất kỳ console error / pageerror / request hỏng cùng gốc nào**.
+
+Lý do cần nó: các suite khác kiểm *kết quả* (e2e kiểm state, earth-map kiểm hợp đồng view,
+zoom-visual kiểm pixel). Không cái nào đỏ khi app **nuốt** một exception, mà app này nuốt
+có chủ ý (`try { buildOsmRoads() } catch { console.warn(...) }`) — nên một lớp 3D hỏng
+trông y hệt mạng chậm. Tile 504 của bên thứ ba được **báo nhưng không làm đỏ**: đó là thời
+tiết bình thường của app này, và một suite đỏ vì CDN người khác sẽ bị bỏ qua.
+
+**Kết quả quét: không có lỗi nào phía app.** Nhưng log lộ ra `overpass-api.de`
+**ERR_CONNECTION_REFUSED** — Overpass từ chối kết nối thường xuyên, nên nhà OSM hay không
+về. Lần theo đó tìm ra hai lỗi thật:
+
+**1. Hội An — thành phố trọng tâm của demo — có ĐÚNG 0 ngôi nhà khi OSM sập**, dù 9500 nhà
+procedural vẫn được vẽ. Hạn mức 9500 là **ngân sách chung, ai đến trước lấy trước**; cửa sổ
+Đà Nẵng (lớn nhất, xét đầu tiên) ăn sạch phần còn lại. Nay mỗi cửa sổ được chia đều phần
+còn dư, tính lại theo từng cửa sổ nên suất chưa dùng hết tự động dồn sang cửa sổ sau.
+
+**2. Nhà dồn hết lên mép trên mỗi vùng quét.** Sau khi sửa (1), cửa sổ Hội An có 909 nhà mà
+quanh phố cổ **vẫn 0**. Tôi đoán là bộ lọc màu loại mái ngói ấm — **đo thì sai**: bộ lọc vẫn
+nhận 2664 pixel quanh đó. Nguyên nhân thật là ngân sách bị tiêu **theo thứ tự quét từ trên
+xuống**, hết sạch trước khi quét tới phố cổ. Nay có một lượt **đếm mật độ trước**, rồi nhận
+một tỉ lệ cố định trải đều toàn vùng.
+
+Đo sau khi sửa: Hội An **0 → 422 nhà** trong bán kính 3 km; phân bố giữa 5 cửa sổ đều hẳn
+(1566–2190 thay vì 700/909/700/1192/701); và hộp bao nhà kéo dài tới z = 76,6 km thay vì
+47,2 — **nam lưu vực trước đây chưa bao giờ được quét tới**, cùng một lỗi thứ-tự-quét.
+
+## v132 — Xe cộ 300 m, marker trạm đo 310 m, và nước lũ vẽ chìm trong sườn đồi
+
+Ba khiếm khuyết còn lại ở tầm zoom toà nhà, tìm bằng cách **loại trừ từng layer** chứ không
+phải đoán — tôi đã đoán sai ba lần liên tiếp về những "mảng nâu" này (nghi nhà, nghi đường,
+nghi vòng cảnh báo vùng) trước khi tắt đúng layer `traffic` và thấy chúng biến mất sạch.
+
+**1. Xe cộ vẽ to 300 m — và hệ số co ĐÃ CÓ trong code nhưng là code chết.**
+`BoxGeometry(0.3, 0.11, 0.14)` tính bằng km, tức mỗi "chiếc xe" dài 300 m rộng 140 m,
+bằng cả một khối phố. Trong `updateVehicles`:
+
+```js
+const sV = 1 - roadCloseF * 0.86;
+vehDummy.scale.set(sV, sV, sV);      // tính đúng hệ số co theo zoom…
+const s = v.type === "moto" ? 0.5 : ...;
+vehDummy.scale.set(s, 1, s);         // …rồi bị ghi đè ngay, sV bị vứt đi
+```
+
+Dòng thứ hai ghi đè toàn bộ vector nên `sV` **chưa bao giờ có tác dụng**. Hai hệ số phải
+nhân với nhau, không phải gán hai lần. Đây là nguồn của tất cả "mảng nâu/đỏ" đè lên thành
+phố ở street zoom — nâu là do ribbon đường (renderOrder 3) phủ lên xe màu đỏ bên dưới.
+
+**2. Marker trạm đo là hình cầu đường kính 310 m trên cột 1,1 km.** Cỡ đó để tìm được trạm
+trên miền 96 km, nhưng ghé sát thì nó là vệt vàng phủ kín một khu phố. Giờ co theo cùng hệ
+số cận cảnh: **310 m → 93 m**. Tầm tổng quan không đổi (`roadCloseF = 0`).
+
+**3. Nước lũ vẽ chìm trong sườn đồi.** Solver chạy trên lưới sim 288², người xem nhìn lưới
+DEM 384². Chỗ mặt đất hiển thị cao hơn mặt nước mô phỏng thì nước bị vẽ **bên trong** quả
+đồi và biến mất — đo được **26,9% số đỉnh ướt**. Nâng mặt nước lên mặt đất nhìn thấy, nhưng
+**có trần `WATER_LIFT_CAP = 4 m`**.
+
+Cái trần mới là điểm mấu chốt, và số liệu theo vành đai địa hình quyết định nó:
+
+| Vành đai | Chìm trước | Chìm sau |
+|---|---|---|
+| Đồng bằng (< 25 m) — nơi ra quyết định | 8,3% | **2,6%** |
+| Đồi (25–200 m) | 68,5% | 56,5% |
+| Núi (> 200 m) | 86,9% | 83,3% |
+
+Ở đồng bằng hai lưới lệch nhau vài mét → nâng lên là **sửa lỗi render**. Ở núi chúng lệch
+tới **291 m** → nâng lên sẽ **bịa ra nước trên sườn núi**. Đó là giới hạn dữ liệu, không
+phải lỗi hiển thị, và không được che đi. Nên vùng núi gần như không đổi, đúng chủ ý.
+Đo hiệu năng sau khi sửa: **59,9 fps** ở street zoom, không hồi quy.
+
+**4. Gate tự bắt lớp bug này về sau — và tôi đã phải sửa chính cái gate.**
+Đã tìm thủ công **năm lần** cùng một lớp lỗi (drape, chân đế nhà 110 m, ribbon đường 600 m,
+xe 300 m, marker trạm đo 310 m), nên `zoom-visual` giờ có kiểm tra: ở street zoom, không đối
+tượng nào được vẽ rộng quá **250 m**.
+
+Bản đầu của cái gate **vô dụng và suýt ship**: nó lấy `instance 0` làm đại diện, mà các slot
+xe chưa dùng được "cất" ở scale 0,001 — slot 0 vô tình rỗng thì gate đọc 0,3 m và cho một
+chiếc xe 300 m đi qua. Tôi phát hiện bằng cách **tái tạo đúng lỗi cũ trên một bản sao** và
+thấy gate vẫn báo xanh. Sau khi quét max trên mọi instance (bỏ qua sentinel), bản sao hỏng
+báo đúng `instanced[BoxGeometry] 390m`, bản đã sửa vẫn xanh.
+
+Bản đầu còn có **dương tính giả**: nó đo bounding box cả mesh, nên mesh đường gộp trải 79 km
+bị báo dù mỗi ribbon chỉ 108 m. Giờ chỉ đo instanced mesh và marker đơn (Sphere/Plane/…),
+là những chỗ bbox đúng bằng kích thước đối tượng. Marker thanh mức của đập cũng được co theo
+cùng hệ số; thân đập là công trình vật lý nên giữ nguyên.
+
+## v131 — Nước lũ không còn xoá mặt đất, mà diện ngập vẫn rõ (P5)
+
+Ở street zoom nước lũ sâu vẽ ở alpha **0,90** với màu chàm sẫm → xoá sạch thành phố bên
+dưới; sông/biển `(0.05, 0.28, 0.41)` alpha 0,64 đọc như vệt đen cắt qua đô thị.
+
+Làm nhạt **ruột** (hệ số fade khi ghé sát 0,40 → 0,58) và nâng `natural` + dải sâu `c5`
+khỏi vùng gần đen. Nhưng làm nhạt ruột **chỉ chấp nhận được nếu ranh giới ngập vẫn rõ**.
+
+**Lần một tôi làm sai và ảnh so sánh đã bắt được.** Viền dựa theo độ sâu
+(`vDepth < 0.3 m`) không bao giờ xuất hiện ở chỗ nước sâu 6,5 m — tức là mất hẳn viền
+đúng nơi ngập nặng nhất. Diện ngập mờ đi trông thấy: một hồi quy thật, đổi thông tin
+lấy độ trong.
+
+**Lần hai:** thuộc tính đỉnh **`aEdge`** tính trong `updateWater` — đỉnh ướt có ít nhất
+một hàng xóm 4-lân cận khô. Ranh giới là thuộc tính của *mép*, mà fragment shader không
+thấy hàng xóm, nên phải tính ở CPU. Shader vẽ viền sáng tại đó với alpha **độc lập
+`uGhost`**: ruột nhạt đi, diện ngập vẫn đọc được.
+
+Hệ số fade giờ đi từ `WATER_STYLE` vào shader **qua uniform**. Trước đó cùng cặp số nằm
+ở hai nơi — đúng kiểu để `waterPresentation()` báo cho `earth-map` contract một con số
+mà scene không hề vẽ. Contract vẫn giữ nguyên: `closeOpacity < farOpacity`,
+`boundaryOpacity ≥ 0,72`, `flowOpacity ≥ 0,72`, permanent ≠ simulated.
+
+**Hai bài học đo lường, đáng nhớ hơn cả bản sửa:**
+
+1. **Sim tự chạy trong lúc harness đo** — mỗi lượt đo một thời điểm lũ khác nhau. Đây
+   chính là nguồn dao động `district` 44,7 → 33,1 mà tôi từng tưởng do code gây ra.
+   Giờ ghim `SIM_TIME_H = 12` (đủ sâu trong lũ — đo cách nước hiển thị thì phải có nước
+   trong khung).
+2. **Ngưỡng gate phải đặt DƯỚI hiệu ứng đo được, không phải ngay tại nó.** Tôi đặt claim
+   `detail ≥ 0.4` *trước* khi đo; hai lượt sau cho **0,43 rồi 0,35** — ngưỡng nằm đúng
+   trên trung bình, gate sẽ hỏng khoảng một nửa số lần. Tôi **không** hạ ngưỡng cho vừa
+   rồi thôi: `detail` tăng thật nhưng chỉ ~0,4 ± 0,05 và không tăng ở mọi khung, nên nó
+   được in ra để xem, còn gate đặt trên `murkPct` ở mức 1,5 điểm mà cả hai lượt đều vượt
+   xa. Metric mới `detail` (gradient Sobel trung bình) vẫn hữu ích: nó biến câu hỏi "còn
+   nhìn thấy thành phố dưới nước không" thành một con số.
+
+Kill-switch **`?waterlegacy`**; `npm run zoom:compare` giờ nhận `--compare=<switch>` và
+mỗi switch tự khai báo metric + hướng nó phải dịch chuyển.
+
+## v130 — Nhà hiện lại, ánh sáng cự ly gần, ribbon đường co theo zoom (P2 + P3)
+
+Tiếp nối v129. Bốn thay đổi, trong đó **một là sửa hệ quả phụ do chính v129 gây ra**.
+
+**1. v129 đã chôn nhà — đã sửa.** Nâng drape lên `max(DEM, mặt-địa-hình)` khiến drape cao hơn
+DEM trung vị **1,27 m**, p95 **3,95 m**, tối đa **12,18 m**. Nhà OSM chỉ cao 4–15 m, nên phần lớn
+bị ngập dưới drape và gần như biến mất ở street zoom. Sửa bằng cách đưa **mọi thứ đứng trên mặt
+đất** về cùng một mốc `groundY(x, y) = max(elevToY(DEM), mặt-địa-hình)`: nhà, đường, xe, trạm đo,
+đập, vòng vùng, nhãn, vòng chọn. Trước đây mỗi chỗ tự lấy `elevToY(terrAt(...))` riêng.
+Mặt nước **cố ý giữ nguyên** neo cũ — đó là vòng lặp 10 Hz trên WN² đỉnh, thêm truy vấn mặt
+địa hình vào đó cần có số đo trước (xem P5).
+
+**2. Ánh sáng cự ly gần.** Rig hoàng hôn (`0x081726`, hemisphere ground `0x18261f`, **không
+ambient**) làm mọi mặt tường quay lưng đèn key rơi xuống gần đen khi ghé sát. Thêm
+`AmbientLight` chỉ sáng lên theo độ gần (`cf * 0.42`), hemisphere `0.85 → 1.2`, sky lerp về màu
+mù ban ngày, và `fog.near/far` nhân theo `26/camD` — sương chỉnh cho tầm 96 km vốn nuốt mất
+trung cảnh của một khung nhìn 5 km. Tầm tổng quan **không đổi** (`cf = 0` ở mọi mức ≥ 26).
+
+**3. Khối nhà đọc được.** Mái và tường giờ có **đỉnh riêng**, không dùng chung vòng đỉnh nữa:
+trước đây `computeVertexNormals()` trộn normal ngang của tường với normal dọc của mái nên mọi
+cạnh bo tròn và khối nhoè thành vệt. Mái sáng hơn tường (1,24 / 0,92) và hệ số này được giữ qua
+cả lượt tô lại theo mức ngập.
+
+**4. Ribbon đường co theo zoom.** Nửa bề rộng 0,11–0,30 km (~20× thật) để nhìn được ở tầm 96 km;
+ghé sát thì thành mảng 600 m nằm đè lên thành phố. Cách giảm mờ sẵn có **không đủ** vì đường
+*ngập* cố ý giữ alpha 1 — đúng những mảng nâu/cam to nhất. Giờ lưu tim đường + vector lệch mỗi
+đỉnh, co bề rộng còn 0,18× khi ghé sát, theo đúng nhịp 0,25 s của lượt tô màu. Đo được:
+**600 m → 108 m**. Áp dụng cho cả nhánh OSM lẫn nhánh procedural.
+
+**Một lớp bug lặp lại, đáng nhớ:** mesh dựng lại theo sự kiện mạng (`osmRoads`, `osmBuildings`)
+chỉ được áp scale/bề rộng khi mức zoom **thay đổi**. Camera đang đứng yên ở cự ly gần lúc dữ liệu
+về thì mesh giữ nguyên kích thước dựng sẵn — nhà 110 m, đường 600 m. Cả `swapOsmBuildings`,
+`buildOsmRoads` và `buildRoads` giờ đều áp ngay sau khi dựng.
+
+**Harness:** `zoom-visual` giờ báo `hasImagery/hasDEM/hasOSMBldg`, **bỏ qua gate** và **từ chối
+ghi baseline** khi lượt chạy bị suy giảm. Lý do rất thực tế: tile Esri/OSM 504 đủ thường xuyên để
+một lượt đo trên cảnh **không có ảnh vệ tinh nào** — số đo đó vô nghĩa khi so với baseline, và
+đóng băng nó làm baseline thì mọi lượt sau đều so với một cảnh hỏng.
+
+Kết quả (lượt có ảnh vệ tinh, so với baseline v129): hoian/street murk **31,6 → 19,9**,
+danang/street **36,6 → 30,9**, meanLuma street tăng 145 → 151 / 147 → 145 / 124 → 127.
+`npm test` xanh toàn bộ, physics PASS.
+
+Còn để ngỏ: **P5 tương phản nước** — mặt nước lũ hiện phủ mảng tím/lam khá dày, che nền ở
+street zoom; và bề rộng đường 108 m vẫn ~5× thật, muốn hẹp nữa thì phải cân với yêu cầu nhìn rõ
+trạng thái ngập của tuyến.
+
+## v129 — Zoom cận cảnh hết mảng đen: lưới địa hình thô không còn đâm thủng drape
+
+Người dùng báo "zoom vào chi tiết từng toà nhà thì đất, nhà và nước rất khó nhìn, có phần bị
+màu đen và bị màu tối". Đây là lỗi **hình học**, không phải lỗi màu.
+
+Ở `dist ≤ 34` app phủ lớp drape deep-zoom `DQ` (tile z13–z19) lên mặt đất. Drape bám **DEM**,
+còn lưới địa hình bên dưới render ở **lưới thô 384² (~250 m/ô)**. Giữa hai nút lưới thô, tam
+giác phẳng của nó nằm *cao hơn* DEM đang cong bên dưới; drape chỉ được nhấc ~1,75 m nên **địa
+hình thô chọc thủng qua drape**. Chỗ chọc thủng là ảnh z12 mờ + shading Lambert → mảng xám đen
+loang lổ khắp thành phố.
+
+- `terrainSurfaceY()` nội suy **đúng mặt tam giác lưới địa hình đang vẽ** (cùng cách chia tam
+  giác với index buffer) thay vì đọc DEM; `terrainSurfaceMax()` lấy thêm 4 điểm cách nửa ô
+  drape, phủ trường hợp drape mới là lưới thô hơn. Cao độ drape = `max(DEM, mặt-địa-hình) + lề`.
+- Cả hai đường dựng terrain (hi-res 384² và fallback theo lưới sim) đều nạp `terrGrid`.
+- Kill-switch **`?drapelegacy`** khôi phục cao độ drape cũ (theo quy ước `?classic`), để so sánh
+  trước/sau là phép đo hai nhánh code và để rollback.
+- Harness mới `tests/zoom-visual.mjs` (`npm run test:zoom`, đã nối vào `npm test`;
+  `npm run zoom:compare` in hai cột cạnh nhau).
+
+Đo được: murk giảm trung bình **12,6 điểm**. Hội An street 48,0% → 28,1%; Ái Nghĩa street
+40,3% → 23,1%; Đà Nẵng street 47,8% → 36,3%. meanLuma tăng đều 9–16 điểm. Mức `district`
+không đổi — đúng kỳ vọng vì drape chỉ bật khi `dist ≤ 34`.
+
+**Hai bẫy đo lường đã trả giá, đừng lặp lại:**
+1. Không đọc được canvas bằng `drawImage` — renderer không bật `preserveDrawingBuffer`, mọi
+   metric **im lặng trả về 0**. Phải qua `page.screenshot()` rồi `createImageBitmap` trong page.
+2. Metric "đếm pixel tối" **không bắt được lỗi này**: mảng lỗi là xám xỉn chứ không đen, ngưỡng
+   `luma < 55` đọc ~1% ở cả khung lỗi lẫn khung sạch. Metric dùng được là `murkPct` (tỉ lệ pixel
+   luma 64–112), chọn bằng hiệu chỉnh trên cặp ảnh cùng góc máy: 35,3% vs 19,8%.
+
+Gate là **chống hồi quy theo baseline**, không phải ngưỡng cố định: `murkPct` phản ánh cả nội
+dung cảnh (Đà Nẵng 36% mà khung hoàn toàn sạch — sông Hàn + vịnh nằm đúng dải luma đó; Ái Nghĩa
+trong đất liền chỉ 23%). Một con số cố định qua được cái này thì trượt cái kia.
+
+**Ba giả thuyết đã bị bác bằng thực nghiệm** (chi tiết trong `PLAN_ZOOM_LEGIBILITY.md`): nhà
+OSM/thủ tục (tắt layer `bldg` → mảng tối còn nguyên); mặt nước lũ (tắt `water` → còn nguyên);
+normal địa hình bị lật do `scene.scale.y` (0/147456 đỉnh có `ny ≤ 0`, `minNy = 0.138`).
+
+Còn để ngỏ: P2 ánh sáng cự ly gần, P3 khối nhà, P5 tương phản nước.
+
 ## v118–v119 — Thẩm quyền quyết định (RACI) được thực thi, không còn là tài liệu
 
 Tệp mới `js/roles.js`. Trước đây app đã từ chối quyết định **vô danh**, nhưng vẫn nhận quyết

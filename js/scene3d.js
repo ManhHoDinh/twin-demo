@@ -17,6 +17,8 @@
   let flyFrom = null, flyTo = null, flyT = 1, activeFly = null;
   let selectionRing = null, selectionPulse = null;
   let skyClear = null, skyStorm = null, skyTmp = null;
+  let hemiLight = null, closeAmbient = null;
+  let CLOSE_HAZE = null;                    // daylight haze the sky lerps toward up close
   const tmpV = { v: null };
   let clock = 0;
   let pointerDownX = 0, pointerDownY = 0, pointerMoved = 0, selectionPointerId = null;
@@ -25,7 +27,10 @@
   const WATER_STYLE = {
     permanentWaterColor: "#0d4868",
     simulatedWaterColor: "#56d2f6",
-    simulatedCloseOpacity: 0.54,
+    /* the shader's own fade factor — keep these two in step or waterPresentation
+       reports a number the scene never draws */
+    simulatedFillFade: 0.58,
+    simulatedFillFadeLegacy: 0.40,
     simulatedFarOpacity: 0.9,
     boundaryOpacity: 0.76,
     flowOpacity: 0.78,
@@ -35,6 +40,51 @@
   function elevToY(m) { return m <= 25 ? m * 0.02 : 0.5 + (m - 25) * 0.007; }
   /* ground elevation: high-res real DEM when loaded, else the sim grid */
   function terrAt(x, y) { return FT.geo && FT.geo.hasDEM ? FT.geo.elevAt(x, y) : W.sampleTerrain(x, y); }
+
+  /* The Y the terrain mesh actually RENDERS at (x, y) — not the DEM value.
+     The two differ: the mesh is a coarse regular grid, so between its nodes it
+     shows a flat triangle while the DEM keeps curving underneath. Anything that
+     drapes over the terrain has to clear that triangle, not the DEM, or it gets
+     punched through wherever the mesh interpolates above the true ground.
+     `terrGrid` is filled in by whichever buildTerrain* path ran. */
+  let terrGrid = null;                 // { n, step, origin, y: Float32Array }
+  /* ?drapelegacy restores the pre-fix drape height, so the blotching this
+     removed can be reproduced side by side instead of by editing source. */
+  const DRAPE_LEGACY = /(^|[?&])drapelegacy(&|=|$)/.test(location.search);
+  /* ?waterlegacy restores the pre-P5 water look the same way */
+  const WATER_LEGACY = /(^|[?&])waterlegacy(&|=|$)/.test(location.search);
+  function terrainSurfaceY(x, y) {
+    const G = terrGrid;
+    if (!G) return elevToY(terrAt(x, y));
+    const n = G.n, st = G.step;
+    const fx = (x - G.origin) / st, fy = (y - G.origin) / st;
+    const ix = U.clamp(Math.floor(fx), 0, n - 2), iy = U.clamp(Math.floor(fy), 0, n - 2);
+    const u = U.clamp(fx - ix, 0, 1), v = U.clamp(fy - iy, 0, 1);
+    /* same split as the index buffer: (a, c, b) then (b, c, d) */
+    const a = G.y[iy * n + ix], b = G.y[iy * n + ix + 1];
+    const c = G.y[(iy + 1) * n + ix], d = G.y[(iy + 1) * n + ix + 1];
+    return u + v <= 1
+      ? a + u * (b - a) + v * (c - a)
+      : d + (1 - u) * (c - d) + (1 - v) * (b - d);
+  }
+  /* Highest rendered terrain within half a drape cell — covers the case where the
+     drape is the coarser of the two grids and would dip between its own nodes. */
+  function terrainSurfaceMax(x, y, r) {
+    let m = terrainSurfaceY(x, y);
+    m = Math.max(m, terrainSurfaceY(x - r, y), terrainSurfaceY(x + r, y));
+    m = Math.max(m, terrainSurfaceY(x, y - r), terrainSurfaceY(x, y + r));
+    return m;
+  }
+
+  /* THE ground reference for anything that stands on it. Must be the surface the
+     viewer actually sees, which is the higher of the DEM and the terrain mesh's
+     own triangle — the deep-zoom drape is placed on exactly this, so a building
+     anchored to the raw DEM instead would sink into the drape by up to 12 m and
+     a 4 m house would all but vanish at street zoom. */
+  function groundY(x, y, minE) {
+    const e = terrAt(x, y);
+    return Math.max(elevToY(minE === undefined ? e : Math.max(minE, e)), terrainSurfaceY(x, y));
+  }
 
   const CAMS = {
     overview: { pos: [58, 98, 128], tgt: [55, 0, 40] },
@@ -82,6 +132,9 @@
         idx.push(a, c2, b, b, c2, d2);
       }
     }
+    const gy = new Float32Array(TN * TN);
+    for (let k = 0; k < TN * TN; k++) gy[k] = pos[k * 3 + 1];
+    terrGrid = { n: TN, step, origin: 0, y: gy };
     const g = new THREE.BufferGeometry();
     g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
     g.setAttribute("color", new THREE.BufferAttribute(col, 3));
@@ -157,6 +210,10 @@
         idx.push(a, cI, b, b, cI, dI);
       }
     }
+    const gy2 = new Float32Array(N * N);
+    for (let k = 0; k < N * N; k++) gy2[k] = pos[k * 3 + 1];
+    /* W.ix2km(i) = (i + 0.5) * (SZ / N) — uniform, offset half a cell */
+    terrGrid = { n: N, step: SZ / N, origin: 0.5 * (SZ / N), y: gy2 };
     geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
     geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
     geo.setIndex(idx);
@@ -168,6 +225,10 @@
 
   /* ============ water (display mesh matches the 288² sim so finer flood detail renders) ============ */
   const WN = 288;
+  /* 4 m, in elevToY units (0.02 per metre below 25 m). Big enough to close the
+     sim-vs-DEM gap in the delta, small enough that it can never invent water on a
+     mountainside where the two terrains disagree by hundreds of metres. */
+  const WATER_LIFT_CAP = 4 * 0.02;
   let wSampX = null, wSampY = null;                        // precomputed bilinear indices into the sim grid
   function buildWater() {
     const N = W.N;
@@ -179,6 +240,7 @@
     const flow = new Float32Array(WN * WN * 2);
     const over = new Float32Array(WN * WN);                // 1 = floodplain (sediment-laden when flooded)
     const permanent = new Float32Array(WN * WN);           // 1 = sea / normal river water, not simulated overbank
+    const edge = new Float32Array(WN * WN);                // 1 = a 4-neighbour is dry → this vertex is on the flood boundary
     wSampX = new Float32Array(WN); wSampY = new Float32Array(WN);
     for (let i = 0; i < WN; i++) { wSampX[i] = (i / (WN - 1)) * (N - 1); wSampY[i] = wSampX[i]; }
     for (let iy = 0; iy < WN; iy++) {
@@ -203,26 +265,38 @@
     waterGeo.setAttribute("aFlow", new THREE.BufferAttribute(flow, 2));
     waterGeo.setAttribute("aOver", new THREE.BufferAttribute(over, 1));
     waterGeo.setAttribute("aPermanent", new THREE.BufferAttribute(permanent, 1));
+    waterGeo.setAttribute("aEdge", new THREE.BufferAttribute(edge, 1));
     waterGeo.setIndex(idx);
 
     waterMat = new THREE.ShaderMaterial({
       transparent: true,
       depthWrite: false,
-      uniforms: { uTime: { value: 0 }, uGhost: { value: 0 } },
+      uniforms: {
+        uTime: { value: 0 }, uGhost: { value: 0 },
+        uLegacy: { value: WATER_LEGACY ? 1 : 0 },
+        /* single source of truth with waterPresentation(), which reports these to the
+           earth-map contract — duplicating the constants here is how the reported
+           number silently stops describing what the shader draws */
+        uFillFade: { value: WATER_STYLE.simulatedFillFade },
+        uFillFadeLegacy: { value: WATER_STYLE.simulatedFillFadeLegacy },
+      },
       vertexShader: `
         attribute float aDepth;
         attribute float aBase;
         attribute vec2 aFlow;
         attribute float aOver;
         attribute float aPermanent;
+        attribute float aEdge;
         varying float vDepth;
         varying float vBase;
         varying vec2 vFlow;
         varying float vOver;
         varying float vPermanent;
+        varying float vEdge;
         varying vec3 vPos;
         varying vec3 vView;
         void main() {
+          vEdge = aEdge;
           vDepth = aDepth;
           vBase = aBase;
           vFlow = aFlow;
@@ -236,11 +310,15 @@
       fragmentShader: `
         uniform float uTime;
         uniform float uGhost;
+        uniform float uLegacy;
+        uniform float uFillFade;
+        uniform float uFillFadeLegacy;
         varying float vDepth;
         varying float vBase;
         varying vec2 vFlow;
         varying float vOver;
         varying float vPermanent;
+        varying float vEdge;
         varying vec3 vPos;
         varying vec3 vView;
         void main() {
@@ -258,13 +336,15 @@
           vec3 c2 = vec3(0.34, 0.66, 0.89);
           vec3 c3 = vec3(0.16, 0.44, 0.81);
           vec3 c4 = vec3(0.08, 0.24, 0.64);
-          vec3 c5 = vec3(0.13, 0.10, 0.48);
+          vec3 c5 = mix(vec3(0.13, 0.10, 0.48), vec3(0.19, 0.16, 0.58), 1.0 - uLegacy);
           vec3 col = c1;
           col = mix(col, c2, step(0.15, vDepth));
           col = mix(col, c3, step(0.5, vDepth));
           col = mix(col, c4, step(1.0, vDepth));
           col = mix(col, c5, step(2.0, vDepth));
-          vec3 natural = vec3(0.05, 0.28, 0.41);
+          /* permanent river/sea: was (0.05, 0.28, 0.41), dark enough at 0.64 alpha to
+             read as a black gash cut through the city rather than as water */
+          vec3 natural = mix(vec3(0.05, 0.28, 0.41), vec3(0.10, 0.36, 0.50), 1.0 - uLegacy);
           col = mix(natural, col, simulated);
           /* overbank floodwater carries sediment — mix toward muddy ochre */
           vec3 mud = vec3(0.42, 0.33, 0.20);
@@ -280,9 +360,19 @@
           foam += smoothstep(0.75, 0.95, fract(shimmer + spd * 0.5)) * smoothstep(2.2, 3.4, spd) * 0.25;
           col = mix(col, vec3(0.88, 0.95, 1.0), clamp(foam, 0.0, 0.75));
           float alpha = mix(0.64, clamp(0.25 + vDepth * 0.55, 0.0, 0.90), simulated);
-          /* cận cảnh: nước nông trong hơn để lộ nền đất/đường thật bên dưới */
-          alpha *= 1.0 - uGhost * simulated * 0.40;
+          /* cận cảnh: nước nông trong hơn để lộ nền đất/đường thật bên dưới.
+             Fade the FILL harder than before (0.40 → 0.58) so the city under the
+             flood stays readable at building zoom, where a 0.90-alpha sheet of deep
+             indigo simply erased the ground. */
+          float fillFade = mix(uFillFade, uFillFadeLegacy, uLegacy);
+          alpha *= 1.0 - uGhost * simulated * fillFade;
+          /* ...but the flood EXTENT must not fade with it. A rim over the first
+             ~0.3 m of depth traces the boundary and is held at high alpha
+             independently of uGhost, so thinning the fill costs no information. */
+          float rim = max((1.0 - smoothstep(0.02, 0.30, vDepth)) * simulated, vEdge);
+          col = mix(col, vec3(0.78, 0.93, 1.0), rim * 0.55 * (1.0 - uLegacy));
           float cue = max(foam, smoothstep(1.2, 3.0, spd) * simulated);
+          cue = max(cue, rim * (1.0 - uLegacy));
           alpha = max(alpha, cue * 0.76);
           gl_FragColor = vec4(col, alpha);
         }`,
@@ -313,7 +403,19 @@
         const t = T[a] * w00 + T[b] * w10 + T[c] * w01 + T[d] * w11;
         const k = iy * WN + ix, o = k * 3;
         if (h > 0.02) {
-          pos[o + 1] = elevToY(t + h * 1.6) + (0.055 - roadCloseF * 0.03);
+          /* The solver runs on the 288² sim terrain; the viewer sees the 384² DEM mesh.
+             Where the rendered ground sits above the simulated water surface, the flood
+             is drawn INSIDE the hillside and vanishes — measured at 27% of wet vertices.
+             Lift the surface onto the visible ground, but by at most WATER_LIFT_CAP.
+
+             The cap is the whole point. In the delta the two terrains agree to within a
+             few metres and the lift simply repairs a render mismatch (8.3% of wet cells
+             there). On the mountains they disagree by up to 291 m, and lifting that far
+             would paint fabricated water across a hillside — that is a data limitation,
+             not a rendering bug, and it must not be papered over. */
+          const wy = elevToY(t + h * 1.6);
+          const gy = terrainSurfaceY(pos[o], pos[o + 2]);
+          pos[o + 1] = Math.max(wy, Math.min(gy, wy + WATER_LIFT_CAP)) + (0.055 - roadCloseF * 0.03);
           dep[k] = h;
         } else {
           pos[o + 1] = elevToY(t) - 0.05;
@@ -324,6 +426,22 @@
         flow[k * 2 + 1] = Vv[a] * w00 + Vv[b] * w10 + Vv[c] * w01 + Vv[d] * w11;
       }
     }
+    /* Mark the wet/dry boundary. Thinning the fill so the city shows through costs
+       nothing only if the flood EXTENT stays unmistakable, and extent is an edge
+       property the fragment shader cannot see: it has no neighbourhood. A depth-based
+       rim is not a substitute — where water is 6 m deep the whole sheet is far from
+       any shallow band, so the rim never appears exactly where the flood is worst. */
+    const edg = waterGeo.attributes.aEdge.array;
+    for (let iy = 0; iy < WN; iy++) {
+      for (let ix = 0; ix < WN; ix++) {
+        const k = iy * WN + ix;
+        if (dep[k] <= 0) { edg[k] = 0; continue; }
+        const dryL = ix > 0 && dep[k - 1] <= 0, dryR = ix < WN - 1 && dep[k + 1] <= 0;
+        const dryU = iy > 0 && dep[k - WN] <= 0, dryD = iy < WN - 1 && dep[k + WN] <= 0;
+        edg[k] = (dryL || dryR || dryU || dryD) ? 1 : 0;
+      }
+    }
+    waterGeo.attributes.aEdge.needsUpdate = true;
     waterGeo.attributes.position.needsUpdate = true;
     waterGeo.attributes.aDepth.needsUpdate = true;
     waterGeo.attributes.aBase.needsUpdate = true;
@@ -336,9 +454,15 @@
     const osm = FT.geo.osmRoads;
     if (!osm) return;
     if (S3._roadMesh) { scene.remove(S3._roadMesh); S3._roadMesh.geometry.dispose(); }
+    /* Half-widths are ~20× real so a road is legible across a 96 km overview.
+       At building zoom that same ribbon is a 440 m slab lying over the city, and
+       fading it is not enough because flooded segments deliberately stay opaque.
+       Keep the centreline and the sideways offset per vertex so the ribbon can be
+       narrowed toward true width as the camera closes in. */
     const HALFW = { mw: 0.22, pri: 0.16, sec: 0.11 };
-    const posArr = [];
+    const posArr = [], ctrArr = [], offArr = [];
     roadRanges = [];
+    const pushV = (c, o, yy) => { posArr.push(c[0] + o[0], yy, c[1] + o[1]); ctrArr.push(c[0], c[1]); offArr.push(o[0], o[1]); };
     for (const s of osm) {
       const half = HALFW[s.cls] || 0.12;
       const start = posArr.length / 3;
@@ -350,13 +474,19 @@
         const dx = nxt[0] - prv[0], dy = nxt[1] - prv[1];
         const L = Math.hypot(dx, dy) || 1;
         const px = (-dy / L) * half, py = (dx / L) * half;
-        const yy = elevToY(Math.max(0.2, terrAt(x, y))) + 0.09;
-        const p1 = [x + px, yy, y + py], p2 = [x - px, yy, y - py];
-        if (prev) posArr.push(...prev[0], ...prev[1], ...p1, ...p1, ...prev[1], ...p2);
-        prev = [p1, p2];
+        const yy = groundY(x, y, 0.2) + 0.09;
+        const cur = { c: [x, y], o1: [px, py], o2: [-px, -py], yy };
+        if (prev) {
+          pushV(prev.c, prev.o1, prev.yy); pushV(prev.c, prev.o2, prev.yy); pushV(cur.c, cur.o1, cur.yy);
+          pushV(cur.c, cur.o1, cur.yy); pushV(prev.c, prev.o2, prev.yy); pushV(cur.c, cur.o2, cur.yy);
+        }
+        prev = cur;
       }
       roadRanges.push({ e: s, start, count: posArr.length / 3 - start, lastCls: -1 });
     }
+    roadCtr = new Float32Array(ctrArr);
+    roadOff = new Float32Array(offArr);
+    roadWidthF = -1;
     roadGeo = new THREE.BufferGeometry();
     roadGeo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(posArr), 3));
     roadColors = new Float32Array((posArr.length / 3) * 4);
@@ -366,6 +496,9 @@
     scene.add(mesh);
     S3._roadMesh = mesh;
     updateRoadColors(true, 0);
+    /* apply the current zoom width immediately: OSM roads can land while the camera
+       is already parked close, and the render loop only re-widths on a zoom change */
+    updateRoadWidth(roadCloseF);
   }
 
   /* mọi ngóc ngách 3D: đường nhỏ + hẻm OSM thành LineSegments bám DEM (rẻ, hàng vạn đoạn OK) */
@@ -378,8 +511,8 @@
       for (let i = 0; i < s.pts.length - 1; i++) {
         const a = s.pts[i], b = s.pts[i + 1];
         pos.push(
-          a[0], elevToY(Math.max(0.2, terrAt(a[0], a[1]))) + 0.07, a[1],
-          b[0], elevToY(Math.max(0.2, terrAt(b[0], b[1]))) + 0.07, b[1]
+          a[0], groundY(a[0], a[1], 0.2) + 0.07, a[1],
+          b[0], groundY(b[0], b[1], 0.2) + 0.07, b[1]
         );
       }
     }
@@ -394,15 +527,19 @@
 
   function buildRoads() {
     const HALF = { exp: 0.30, hw: 0.23, prov: 0.17, urban: 0.13 };
-    const posArr = [], colArr = [];
+    const posArr = [], colArr = [], ctrArr = [], offArr = [];
     roadRanges = [];
+    /* Same centreline bookkeeping as the OSM builder. This branch is not a rare
+       fallback — the OSM fetch 504s often enough that the procedural ribbons are
+       what a user actually sees, and at 600 m wide they bury the city at zoom. */
+    const pushV = (c, o, yy) => { posArr.push(c[0] + o[0], yy, c[1] + o[1]); ctrArr.push(c[0], c[1]); offArr.push(o[0], o[1]); };
     for (const e of W.roads.edges) {
       const a = W.roads.nodes[e.a], b = W.roads.nodes[e.b];
       const len = e.len, steps = Math.max(2, Math.ceil(len / 0.25));
       const half = HALF[e.type] || 0.06;
       const startIdx = posArr.length / 3;
-      const yA = elevToY(Math.max(0.5, terrAt(a.x, a.y))) + 0.055;
-      const yB = elevToY(Math.max(0.5, terrAt(b.x, b.y))) + 0.055;
+      const yA = groundY(a.x, a.y, 0.5) + 0.055;
+      const yB = groundY(b.x, b.y, 0.5) + 0.055;
       let prev = null;
       for (let s = 0; s <= steps; s++) {
         const t = s / steps;
@@ -414,15 +551,19 @@
         const pxn = (-dy / dl) * half, pyn = (dx / dl) * half;
         let yy;
         if (e.bridge) yy = Math.max(yA, yB) + 0.12;
-        else yy = elevToY(Math.max(0.2, terrAt(x, y))) + 0.1;
-        const p1 = [x + pxn, yy, y + pyn], p2 = [x - pxn, yy, y - pyn];
+        else yy = groundY(x, y, 0.2) + 0.1;
+        const cur = { c: [x, y], o1: [pxn, pyn], o2: [-pxn, -pyn], yy };
         if (prev) {
-          posArr.push(...prev[0], ...prev[1], ...p1, ...p1, ...prev[1], ...p2);
+          pushV(prev.c, prev.o1, prev.yy); pushV(prev.c, prev.o2, prev.yy); pushV(cur.c, cur.o1, cur.yy);
+          pushV(cur.c, cur.o1, cur.yy); pushV(prev.c, prev.o2, prev.yy); pushV(cur.c, cur.o2, cur.yy);
         }
-        prev = [p1, p2];
+        prev = cur;
       }
       roadRanges.push({ e, start: startIdx, count: posArr.length / 3 - startIdx, lastCls: -1 });
     }
+    roadCtr = new Float32Array(ctrArr);
+    roadOff = new Float32Array(offArr);
+    roadWidthF = -1;
     roadGeo = new THREE.BufferGeometry();
     roadGeo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(posArr), 3));
     roadColors = new Float32Array((posArr.length / 3) * 4);
@@ -433,12 +574,28 @@
     scene.add(mesh);
     S3._roadMesh = mesh;
     updateRoadColors(true, 0);
+    updateRoadWidth(roadCloseF);
   }
 
   const ROAD_RGB = [[0.30, 0.85, 0.48], [1.0, 0.84, 0.31], [1.0, 0.58, 0.25], [1.0, 0.30, 0.30]];
   const OSM_OPEN_RGB = { mw: [0.95, 0.85, 0.55], pri: [0.9, 0.9, 0.88], sec: [0.75, 0.77, 0.8] };
   let roadCloseF = 0;                       // 0 = xa (ribbon đầy đủ) · 1 = sát (đường mở nhường chỗ cho đường thật trên ảnh)
   let cfAcc = 9, wAcc = 9;                  // throttle rebuild nặng & cập nhật nước
+  let roadCtr = null, roadOff = null, roadWidthF = -1;
+
+  /* Narrow the ribbon toward true width as the camera closes in. Runs on the same
+     0.25 s cfJump cadence as the colour pass, never per frame. */
+  function updateRoadWidth(cf) {
+    if (!roadCtr || !roadGeo || Math.abs(cf - roadWidthF) < 0.05) return;
+    roadWidthF = cf;
+    const w = 1 - cf * 0.82;                // 1 → 0.18 of the overview width
+    const pos = roadGeo.attributes.position.array;
+    for (let i = 0, n = roadCtr.length / 2; i < n; i++) {
+      pos[i * 3] = roadCtr[i * 2] + roadOff[i * 2] * w;
+      pos[i * 3 + 2] = roadCtr[i * 2 + 1] + roadOff[i * 2 + 1] * w;
+    }
+    roadGeo.attributes.position.needsUpdate = true;
+  }
   function updateRoadColors(force, t) {
     let dirty = false;
     for (const rr of roadRanges) {
@@ -478,13 +635,17 @@
     for (let i = 0; i < 160; i++) {
       if (i < n && vs[i].x !== undefined) {
         const v = vs[i];
-        const y = elevToY(Math.max(0.3, terrAt(v.x, v.y))) + 0.11;
+        const y = groundY(v.x, v.y, 0.3) + 0.11;
         vehDummy.position.set(v.x, y, v.y);
-        const sV = 1 - roadCloseF * 0.86;
-        vehDummy.scale.set(sV, sV, sV);
         vehDummy.rotation.set(0, -v.heading, 0);
+        /* The box is 0.3 × 0.11 × 0.14 in km — 300 m long, schematic so a vehicle is
+           visible across a 96 km domain. `sV` shrinks that for close zoom, but the
+           per-type scale below used to overwrite the whole vector and threw sV away,
+           so the shrink never once took effect and every vehicle drew as a 300 m slab
+           lying across the city. Both factors have to be combined, not assigned twice. */
+        const sV = 1 - roadCloseF * 0.86;
         const s = v.type === "moto" ? 0.5 : v.type === "truck" || v.type === "bus" ? 1.3 : 1;
-        vehDummy.scale.set(s, 1, s);
+        vehDummy.scale.set(s * sV, sV, s * sV);
         vehDummy.updateMatrix();
         vehMesh.setMatrixAt(i, vehDummy.matrix);
         vehColor.set(v.state === "blocked" ? 0xff5a5a : v.state === "rerouting" ? 0xffb054 : 0xffe9cf);
@@ -501,6 +662,9 @@
   }
 
   /* ============ cities ============ */
+  /* Instance budget for procedural buildings. The coarse basin-wide pass may use up to
+     COARSE_BUDGET; the rest is split evenly across the city windows. */
+  const BLDG_BUDGET = 9500, COARSE_BUDGET = 6000;
   function buildCities() {
     const geo = new THREE.BoxGeometry(0.11, 1, 0.11);
     geo.translate(0, 0.5, 0);
@@ -528,50 +692,89 @@
       const SZ2 = D.DOMAIN.sizeKm;
       const stepPx = 3;                                     // ≈125 m sampling
       const rng = U.mulberry(4242);
-      for (let py = 2; py < S - 2 && count < 6000; py += stepPx) {
-        for (let px = 2; px < S - 2 && count < 6000; px += stepPx) {
-          const o = (py * S + px) * 4;
-          const r = dat[o], g = dat[o + 1], b = dat[o + 2];
-          const bright = (r + g + b) / 3;
-          const chroma = Math.max(r, g, b) - Math.min(r, g, b);
-          if (bright < 118 || chroma > 34 || b > r + 14) continue;   // keep bright gray, drop veg/water
-          const x = (px / S) * SZ2, y = (py / S) * SZ2;
-          if (inPatch(x, y)) continue;                      // đô thị: pass tinh bên dưới lo
-          const te = W.sampleTerrain(x, y);
-          if (te > 60 || te < 0.25) continue;
-          if (rng() < 0.45) continue;                       // thin out
+      /* Count the candidates BEFORE placing any, then accept a fixed fraction of them.
+         Filling in raster order until the budget runs out puts every building in the
+         north of whatever is being scanned and leaves the south empty — the same defect
+         that left Hội An without buildings. A density pre-pass costs one extra scan at
+         build time and makes coverage uniform. */
+      const coarseOk = (px, py) => {
+        const o = (py * S + px) * 4;
+        const r = dat[o], g = dat[o + 1], b = dat[o + 2];
+        const bright = (r + g + b) / 3;
+        const chroma = Math.max(r, g, b) - Math.min(r, g, b);
+        if (bright < 118 || chroma > 34 || b > r + 14) return null;   // keep bright gray, drop veg/water
+        const x = (px / S) * SZ2, y = (py / S) * SZ2;
+        if (inPatch(x, y)) return null;                     // đô thị: pass tinh bên dưới lo
+        const te = W.sampleTerrain(x, y);
+        if (te > 60 || te < 0.25) return null;
+        return [x, y];
+      };
+      let coarseCand = 0;
+      for (let py = 2; py < S - 2; py += stepPx) for (let px = 2; px < S - 2; px += stepPx) if (coarseOk(px, py)) coarseCand++;
+      const coarseKeep = coarseCand > 0 ? Math.min(0.55, COARSE_BUDGET / coarseCand) : 0;
+      for (let py = 2; py < S - 2 && count < COARSE_BUDGET; py += stepPx) {
+        for (let px = 2; px < S - 2 && count < COARSE_BUDGET; px += stepPx) {
+          const hit = coarseOk(px, py);
+          if (!hit) continue;
+          const x = hit[0], y = hit[1];
+          if (rng() > coarseKeep) continue;                 // uniform thinning to the budget
           const pop = W.pop[W.km2i(y) * W.N + W.km2i(x)];
           const tall = pop > 260 && rng() < 0.18;
           const hM = tall ? 22 + rng() * 34 : 5 + rng() * 9; // metres
-          placements.push([x + (rng() - 0.5) * 0.08, elevToY(te), y + (rng() - 0.5) * 0.08, hM * 0.02, roadAngle(x, y)]);
+          placements.push([x + (rng() - 0.5) * 0.08, groundY(x, y), y + (rng() - 0.5) * 0.08, hM * 0.02, roadAngle(x, y)]);
           count++;
         }
       }
       /* pass TINH trong 5 cửa sổ đô thị: ảnh z14 gốc ~9 m/px → nhà đặt đúng dãy phố, chân đế thật ~18 m
          (bỏ qua khi đã có móng nhà OSM thật) */
       const rng2 = U.mulberry(1337);
-      for (const p of skipPatchProcedural ? [] : patches) {
+      /* The 9500 cap used to be a single shared budget consumed first-come-first-served,
+         and the first window (Đà Nẵng, the largest) ate everything left after the coarse
+         pass. Measured consequence: with OSM unavailable — which is often, Overpass
+         refuses connections regularly — Hội An, the city this demo is built around, had
+         ZERO buildings within 3 km. Give each window an equal share of what remains;
+         recomputing per window means an underused share rolls forward instead of
+         being wasted. */
+      const patchList = skipPatchProcedural ? [] : patches;
+      let patchIdx = 0;
+      for (const p of patchList) {
+        const share = Math.floor((BLDG_BUDGET - count) / Math.max(1, patchList.length - patchIdx));
+        const stop = count + share;
+        patchIdx++;
         let pd = null;
         try { pd = p.canvas.getContext("2d").getImageData(0, 0, p.canvas.width, p.canvas.height); } catch (e) { continue; }
         const PW = pd.width, PH = pd.height, dd = pd.data;
         const kmPx = (p.x1 - p.x0) / PW;
         const step = Math.max(1, Math.round(0.018 / kmPx));  // mẫu ~18 m
-        for (let py = 1; py < PH - 1 && count < 9500; py += step) {
-          for (let px = 1; px < PW - 1 && count < 9500; px += step) {
-            const o = (py * PW + px) * 4;
-            const r = dd[o], g = dd[o + 1], b = dd[o + 2];
-            if (dd[o + 3] < 200) continue;                  // tile chưa nạp
-            const bright = (r + g + b) / 3;
-            const chroma = Math.max(r, g, b) - Math.min(r, g, b);
-            if (bright < 122 || chroma > 36 || b > r + 12) continue;
-            if (rng2() < 0.35) continue;
-            const x = p.x0 + px * kmPx, y = p.y0 + py * kmPx;
-            const te = W.sampleTerrain(x, y);
-            if (te > 60 || te < 0.25) continue;
+        /* Same density pre-pass as the coarse branch. Scanning rows until the share is
+           spent fills the top of the window and leaves the middle bare, which is exactly
+           how the centre of Hội An ended up with no buildings while its window held 909:
+           the budget was gone before the scan reached the old town. */
+        const patchOk = (px, py) => {
+          const o = (py * PW + px) * 4;
+          if (dd[o + 3] < 200) return null;                 // tile chưa nạp
+          const r = dd[o], g = dd[o + 1], b = dd[o + 2];
+          const bright = (r + g + b) / 3;
+          const chroma = Math.max(r, g, b) - Math.min(r, g, b);
+          if (bright < 122 || chroma > 36 || b > r + 12) return null;
+          const x = p.x0 + px * kmPx, y = p.y0 + py * kmPx;
+          const te = W.sampleTerrain(x, y);
+          if (te > 60 || te < 0.25) return null;
+          return [x, y];
+        };
+        let cand = 0;
+        for (let py = 1; py < PH - 1; py += step) for (let px = 1; px < PW - 1; px += step) if (patchOk(px, py)) cand++;
+        const keep = cand > 0 ? Math.min(0.65, share / cand) : 0;
+        for (let py = 1; py < PH - 1 && count < stop; py += step) {
+          for (let px = 1; px < PW - 1 && count < stop; px += step) {
+            const hit = patchOk(px, py);
+            if (!hit) continue;
+            const x = hit[0], y = hit[1];
+            if (rng2() > keep) continue;                    // uniform thinning to the share
             const pop = W.pop[W.km2i(y) * W.N + W.km2i(x)];
             const tall = pop > 300 && rng2() < 0.1;
             const hM = tall ? 20 + rng2() * 30 : 4.5 + rng2() * 7;
-            placements.push([x, elevToY(te), y, hM * 0.02, roadAngle(x, y), 0.16]);
+            placements.push([x, groundY(x, y), y, hM * 0.02, roadAngle(x, y), 0.16]);
             count++;
           }
         }
@@ -587,7 +790,7 @@
           const te = W.sampleTerrain(x, y);
           if (te > 25 || te < 0.2) continue;
           const h = (c.id === "danang" && rng() < 0.12 ? 0.35 + rng() * 0.22 : 0.07 + rng() * 0.15);
-          placements.push([x, elevToY(te), y, h]);
+          placements.push([x, groundY(x, y), y, h]);
           count++;
         }
       }
@@ -632,27 +835,39 @@
   function buildOsmBuildingsMesh() {
     const fps = FT.geo && FT.geo.osmBuildings;
     if (!fps || !fps.length) return;
-    const pos = [], col = [], idx = [], ranges = [];
+    const pos = [], col = [], idx = [], ranges = [], shade = [];
     const rng = U.mulberry(77);
     for (const fp of fps) {
       const n = fp.pts.length;
       const te = terrAt(fp.cx, fp.cy);
       if (te > 60 || te < 0.2) continue;
-      const y0 = elevToY(Math.max(0.25, te));
+      const y0 = groundY(fp.cx, fp.cy, 0.25);
       const hM = 4 + rng() * 6 + (n > 12 ? 5 : 0);
       const y1 = y0 + hM * 0.02;
       const vStart = pos.length / 3;
-      for (const p of fp.pts) pos.push(p[0], y0, p[1]);
-      for (const p of fp.pts) pos.push(p[0], y1, p[1]);
+      /* Walls and roof get their OWN vertices. Sharing the top ring makes
+         computeVertexNormals average a horizontal wall normal with a vertical roof
+         normal, so every edge rounds off and the massing reads as a smudge instead
+         of a block — the single biggest reason these looked like dark blobs. */
+      for (const p of fp.pts) pos.push(p[0], y0, p[1]);          // wall bottom
+      for (const p of fp.pts) pos.push(p[0], y1, p[1]);          // wall top
       for (let i = 0; i < n; i++) {
         const j = (i + 1) % n;
         idx.push(vStart + i, vStart + j, vStart + n + i, vStart + n + i, vStart + j, vStart + n + j);
       }
+      const roofStart = pos.length / 3;
+      for (const p of fp.pts) pos.push(p[0], y1, p[1]);          // roof ring, separate
       const cIdx = pos.length / 3;
       pos.push(fp.cx, y1, fp.cy);
-      for (let i = 0; i < n; i++) idx.push(vStart + n + i, vStart + n + ((i + 1) % n), cIdx);
+      for (let i = 0; i < n; i++) idx.push(roofStart + i, roofStart + ((i + 1) % n), cIdx);
       const vCount = pos.length / 3 - vStart;
-      for (let i = 0; i < vCount; i++) col.push(0.62, 0.65, 0.68);
+      /* roofs catch the sky, walls do not — bake that into the base colour so the
+         block still reads when the key light is nearly edge-on */
+      for (let i = 0; i < vCount; i++) {
+        const s = vStart + i >= roofStart ? 1.24 : 0.92;
+        shade.push(s);
+        col.push(0.62 * s, 0.65 * s, 0.68 * s);
+      }
       ranges.push({ cx: fp.cx, cy: fp.cy, start: vStart, count: vCount, last: -1 });
     }
     if (!ranges.length) return;
@@ -663,7 +878,7 @@
     g.computeVertexNormals();
     const mesh = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }));
     scene.add(mesh);
-    osmBldg = { mesh, ranges };
+    osmBldg = { mesh, ranges, shade: new Float32Array(shade) };
     console.info(`[3d] OSM buildings — ${ranges.length} nhà thật`);
   }
   function swapOsmBuildings() {
@@ -672,7 +887,13 @@
     skipPatchProcedural = true;
     if (cityMesh) { scene.remove(cityMesh); cityMesh.geometry.dispose(); cityMesh = null; }
     buildCities();
-    bldgScaleF = -1;                   // ép áp lại scale theo cf hiện tại
+    /* Reapply the close-zoom footprint NOW, not on the next zoom change. The render
+       loop only calls updateBuildingScale when cf moves by >0.08, so a rebuild that
+       lands while the camera is parked close leaves every coarse-pass building at its
+       build-time 110 m footprint — which at street zoom draws as a giant flat slab
+       lying across the city. */
+    bldgScaleF = -1;
+    updateBuildingScale(roadCloseF);
     buildOsmBuildingsMesh();
   }
 
@@ -708,9 +929,13 @@
         if (cls === rr.last) continue;
         rr.last = cls;
         const c = cls === 2 ? cRed : cls === 1 ? cOrg : null;
+        const sh = osmBldg.shade;
         for (let i = rr.start; i < rr.start + rr.count; i++) {
-          if (c) { colA.array[i * 3] = c.r; colA.array[i * 3 + 1] = c.g; colA.array[i * 3 + 2] = c.b; }
-          else { colA.array[i * 3] = 0.62; colA.array[i * 3 + 1] = 0.65; colA.array[i * 3 + 2] = 0.68; }
+          /* keep the roof/wall tint through the impact recolour, or the flooded
+             buildings go flat and stop reading as blocks */
+          const s = sh[i];
+          const r = c ? c.r : 0.62, g2 = c ? c.g : 0.65, b = c ? c.b : 0.68;
+          colA.array[i * 3] = r * s; colA.array[i * 3 + 1] = g2 * s; colA.array[i * 3 + 2] = b * s;
         }
         dirty = true;
       }
@@ -734,8 +959,7 @@
   function buildDams() {
     damGroup = new THREE.Group();
     for (const r of D.RESERVOIRS) {
-      const te = terrAt(r.x, r.y);
-      const baseY = elevToY(Math.max(2, te));
+      const baseY = groundY(r.x, r.y, 2);
       const g = new THREE.Group();
       g.userData.explainSelection = { kind: "reservoir", id: r.id };
       g.position.set(r.x, 0, r.y);
@@ -761,7 +985,7 @@
       jet.visible = false;
       g.add(jet);
       damGroup.add(g);
-      dams.push({ r, g, barFill, jet, jp, jetPhase: new Float32Array(jetN).map((_, i) => i / jetN), baseY });
+      dams.push({ r, g, crest, barBg, barFill, jet, jp, jetPhase: new Float32Array(jetN).map((_, i) => i / jetN), baseY });
     }
     scene.add(damGroup);
   }
@@ -769,8 +993,15 @@
     for (const d of dams) {
       const rs = snap.reservoirs[d.r.id];
       const pct = Math.min(1.05, rs.pct);
-      d.barFill.scale.y = Math.max(0.02, pct * 1.1);
-      d.barFill.position.y = d.baseY + 0.68 + (pct * 1.1 - 1.1) * 0.5;
+      /* The level bar is a 220 m × 1.1 km billboard — a readable gauge from across the
+         basin, a wall across the valley up close. Same close-factor shrink the vehicles
+         and gauge markers use; the crest itself is a physical structure and keeps its
+         size. Overview is untouched (roadCloseF is 0 there). */
+      const sM = 1 - roadCloseF * 0.80;
+      d.barBg.scale.set(sM, sM, sM);
+      d.barBg.position.y = d.baseY + 1.2 * sM;
+      d.barFill.scale.set(sM, Math.max(0.02, pct * 1.1) * sM, sM);
+      d.barFill.position.y = d.baseY + (0.68 + (pct * 1.1 - 1.1) * 0.5) * sM;
       d.barFill.material.color.set(rs.overCeil ? 0xff5252 : 0x37b6ff);
       d.jet.visible = !!rs.spilling && FT.state.layers.reservoirs;
       if (rs.spilling) {
@@ -792,8 +1023,7 @@
   function buildGauges() {
     gaugeGroup = new THREE.Group();
     for (const g of D.GAUGES) {
-      const te = terrAt(g.x, g.y);
-      const y = elevToY(Math.max(1, te));
+      const y = groundY(g.x, g.y, 1);
       const grp = new THREE.Group();
       grp.userData.explainSelection = { kind: "gauge", id: g.id };
       grp.position.set(g.x, 0, g.y);
@@ -804,7 +1034,7 @@
       disc.position.y = y + 1.2;
       grp.add(disc);
       gaugeGroup.add(grp);
-      gauges.push({ g, grp, disc });
+      gauges.push({ g, grp, disc, pole, baseY: y });
     }
     scene.add(gaugeGroup);
   }
@@ -815,7 +1045,16 @@
       it.disc.material.color.set(AL_HEX[gs.alert]);
       const sel = FT.state.selectedGauge === it.g.id;
       const pulse = gs.alert >= 2 ? 1 + 0.18 * Math.sin(t * 5) : 1;
-      it.disc.scale.setScalar((sel ? 1.5 : 1) * pulse);
+      /* The marker is a 310 m sphere on a 1.1 km pole — sized to be findable across a
+         96 km domain, but at building zoom it is a blob covering a whole neighbourhood.
+         Shrink it with the same close factor the rest of the scene uses; it stays a
+         legible symbol without pretending to be a 310 m object. Overview is unchanged
+         (roadCloseF is 0 there). */
+      const sM = 1 - roadCloseF * 0.80;
+      it.disc.scale.setScalar((sel ? 1.5 : 1) * pulse * sM);
+      it.pole.scale.set(sM, sM, sM);
+      it.pole.position.y = it.baseY + 0.55 * sM;
+      it.disc.position.y = it.baseY + 1.2 * sM;
       it.grp.visible = FT.state.layers.gauges;
     }
   }
@@ -825,12 +1064,11 @@
   const Z_HEX = [0x4fc3f7, 0xffd54f, 0xffa040, 0xff5252];
   function buildZones() {
     for (const z of D.ZONES) {
-      const te = Math.max(1, W.sampleTerrain(z.x, z.y));
       const geo = new THREE.RingGeometry(z.r * 0.94, z.r, 48);
       const mat = new THREE.MeshBasicMaterial({ color: 0x4fc3f7, transparent: true, opacity: 0.4, side: THREE.DoubleSide, depthWrite: false });
       const ring = new THREE.Mesh(geo, mat);
       ring.rotation.x = -Math.PI / 2;
-      ring.position.set(z.x, elevToY(te) + 0.05, z.y);
+      ring.position.set(z.x, groundY(z.x, z.y, 1) + 0.05, z.y);
       ring.renderOrder = 4;
       ring.userData.explainSelection = { kind: "zone", id: z.id };
       scene.add(ring);
@@ -944,9 +1182,8 @@
     const camDist = camera.position.distanceTo(controls.target);
     for (const L of labels) {
       if (!show || (L.nearDist && camDist > L.nearDist)) { L.el.style.display = "none"; continue; }
-      const te = terrAt(L.x, L.z);
       const sy2 = scene.scale.y;
-      v.set(L.x, elevToY(Math.max(1, te)) * sy2 + L.elevOff * Math.max(sy2, 0.35), L.z);
+      v.set(L.x, groundY(L.x, L.z, 1) * sy2 + L.elevOff * Math.max(sy2, 0.35), L.z);
       v.project(camera);
       if (v.z > 1 || v.x < -1.05 || v.x > 1.05 || v.y < -1.05 || v.y > 1.05) { L.el.style.display = "none"; continue; }
       L.el.style.display = "";
@@ -1149,7 +1386,7 @@
       return;
     }
     const hold = selectionPulse.duration ? 1 - t : 0.82;
-    const y = elevToY(Math.max(1, terrAt(selectionPulse.x, selectionPulse.y))) + 0.08;
+    const y = groundY(selectionPulse.x, selectionPulse.y, 1) + 0.08;
     const s = 1 + t * 1.4;
     selectionRing.position.set(selectionPulse.x, y, selectionPulse.y);
     selectionRing.scale.setScalar(s);
@@ -1250,12 +1487,20 @@
     /* drape lưới bám DEM — chỉ khi khung nhìn đổi (tile nạp nốt thì chỉ cần cập nhật texture) */
     if (!keySame) {
       const posA = DQ.mesh.geometry.attributes.position, V = DQ.N + 1;
+      /* Clear the terrain mesh, not the DEM. The drape samples the DEM every
+         S/64 km while the terrain mesh renders it every 250 m, so over any
+         concave ground the mesh sits ABOVE the DEM and a drape offset by a
+         fixed 1.75 m gets punched through — that is what read on screen as
+         dark blotches all over the city at building zoom. */
+      const half = (S / DQ.N) * 0.5;
       for (let iy = 0; iy < V; iy++) {
         for (let ix = 0; ix < V; ix++) {
           const o = (iy * V + ix) * 3;
           const xk = x0 + (ix / DQ.N) * S, yk = y0 + (iy / DQ.N) * S;
           posA.array[o] = xk;
-          posA.array[o + 1] = elevToY(terrAt(xk, yk)) + (0.035 - roadCloseF * 0.02);
+          const demY = elevToY(terrAt(xk, yk));
+          posA.array[o + 1] = (DRAPE_LEGACY ? demY : Math.max(demY, terrainSurfaceMax(xk, yk, half)))
+            + (0.035 - roadCloseF * 0.02);
           posA.array[o + 2] = yk;
         }
       }
@@ -1280,6 +1525,7 @@
     skyClear = new THREE.Color(0x081726);
     skyStorm = new THREE.Color(0x1c232c);
     skyTmp = new THREE.Color();
+    CLOSE_HAZE = new THREE.Color(0x93aec4);
 
     camera = new THREE.PerspectiveCamera(46, 1.6, 0.5, 600);
     camera.position.set(...CAMS.overview.pos);
@@ -1296,13 +1542,19 @@
     raycaster = new THREE.Raycaster();
     rayPointer = new THREE.Vector2();
 
-    scene.add(new THREE.HemisphereLight(0xbcd8ff, 0x18261f, 0.85));
+    hemiLight = new THREE.HemisphereLight(0xbcd8ff, 0x18261f, 0.85);
+    scene.add(hemiLight);
     const key = new THREE.DirectionalLight(0xffd9a8, 1.25);
     key.position.set(70, 110, -60);
     scene.add(key);
     const fill = new THREE.DirectionalLight(0x6f9fd8, 0.35);
     fill.position.set(-70, 70, 95);
     scene.add(fill);
+    /* The overview is lit as dusk, which is the look the wide shot wants. Up close
+       that same rig crushes every wall facing away from the key light to near-black,
+       because there is no ambient term at all. This one lifts with proximity only. */
+    closeAmbient = new THREE.AmbientLight(0xdce8f5, 0);
+    scene.add(closeAmbient);
 
     buildTerrain();
     buildWater();
@@ -1364,7 +1616,8 @@
 
   S3.waterPresentation = function () {
     const ghost = waterMat && waterMat.uniforms && waterMat.uniforms.uGhost ? waterMat.uniforms.uGhost.value : 0;
-    const closeOpacity = WATER_STYLE.simulatedFarOpacity * (1 - U.clamp(ghost, 0, 1) * 0.40);
+    const fade = WATER_LEGACY ? WATER_STYLE.simulatedFillFadeLegacy : WATER_STYLE.simulatedFillFade;
+    const closeOpacity = WATER_STYLE.simulatedFarOpacity * (1 - U.clamp(ghost, 0, 1) * fade);
     return {
       permanentWaterColor: WATER_STYLE.permanentWaterColor,
       simulatedWaterColor: WATER_STYLE.simulatedWaterColor,
@@ -1407,7 +1660,7 @@
         candidates.push(item.ring.localToWorld(new THREE.Vector3(Math.cos(a) * item.def.r * 0.97, Math.sin(a) * item.def.r * 0.97, 0)));
       }
     } else if (selection.kind === "point") {
-      candidates.push(new THREE.Vector3(selection.xKm, elevToY(Math.max(1, terrAt(selection.xKm, selection.yKm))) * scene.scale.y, selection.yKm));
+      candidates.push(new THREE.Vector3(selection.xKm, groundY(selection.xKm, selection.yKm, 1) * scene.scale.y, selection.yKm));
     } else return null;
     scene.updateMatrixWorld(true);
     camera.updateMatrixWorld(true);
@@ -1439,7 +1692,7 @@
     if (!point) return false;
     const intent = options && options.intent || (selection.kind === "point" ? "asset" : "district");
     const dist = CAMERA_DISTANCES[intent] || CAMERA_DISTANCES.asset;
-    const te = elevToY(Math.max(1, terrAt(point.x, point.y))) * scene.scale.y;
+    const te = groundY(point.x, point.y, 1) * scene.scale.y;
     const tilt = intent === "street" ? 55 : intent === "overview" ? 48 : 60;
     const vertical = Math.max(2.8, Math.cos(tilt * Math.PI / 180) * dist);
     const horizontal = Math.max(1.2, Math.sin(tilt * Math.PI / 180) * dist);
@@ -1457,7 +1710,7 @@
     if (!camera || !controls) return false;
     const point = pointFromSelection(selection);
     if (!point) return false;
-    const te = elevToY(Math.max(1, terrAt(point.x, point.y))) * scene.scale.y;
+    const te = groundY(point.x, point.y, 1) * scene.scale.y;
     const current = cameraVector();
     const currentBearing = current ? Math.atan2(current.x, current.z) : -38 * Math.PI / 180;
     const bearing = currentBearing + 72 * Math.PI / 180;
@@ -1536,19 +1789,27 @@
       if (flyT >= 1) settleFly("settled");
     }
     controls.update();
+    const camD = camera.position.distanceTo(controls.target);
+    /* street-zoom realism: đường mở & nước nông nhường chỗ cho mặt đất thật */
+    const cf = U.clamp((26 - camD) / 12, 0, 1);
     /* storm atmosphere: sky darkens & visibility closes in with rain intensity */
     if (skyTmp) {
       const rainF = Math.min(1, snap.rain / 110);
       skyTmp.copy(skyClear).lerp(skyStorm, rainF);
+      /* Close in, lift the haze off the horizon too — a street view ringed by the
+         overview's night-blue reads as a dark wall around whatever you flew to. */
+      if (cf > 0) skyTmp.lerp(CLOSE_HAZE, cf * 0.55);
       scene.background.copy(skyTmp);
       scene.fog.color.copy(skyTmp);
-      scene.fog.near = 150 - 60 * rainF;
-      scene.fog.far = 420 - 160 * rainF;
+      /* Fog tuned for a 96 km overview swallows the mid-ground of a 5 km view.
+         Hold it off in proportion to how close the camera actually is. */
+      const fogScale = Math.max(1, 26 / Math.max(camD, 1));
+      scene.fog.near = (150 - 60 * rainF) * fogScale;
+      scene.fog.far = (420 - 160 * rainF) * fogScale;
     }
+    if (closeAmbient) closeAmbient.intensity = cf * 0.42;
+    if (hemiLight) hemiLight.intensity = 0.85 + cf * 0.35;
     waterMat.uniforms.uTime.value = clock;
-    /* street-zoom realism: đường mở & nước nông nhường chỗ cho mặt đất thật */
-    const camD = camera.position.distanceTo(controls.target);
-    const cf = U.clamp((26 - camD) / 12, 0, 1);
     waterMat.uniforms.uGhost.value = cf;
     /* đúng tỉ lệ dọc/ngang: toàn cảnh giữ phóng đại 20× cho dễ đọc, ghé sát hạ về ~2× (gần thực) */
     scene.scale.y = 1 - cf * 0.9;
@@ -1556,7 +1817,7 @@
     cfAcc += dtReal;
     let cfJump = false;
     if (cfAcc >= 0.25 && Math.abs(cf - roadCloseF) > 0.08) {
-      cfAcc = 0; cfJump = true; roadCloseF = cf; updateBuildingScale(cf);
+      cfAcc = 0; cfJump = true; roadCloseF = cf; updateBuildingScale(cf); updateRoadWidth(cf);
     }
     waterMesh.visible = FT.state.layers.water;
     /* nước: mặt/độ sâu đổi theo sim (Δt 2.5 s) — cập nhật 10 Hz là đủ, shimmer đã chạy bằng uTime */

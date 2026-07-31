@@ -1,8 +1,8 @@
 # FloodTwin Q1 Demo — Vu Gia–Thu Bồn Digital Twin
 
-Production-ready demo web app cho paper **FloodTwin** (Q1): bản sao số lũ & liên hồ chứa nhận thức bất định, nền tảng pháp quy, mô phỏng **giao thông–lũ theo thời gian thực** trên 2D/3D.
+Demo nghiên cứu sẵn sàng cho triển khai kỹ thuật của paper **FloodTwin** (Q1): bản sao số lũ & liên hồ chứa nhận thức bất định, nền tảng pháp quy, mô phỏng **giao thông–lũ tổng hợp cập nhật liên tục** trên 2D/3D.
 
-> 🧪 **Kiểm thử đầu-cuối: [`tests/`](tests/README.md)** — `npm run e2e` (75 phép thử, tổ chức theo **quy trình vận hành** chứ không theo màn hình). Không cần cài đặt: tự tìm Playwright ở project kế bên. Lỗi sẽ kèm ảnh màn hình + trạng thái `FT` trong `tests/artifacts/`.
+> 🧪 **Kiểm thử đầu-cuối: [`tests/`](tests/README.md)** — `npm run e2e` (89 phép thử, tổ chức theo **quy trình vận hành** chứ không theo màn hình). Không cần cài đặt: tự tìm Playwright ở project kế bên. Lỗi sẽ kèm ảnh màn hình + trạng thái `FT` trong `tests/artifacts/`.
 
 > 📚 **Bộ tài liệu sản phẩm (Product Knowledge Base): [`docs/`](docs/README.md)** — kiến thức chuyên ngành (thủy văn, thủy lực, vận hành hồ, an toàn đập, khí tượng, cảnh báo, pháp quy), mô hình thế giới, personas, 12 quy trình vận hành, cây quyết định, đặc tả engine hỗ trợ quyết định, 18 màn hình, PRD, NFR, KPI, phản biện đa vai, sổ rủi ro và lộ trình M0–M4. Bắt đầu ở [docs/README.md](docs/README.md); đối chiếu code ↔ yêu cầu ở [docs/99-appendix/demo-gap-analysis.md](docs/99-appendix/demo-gap-analysis.md).
 
@@ -11,8 +11,8 @@ Production-ready demo web app cho paper **FloodTwin** (Q1): bản sao số lũ &
 - **3D digital twin (Three.js)** — địa hình VGTB kiểu ảnh vệ tinh (rừng phủ sườn, ruộng patchwork, đô thị xám), 4 hồ bậc thang (A Vương, Sông Bung 4, Đắk Mi 4, Sông Tranh 2), mặt nước shader theo dòng chảy — **nước lũ overbank màu phù sa**, xe cộ di chuyển, mưa, nhãn địa danh. *(Chế độ Toàn quốc VN nằm trong `js/vndata|hydronat|nation.js`, hiện không nạp.)*
 - **Zoom từng m²**: bản đồ 2D tự nạp tile ảnh vệ tinh + giao thông thật theo khung nhìn tới z19 (~0,3 m/px) — thấy từng nóc nhà, mọi ngõ hẻm.
 - **Bản đồ vận hành 2D** kiểu Google Flood Hub — nền hypsometric + hillshade, lớp ngập theo độ sâu, hạt dòng chảy, trạng thái đường 4 mức, trạm thủy văn theo màu báo động BĐ1–3.
-- **Mô phỏng nước thật**: shallow-water height-field (virtual pipes) 144², cưỡng bức bởi lệnh xả hồ + dòng chảy mặt, đồng hóa mực trạm — cấp độ sâu cho cả 3 lớp hiển thị và mạng giao thông.
-- **Giao thông thời gian thực**: ~130 xe định tuyến Dijkstra theo thời gian, tự đổi lộ trình khi đường ngập ≥30 cm; ETA Đà Nẵng → Hội An cập nhật liên tục.
+- **Mô phỏng trạng thái nước có bảo toàn số học trong demo**: shallow-water height-field (virtual pipes) 288² (~333 m/ô), cưỡng bức bởi lệnh xả hồ + dòng chảy mặt, nudging theo chuỗi mực trạm tổng hợp — cấp độ sâu cho cả 3 lớp hiển thị và mạng giao thông; chưa phải mô hình thủy lực đã hiệu chỉnh hoặc kiểm định vận hành.
+- **Giao thông mô phỏng cập nhật liên tục**: ~130 xe tổng hợp định tuyến Dijkstra theo thời gian, tự đổi lộ trình khi đường ngập ≥30 cm; ETA Đà Nẵng → Hội An được tính lại theo trạng thái kịch bản.
 - **Dự báo xác suất**: hydrograph ensemble fan (5–95%, 25–75%, trung vị) trên nền quan trắc, đường báo động BĐ1/2/3; timeline T−24h → T+48h tua/kéo tự do.
 - **Rule curve tĩnh ⇄ FloodTwin MPC**: so sánh trực tiếp hai chính sách vận hành; đề xuất **xả trước** kèm *gói quyết định* (bao ensemble, điều khoản QĐ 1865/QĐ-TTg, rủi ro tồn dư) — người trực **phê duyệt** thì hạ lưu thay đổi ngay.
 - **Lớp LLM có kiểm soát**: bản tin tình huống & hỏi đáp cư dân với 100% mệnh đề kèm trích dẫn (RAG mô phỏng) — LLM không bao giờ tính thủy lực.

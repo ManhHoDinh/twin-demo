@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#06121d" />
   <title>FloodTwin — Vu Gia–Thu Bồn Digital Twin</title>
-  <meta name="description" content="FloodTwin Q1 demo — uncertainty-aware, regulation-grounded flood & reservoir digital twin with real-time flood–traffic simulation (Vu Gia–Thu Bồn)." />
+  <meta name="description" content="FloodTwin Q1 demo — uncertainty-aware, regulation-grounded flood & reservoir digital twin with a continuously updated synthetic flood–traffic simulation (Vu Gia–Thu Bồn)." />
   <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
   <meta property="og:type" content="website" />
   <meta property="og:title" content="FloodTwin — bản sao số lũ &amp; liên hồ chứa · SkyLabs" />
@@ -17,7 +17,7 @@
   <meta property="og:locale" content="vi_VN" />
   <meta name="twitter:card" content="summary_large_image" />
   <link rel="canonical" href="https://app.skylabs.vn/" />
-  <link rel="stylesheet" href="./styles.css?v=128" />
+  <link rel="stylesheet" href="./styles.css?v=133" />
 </head>
 <body>
   <div id="app" class="app">
@@ -254,7 +254,7 @@
         </div>
         <div class="stageMeta">
           <span id="fpsMeter">60 fps</span>
-          <span id="gridMeta">SWE 144² · Manning n</span>
+          <span id="gridMeta">SWE 288² · ~333 m/ô · Manning n</span>
         </div>
       </div>
 
@@ -431,7 +431,7 @@
       </section>
 
       <section class="panel trafficPanel">
-        <div class="panelTitle"><span data-i18n="panel.traffic">Giao thông thời gian thực</span><strong id="vehCount">— xe</strong></div>
+        <div class="panelTitle"><span data-i18n="panel.traffic">Giao thông mô phỏng · cập nhật liên tục</span><strong id="vehCount">— xe</strong></div>
         <div class="trafficGrid">
           <div><span data-i18n="tr.open">Mạng thông</span><strong id="trOpen">—%</strong></div>
           <div><span data-i18n="tr.closed">Đoạn đóng</span><strong id="trClosed">—</strong></div>
@@ -520,31 +520,31 @@
     }
   </script>
 
-  <script src="./js/core.js?v=127"></script>
-  <script src="./js/geo.js?v=127"></script>
-  <script src="./js/data.js?v=128"></script>
-  <script src="./js/address.js?v=128"></script>
-  <script src="./js/hydro.js?v=127"></script>
-  <script src="./js/decision.js?v=127"></script>
-  <script src="./js/roles.js?v=127"></script>
-  <script src="./js/world.js?v=127"></script>
-  <script src="./js/forecast.js?v=127"></script>
-  <script src="./js/alerts.js?v=127"></script>
-  <script src="./js/domain.js?v=127"></script>
-  <script src="./js/reports.js?v=127"></script>
-  <script src="./js/traffic.js?v=127"></script>
-  <script src="./js/zones.js?v=127"></script>
-  <script src="./js/charts.js?v=127"></script>
-  <script src="./js/map2d.js?v=127"></script>
-  <script src="./js/scene3d.js?v=128"></script>
-  <script src="./js/record.js?v=127"></script>
-  <script src="./js/grounding.js?v=127"></script>
-  <script src="./js/lifecycle.js?v=127"></script>
-  <script src="./js/scenario-compare.js?v=128"></script>
-  <script src="./js/explainability.js?v=127"></script>
-  <script src="./js/ui.js?v=128"></script>
-  <script src="./js/opsui.js?v=127"></script>
-  <script src="./js/main.js?v=127"></script>
-  <script src="./js/shell.js?v=128"></script>
+  <script src="./js/core.js?v=133"></script>
+  <script src="./js/geo.js?v=133"></script>
+  <script src="./js/data.js?v=133"></script>
+  <script src="./js/address.js?v=133"></script>
+  <script src="./js/hydro.js?v=133"></script>
+  <script src="./js/decision.js?v=133"></script>
+  <script src="./js/roles.js?v=133"></script>
+  <script src="./js/world.js?v=133"></script>
+  <script src="./js/forecast.js?v=133"></script>
+  <script src="./js/alerts.js?v=133"></script>
+  <script src="./js/domain.js?v=133"></script>
+  <script src="./js/reports.js?v=133"></script>
+  <script src="./js/traffic.js?v=133"></script>
+  <script src="./js/zones.js?v=133"></script>
+  <script src="./js/charts.js?v=133"></script>
+  <script src="./js/map2d.js?v=133"></script>
+  <script src="./js/scene3d.js?v=133"></script>
+  <script src="./js/record.js?v=133"></script>
+  <script src="./js/grounding.js?v=133"></script>
+  <script src="./js/lifecycle.js?v=133"></script>
+  <script src="./js/scenario-compare.js?v=133"></script>
+  <script src="./js/explainability.js?v=133"></script>
+  <script src="./js/ui.js?v=133"></script>
+  <script src="./js/opsui.js?v=133"></script>
+  <script src="./js/main.js?v=133"></script>
+  <script src="./js/shell.js?v=133"></script>
 </body>
 </html>

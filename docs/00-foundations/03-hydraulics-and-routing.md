@@ -83,7 +83,7 @@ Needed when: gates/weirs, tidal boundary, confluences, levee overtopping, or any
 ∂h/∂t + ∇·(h u) = S
 ∂(hu)/∂t + ∇·(hu⊗u) + g h ∇(h+z) = −g h S_f
 ```
-The demo uses a **virtual-pipes / local-inertial** simplification on a 144² grid, dynamic only on the floodplain (< 28 m elevation) and diagnostic on steep terrain. This is a legitimate, well-known engineering simplification (it is essentially the LISFLOOD-FP local inertial scheme family) — **as long as its validity limits are documented in the UI**, which is a product requirement, not an optional nicety.
+The demo uses a **virtual-pipes / local-inertial** simplification on a 288² grid (about 333 m per cell), dynamic only on the floodplain (< 28 m elevation) and diagnostic on steep terrain. This is a legitimate, well-known engineering simplification (it is essentially the LISFLOOD-FP local inertial scheme family) — **as long as its validity limits are documented in the UI**, which is a product requirement, not an optional nicety.
 
 **Stability:** explicit shallow-water schemes obey a CFL condition
 ```

@@ -177,7 +177,7 @@ regret, P(below AL3) as the ensemble-band integral) before it can be approved.
 - **Decision points.** None internal; the simulation *feeds* WF-SPEC-4/9/10. Judgement: is
   the scenario the right one to plan against (median vs P90 member)?
 - **Human approvals.** None — a simulation result is published, not approved.
-- **Data sources.** In-browser shallow-water solver 144² (design target: FNO surrogate,
+- **Data sources.** In-browser shallow-water solver 288² (~333 m/cell; design target: FNO surrogate,
   CSI ≥ 0.80 vs HEC-RAS-2D); real DEM (AWS Terrain Tiles) and imagery; OSM roads/buildings.
 - **Visualisations.** The map itself: five-band depth choropleth, road passability colours,
   zone status fill, the 3D twin for terrain read; a flooded-area/exposure badge; the PiP.
