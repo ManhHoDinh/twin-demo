@@ -5,10 +5,10 @@
   if (!FT || !FT.workspaces || !FT.facilities) return;
 
   const MISSING_DEPENDENCIES = Object.freeze([
-    "telemetry feed not supplied to this demo",
-    "storage/outlet geometry not supplied to this demo",
-    "plant operating rules not supplied to this demo",
-    "routing/forecast inputs not supplied for this facility",
+    "plant.dep.telemetry",
+    "plant.dep.storage",
+    "plant.dep.rules",
+    "plant.dep.routing",
   ]);
   const marginDiagnostics = new Set();
 
@@ -152,14 +152,14 @@
 
   function checkLabels() {
     return {
-      "order-valid": "Order ID, event and facility match current demo",
-      "notifications-acknowledged": "Downstream notifications acknowledged",
-      "plant-ready": "Plant crew ready",
-      "outlet-ready": "Outlet path ready",
-      "ramp-started": "Ramp started",
-      "actual-recorded": "Actual release recorded",
-      "downstream-monitored": "Downstream response monitored",
-      "completion-confirmed": "Completion confirmed",
+      "order-valid": tr("plant.check.order-valid"),
+      "notifications-acknowledged": tr("plant.check.notifications-acknowledged"),
+      "plant-ready": tr("plant.check.plant-ready"),
+      "outlet-ready": tr("plant.check.outlet-ready"),
+      "ramp-started": tr("plant.check.ramp-started"),
+      "actual-recorded": tr("plant.check.actual-recorded"),
+      "downstream-monitored": tr("plant.check.downstream-monitored"),
+      "completion-confirmed": tr("plant.check.completion-confirmed"),
     };
   }
 
@@ -185,8 +185,8 @@
 
     const identity = el("div", "plantFacilityIdentity", { dataset: { plantFacilityIdentity: "" } });
     identity.append(
-      text("strong", "", facility ? facility.name : "Unknown facility"),
-      text("span", "", facility ? `${facility.id} · ${facility.entityType} · inspection ${facility.inspectionStatus}` : tr("plant.noRegistry"))
+      text("strong", "", facility ? facility.name : tr("plant.unknownFacility")),
+      text("span", "", facility ? tr("plant.identityMeta", { id: facility.id, type: facility.entityType, status: facility.inspectionStatus }) : tr("plant.noRegistry"))
     );
 
     const label = el("label", "plantFacilitySelect");
@@ -306,7 +306,7 @@
     } else if (targeted) {
       const grid = el("div", "plantMetricGrid");
       grid.append(
-        metric(tr("plant.proposedRelease"), `${fmtInt(pkg.action.q0)} -> ${fmtInt(pkg.action.q1)} m3/s`, "RECOMMENDATION only"),
+        metric(tr("plant.proposedRelease"), `${fmtInt(pkg.action.q0)} -> ${fmtInt(pkg.action.q1)} m3/s`, tr("plant.recommendationOnly")),
         metric(tr("plant.start"), relTimeLabel(pkg.action.tStart), tr("plant.requiresApproval")),
         metric(tr("plant.controlPoint"), pkg.gauge ? pkg.gauge.name : "—", tr("plant.downstreamSimulation")),
         metric(tr("plant.peakCut"), Number.isFinite(pkg.cut) ? `${fmt(pkg.cut, 2)} m` : "—", tr("plant.modelledComparison"))
@@ -323,7 +323,7 @@
     section.append(actionButton("propose", tr("plant.proposeUnavailable"), tr("plant.proposeReason")));
     section.append(actionButton("approve", tr("plant.approveUnavailable"), tr("plant.approveReason")));
     section.append(actionButton("execute", tr("plant.executeUnavailable"), tr("plant.executeReason")));
-    const source = text("p", "plantProvenance", tr("plant.advisorySource", { proposal: proposal ? proposal.id : "none stored" }));
+    const source = text("p", "plantProvenance", tr("plant.advisorySource", { proposal: proposal ? proposal.id : tr("plant.noneStored") }));
     source.dataset.provenance = "workflow";
     section.append(source);
     section.scrollTop = scrollTop;
@@ -384,9 +384,9 @@
     section.append(
       text("p", "plantLifecycleBadge approved", tr("plant.lifecycle", { class: order.lifecycleClass, actionable: order.actionable ? "true" : "false" })),
       metric(tr("plant.approvedOrderId"), order.id, order.status),
-      metric(tr("plant.package"), order.packageId, `revision ${order.revision}`),
-      metric(tr("plant.commandedTarget"), Number.isFinite(order.commandedCms) ? `${fmtInt(order.commandedCms)} m3/s` : "—", "ASSUMED_FOR_DEMO command from approved package"),
-      metric(tr("plant.decisionAudit"), decision ? `#${decision.auditSeq}` : `#${order.auditSeq}`, decision ? `${decision.actor}; ${decision.reason}` : "stored approval evidence")
+      metric(tr("plant.package"), order.packageId, tr("plant.revision", { revision: order.revision })),
+      metric(tr("plant.commandedTarget"), Number.isFinite(order.commandedCms) ? `${fmtInt(order.commandedCms)} m3/s` : "—", tr("plant.assumedCommand")),
+      metric(tr("plant.decisionAudit"), decision ? `#${decision.auditSeq}` : `#${order.auditSeq}`, decision ? `${decision.actor}; ${decision.reason}` : tr("plant.storedApproval"))
     );
     const valid = text("p", "plantProvenance", `approved_order_id ${order.id}; event_id ${order.eventId}; facility_id ${order.facilityId}; proposal_id ${order.proposalId}; decision_id ${order.decisionId}.`);
     valid.dataset.provenance = "workflow";
@@ -475,7 +475,7 @@
     const section = root.querySelector("[data-plant-current-state]");
     if (!section) return;
     const list = el("ul", "plantMissingDependencies", { dataset: { plantMissingDependencies: "" } });
-    MISSING_DEPENDENCIES.forEach((item) => list.appendChild(text("li", "", item)));
+    MISSING_DEPENDENCIES.forEach((item) => list.appendChild(text("li", "", tr(item))));
     section.append(text("h4", "", tr("plant.missingDependencies")));
     section.append(list);
   }
@@ -509,7 +509,7 @@
     const approved = el("section", "", { dataset: { plantApprovedOrder: "" } });
     const checklist = el("section", "", { dataset: { plantChecklist: "" } });
     const execution = el("section", "", { dataset: { plantExecution: "" } });
-    grid.append(map, current, advisory, alternatives, approved, checklist, execution);
+    grid.append(current, approved, map, advisory, alternatives, checklist, execution);
     shell.append(head, facilityBar, grid);
     buildFacilityBar(shell, facility);
     updatePlant(shell);

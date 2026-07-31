@@ -154,6 +154,124 @@ async function workspaceRouting(browser) {
       tokensStable;
   });
 
+  await check('role workspace Vietnamese copy does not leak English labels while preserving tokens and values', async (detail) => {
+    const state = await directCity.page.evaluate(async () => {
+      const text = (selector) => document.querySelector(selector)?.textContent.replace(/\s+/g, ' ').trim() || '';
+      const plantPanelText = () => [
+        '.plantDashboard .roleDashboardHead',
+        '.plantFacilityBar',
+        '[data-plant-current-state]',
+        '[data-plant-advisory]',
+        '[data-plant-alternatives]',
+        '[data-plant-approved-order]',
+        '[data-plant-checklist]',
+        '[data-plant-execution]',
+      ].map(text).join(' ');
+      FT.i18n.setLang('en');
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const enCityQueue = text('[data-city-decision-queue]');
+      FT.workspaces.navigate('plant', { facilityId: 'song-tranh-2' });
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const enPlant = plantPanelText();
+      FT.i18n.setLang('vi');
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const viPlant = plantPanelText();
+      FT.workspaces.navigate('city');
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const viCityQueue = text('[data-city-decision-queue]');
+      FT.workspaces.navigate('plant', { facilityId: 'tra-linh-1' });
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const viUnavailable = plantPanelText();
+      return {
+        enCityQueue,
+        viCityQueue,
+        enPlant,
+        viPlant,
+        viUnavailable,
+        enTokens: {
+          assumed: enPlant.includes('ASSUMED_FOR_DEMO'),
+          missing: enPlant.includes('MISSING'),
+          facility: enPlant.includes('song-tranh-2'),
+          date: enPlant.includes('2026-05-06'),
+          proposalUnits: /1,100 -> 2,000 m3\/s/.test(enPlant),
+        },
+        viTokens: {
+          assumed: viPlant.includes('ASSUMED_FOR_DEMO'),
+          missing: viPlant.includes('MISSING'),
+          facility: viPlant.includes('song-tranh-2'),
+          date: viPlant.includes('2026-05-06'),
+          proposalUnits: /1,100 -> 2,000 m3\/s/.test(viPlant),
+        },
+      };
+    });
+    const viText = `${state.viCityQueue} ${state.viPlant} ${state.viUnavailable}`;
+    const leakedTerms = [
+      'Accountable role',
+      'Consulted roles',
+      'inspection ',
+      'Order ID, event and facility match current demo',
+      'Downstream notifications acknowledged',
+      'Plant crew ready',
+      'Outlet path ready',
+      'Ramp started',
+      'Actual release recorded',
+      'Downstream response monitored',
+      'Completion confirmed',
+      'RECOMMENDATION only',
+      'revision ',
+      'ASSUMED_FOR_DEMO command from approved package',
+      'stored approval evidence',
+      'telemetry feed not supplied',
+      'storage/outlet geometry not supplied',
+      'plant operating rules not supplied',
+      'routing/forecast inputs not supplied',
+      'none stored',
+    ].filter((term) => viText.toLowerCase().includes(term.toLowerCase()));
+    detail({ ...state, leakedTerms });
+    return leakedTerms.length === 0 &&
+      /Accountable role|Consulted/i.test(state.enCityQueue) &&
+      /inspection|Order ID, event and facility match current demo|RECOMMENDATION only|none stored/i.test(state.enPlant) &&
+      /Vai trò chịu trách nhiệm|Tham vấn/i.test(state.viCityQueue) &&
+      /kiểm tra|ID lệnh, sự kiện và công trình khớp|chỉ là RECOMMENDATION|chưa lưu/i.test(state.viPlant) &&
+      /telemetry|dung tích|quy tắc vận hành|định tuyến/i.test(state.viUnavailable) &&
+      JSON.stringify(state.enTokens) === JSON.stringify(state.viTokens);
+  });
+
+  await check('role workspace DOM order puts critical decision content before shared map for keyboard flow', async (detail) => {
+    const order = await directCity.page.evaluate(async () => {
+      FT.workspaces.navigate('city');
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const city = [...document.querySelector('.cityDashboard .roleDashboardGrid').children].map((node) => ({
+        map: node.classList.contains('roleDashboardMap'),
+        queue: node.matches('[data-city-decision-queue]'),
+      }));
+      FT.workspaces.navigate('plant', { facilityId: 'a-vuong' });
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const plant = [...document.querySelector('.plantDashboard .roleDashboardGrid').children].map((node) => ({
+        map: node.classList.contains('roleDashboardMap'),
+        current: node.matches('[data-plant-current-state]'),
+        approved: node.matches('[data-plant-approved-order]'),
+      }));
+      FT.workspaces.navigate('city');
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      return { city, plant };
+    });
+    detail(order);
+    const cityMap = order.city.findIndex((item) => item.map);
+    const cityQueue = order.city.findIndex((item) => item.queue);
+    const plantMap = order.plant.findIndex((item) => item.map);
+    const plantCurrent = order.plant.findIndex((item) => item.current);
+    const plantApproved = order.plant.findIndex((item) => item.approved);
+    return cityQueue !== -1 &&
+      cityMap !== -1 &&
+      cityQueue < cityMap &&
+      plantCurrent !== -1 &&
+      plantApproved !== -1 &&
+      plantMap !== -1 &&
+      plantCurrent < plantMap &&
+      plantApproved < plantMap;
+  });
+
   await check('city dashboard layout remains usable across desktop, tablet and mobile widths', async (detail) => {
     const viewports = [
       { width: 1366, height: 768 },
@@ -558,7 +676,7 @@ async function workspaceRouting(browser) {
       setup.orderEventId === setup.eventId &&
       beforeVisible.currentEventId === setup.eventId &&
       beforeVisible.orderText.includes(setup.orderId) &&
-      beforeVisible.checklistText.includes('Order ID, event and facility match current demo') &&
+      /Order ID, event and facility match current demo|ID lệnh, sự kiện và công trình khớp/i.test(beforeVisible.checklistText) &&
       beforeVisible.executionText.includes(setup.executionId) &&
       after.scenario === 'yagi' &&
       after.eventId === 'EVT-yagi' &&
@@ -818,6 +936,45 @@ async function workspaceRouting(browser) {
       new URLSearchParams(back.search).get('facility') === 'a-vuong' &&
       forward.workspace === 'city' &&
       new URLSearchParams(forward.search).get('workspace') === 'city';
+  });
+
+  await check('browser Back restores focus to the originating workspace deep-link control once', async (detail) => {
+    await openWorkspace(directPlant.page, 'city');
+    const before = await directPlant.page.evaluate(() => {
+      const button = document.querySelector('[data-city-portfolio] [data-plant-facility-id="a-vuong"]');
+      if (!button) return { hasButton: false };
+      button.focus();
+      button.click();
+      return {
+        hasButton: true,
+        workspace: FT.state.workspace,
+        facility: FT.state.selectedFacilityId,
+        activeTag: document.activeElement?.tagName || '',
+      };
+    });
+    await directPlant.page.waitForFunction(() => document.body.dataset.workspace === 'plant' && window.FT.state.selectedFacilityId === 'a-vuong');
+    await directPlant.page.goBack({ waitUntil: 'domcontentloaded' }).catch(() => null);
+    await directPlant.page.waitForFunction(() => document.body.dataset.workspace === 'city');
+    await directPlant.page.waitForFunction(() => document.activeElement && document.activeElement.dataset && document.activeElement.dataset.plantFacilityId === 'a-vuong', null, { timeout: 3000 }).catch(() => null);
+    const afterBack = await directPlant.page.evaluate(() => ({
+      workspace: FT.state.workspace,
+      focusedFacility: document.activeElement?.dataset?.plantFacilityId || '',
+      focusedText: document.activeElement?.textContent?.replace(/\s+/g, ' ').trim() || '',
+    }));
+    await directPlant.page.goBack({ waitUntil: 'domcontentloaded' }).catch(() => null);
+    await directPlant.page.waitForTimeout(120);
+    const afterUnrelatedBack = await directPlant.page.evaluate(() => ({
+      workspace: FT.state.workspace,
+      focusedFacility: document.activeElement?.dataset?.plantFacilityId || '',
+      activeTag: document.activeElement?.tagName || '',
+    }));
+    detail({ before, afterBack, afterUnrelatedBack });
+    return before.hasButton &&
+      before.workspace === 'plant' &&
+      afterBack.workspace === 'city' &&
+      afterBack.focusedFacility === 'a-vuong' &&
+      /Plant|Tuyến|Nhà máy/i.test(afterBack.focusedText) &&
+      afterUnrelatedBack.focusedFacility !== 'a-vuong';
   });
 
   await check('map route restoration returns shared map node to original shell parent and position', async (detail) => {

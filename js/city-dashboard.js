@@ -271,10 +271,10 @@
     const grid = el("div", "roleDashboardGrid");
     const map = el("div", "roleDashboardMap", { dataset: { workspaceMapSlot: "city" } });
     grid.append(
+      renderDecisionQueue(snapshot),
       map,
       renderPortfolio(facilities, snapshot, hydroSnap),
       renderTimeline(facilities, snapshot),
-      renderDecisionQueue(snapshot),
       renderImpact(hydroSnap),
       renderReadiness(snapshot)
     );
@@ -329,7 +329,7 @@
         card.append(
           text("strong", "", `${order.decisionId} · APPROVED_PLAN`),
           text("p", "", `approved_order_id ${order.id}; event_id ${order.eventId}; facility_id ${order.facilityId}`),
-          text("p", "", storedDecision ? `Accountable approval: ${storedDecision.actor}; reason: ${storedDecision.reason}` : tr("city.approvalEvidence"))
+          text("p", "", storedDecision ? tr("city.accountableApproval", { actor: storedDecision.actor, reason: storedDecision.reason }) : tr("city.approvalEvidence"))
         );
       } else if (decision) {
         card.append(

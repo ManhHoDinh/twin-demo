@@ -275,6 +275,20 @@
     return true;
   }
 
+  function restoreReturnFocusAfterPop(next) {
+    if (!returnFocus) return false;
+    const target = returnFocus;
+    const matches = target.workspace === next.workspace &&
+      (target.workspace !== "plant" || target.facilityId === next.facilityId);
+    returnFocus = null;
+    if (!matches) return false;
+    requestAnimationFrame(() => {
+      const node = document.querySelector(target.selector);
+      if (node && typeof node.focus === "function") node.focus();
+    });
+    return true;
+  }
+
   function init() {
     if (initialized) return;
     host = document.getElementById("roleWorkspaceHost");
@@ -293,7 +307,11 @@
         navigate(button.dataset.workspace, {});
       });
     }
-    window.addEventListener("popstate", () => applyRoute(parseRoute(), { push: false }));
+    window.addEventListener("popstate", () => {
+      const next = parseRoute();
+      applyRoute(next, { push: false });
+      restoreReturnFocusAfterPop(next);
+    });
     document.addEventListener("keydown", (event) => {
       if (event.key !== "Escape") return;
       if (restoreReturnFocus()) event.preventDefault();
