@@ -22,6 +22,15 @@
   const reduceMotion = () => window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   let placeSheet = null, placeReturnFocus = null, activePlaceSelection = null, usePlaceSurface = false;
   let addressRequestId = 0, addressController = null, activeAddressKey = "";
+  const workspaceYieldState = new WeakMap();
+
+  function shellWorkspace() {
+    return FT.state && FT.state.workspace || "map";
+  }
+
+  function shellChromeAllowed() {
+    return shellWorkspace() === "map";
+  }
 
   /* ======================================================================
      FloatingPanel — the universal state machine
@@ -76,6 +85,10 @@
       return this;
     }
     show(mode) {
+      if (!shellChromeAllowed()) {
+        syncWorkspaceYield({ workspace: shellWorkspace() });
+        return this;
+      }
       // Right-lane coordination: only ONE primary right-context panel is open at a
       // time (Inspector ⇄ Decision), so they never overlap. Newest wins; the other
       // yields unless the operator pinned it. (Palantir/ArcGIS single-context pattern.)
@@ -160,6 +173,10 @@
   const MapMode = {
     current: null,
     set(m) {
+      if (!shellChromeAllowed()) {
+        syncWorkspaceYield({ workspace: shellWorkspace() });
+        return;
+      }
       MODES.forEach((x) => document.body.classList.toggle("mode-" + x, x === m && this.current !== m));
       this.current = this.current === m ? null : m;
       MODES.forEach((x) => document.body.classList.toggle("mode-" + x, x === this.current));
@@ -580,6 +597,10 @@
   }
   function initKeys() {
     document.addEventListener("keydown", (e) => {
+      if (!shellChromeAllowed() && e.key !== "Escape") {
+        syncWorkspaceYield({ workspace: shellWorkspace() });
+        return;
+      }
       // ⌘K / Esc / ? work even in fields; the rest don't
       const isPalette = matchCombo(e, "cmd+k");
       if (!isPalette && e.key !== "Escape" && inField(e)) return;
@@ -614,8 +635,61 @@
     armAutoHide();
     initKeys();
     document.body.classList.add("geoshell");  // ← flips the whole layout on, last
+    syncWorkspaceYield(FT.workspaces && FT.workspaces.current ? FT.workspaces.current() : null);
     // initial hint
     FT.notify && FT.notify("Bản đồ toàn màn hình · ⌘K để tìm · ? xem phím tắt", "info");
+  }
+
+  function workspaceYieldTargets() {
+    return document.querySelectorAll([
+      ".cmdBar",
+      ".geoDock",
+      ".geoViewCtl",
+      ".geoModeRail",
+      ".geoActions",
+      ".geoFloat",
+      ".decisionPill",
+      ".cmdPalette",
+      ".geoCheat",
+      ".earthNav",
+      ".earthCameraStatus",
+      ".earthLayerLabel",
+      ".earthPlaceSheet",
+    ].join(","));
+  }
+
+  function hideForWorkspace(node) {
+    if (!workspaceYieldState.has(node)) {
+      workspaceYieldState.set(node, {
+        hidden: node.hidden,
+        display: node.style.display,
+        visibility: node.style.visibility,
+      });
+    }
+    node.hidden = true;
+    node.style.display = "none";
+    node.style.visibility = "hidden";
+  }
+
+  function restoreAfterWorkspace(node) {
+    const state = workspaceYieldState.get(node);
+    if (!state) return;
+    node.hidden = state.hidden;
+    node.style.display = state.display;
+    node.style.visibility = state.visibility;
+    workspaceYieldState.delete(node);
+  }
+
+  function syncWorkspaceYield(detail) {
+    const workspace = detail && detail.workspace || (FT.state && FT.state.workspace) || "map";
+    workspaceYieldTargets().forEach((node) => {
+      if (workspace === "map") restoreAfterWorkspace(node);
+      else hideForWorkspace(node);
+    });
+    if (workspace !== "map") {
+      closePlaceSheet(false);
+      if (Palette.node) Palette.close();
+    }
   }
 
   /* ---------- Command bar ---------- */
@@ -717,6 +791,10 @@
   }
 
   function opsPopover() {
+    if (!shellChromeAllowed()) {
+      syncWorkspaceYield({ workspace: shellWorkspace() });
+      return;
+    }
     // lightweight popover reusing the original ops fields (moved in, restored on close)
     let pop = $("opsPopover");
     if (pop) { pop.remove(); return; }
@@ -795,8 +873,22 @@
       cmds.push({ g: "Lệnh", ico: "▤", label: "Ngăn nhật ký / kiểm toán", key: "⌘L", run: () => panels.drawer.toggle() });
       return cmds;
     },
-    open(q) { this.ensure(); this.node.classList.add("open"); this.render(q || ""); },
-    toggle() { this.ensure(); if (this.node.classList.contains("open")) this.close(); else { this.open(""); this.input.focus(); } },
+    open(q) {
+      if (!shellChromeAllowed()) {
+        if (this.node) this.close();
+        syncWorkspaceYield({ workspace: shellWorkspace() });
+        return;
+      }
+      this.ensure(); this.node.classList.add("open"); this.render(q || "");
+    },
+    toggle() {
+      if (!shellChromeAllowed()) {
+        if (this.node) this.close();
+        syncWorkspaceYield({ workspace: shellWorkspace() });
+        return;
+      }
+      this.ensure(); if (this.node.classList.contains("open")) this.close(); else { this.open(""); this.input.focus(); }
+    },
     close() { this.node && this.node.classList.remove("open"); },
     render(q) {
       const all = this.catalog();
@@ -1358,6 +1450,7 @@
     try { build(); }
     catch (e) { console.error("[shell] build failed — keeping classic dashboard:", e); document.body.classList.remove("geoshell"); }
   }
+  if (FT.bus) FT.bus.on("workspaceChanged", syncWorkspaceYield);
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", () => setTimeout(() => boot(0), 300));
   else setTimeout(() => boot(0), 300);
 })();

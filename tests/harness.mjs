@@ -133,6 +133,13 @@ export async function setScenario(page, scenario) {
   await page.waitForTimeout(150);
 }
 
+export async function openWorkspace(page, workspace, facilityId) {
+  await page.evaluate(({ workspace, facilityId }) => {
+    window.FT.workspaces.navigate(workspace, facilityId ? { facilityId } : {});
+  }, { workspace, facilityId });
+  await page.waitForFunction((name) => document.body.dataset.workspace === name, workspace);
+}
+
 /** Choose the operating policy through the real control, not by poking state. */
 export async function setPolicy(page, policy) {
   await page.evaluate((nextPolicy) => {

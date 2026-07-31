@@ -89,6 +89,788 @@ canvas { display: block; }
 .stage { grid-area: stage; }
 .statusbar { grid-area: foot; }
 
+/* ============ ROLE WORKSPACE ROUTING ============ */
+.workspaceNav {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 70;
+  display: flex;
+  gap: 6px;
+  padding: 5px;
+  background: rgba(7, 19, 32, 0.82);
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(12px);
+}
+.workspaceNav button {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--ink-1);
+  border-radius: 7px;
+  min-height: 44px;
+  padding: 7px 10px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.workspaceNav button:hover,
+.workspaceNav button:focus-visible {
+  color: var(--ink-0);
+  border-color: var(--line-strong);
+  outline: none;
+}
+.workspaceNav button.isActive {
+  color: #04121f;
+  background: var(--cyan);
+}
+.roleWorkspaceHost {
+  position: fixed;
+  inset: 0;
+  z-index: 12;
+  overflow: hidden;
+  background: var(--bg-0);
+}
+.workspacePlaceholder {
+  min-height: 100%;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 12px;
+  padding: 68px 12px 12px;
+}
+.workspacePlaceholder > header {
+  max-width: 860px;
+  margin: 0 auto;
+  text-align: center;
+}
+.workspacePlaceholder h2 {
+  margin: 0;
+  font-size: 18px;
+}
+.workspacePlaceholder p {
+  margin: 3px 0 0;
+  color: var(--ink-2);
+}
+.workspaceMapSlot {
+  position: relative;
+  min-height: 0;
+  border: 1px solid var(--line);
+  background: #071320;
+  overflow: hidden;
+}
+body[data-workspace="city"] .roleWorkspaceHost,
+body[data-workspace="plant"] .roleWorkspaceHost { display: block; }
+body[data-workspace="city"] .roleWorkspaceHost .stageCanvasWrap,
+body[data-workspace="plant"] .roleWorkspaceHost .stageCanvasWrap {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+}
+body[data-workspace="city"] {
+  --city-bg: #f7f1e7;
+  --city-panel: #fffaf1;
+  --city-panel-2: #f3eadb;
+  --city-line: rgba(18, 45, 72, 0.16);
+  --city-line-strong: rgba(18, 45, 72, 0.28);
+  --city-ink: #132d48;
+  --city-muted: #62758a;
+  --city-orange: #d96d1f;
+  --city-orange-soft: rgba(217, 109, 31, 0.12);
+  --city-teal: #148f86;
+  --city-teal-soft: rgba(20, 143, 134, 0.12);
+  --city-shadow: 0 18px 44px rgba(54, 43, 28, 0.16);
+}
+body[data-workspace="city"] .roleWorkspaceHost {
+  color: var(--city-ink);
+  background:
+    linear-gradient(180deg, rgba(255, 250, 241, 0.92), rgba(247, 241, 231, 0.98)),
+    repeating-linear-gradient(90deg, rgba(19, 45, 72, 0.035) 0 1px, transparent 1px 96px),
+    var(--city-bg);
+}
+.cityDashboard {
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+  gap: 10px;
+  padding: 68px 12px 12px;
+  overflow: hidden;
+}
+.roleDashboardHead,
+.cityKpis,
+.cityUnresolvedEvidence,
+.roleDashboardGrid {
+  width: min(1640px, 100%);
+  margin: 0 auto;
+}
+.roleDashboardHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  gap: 16px;
+}
+.roleEyebrow,
+.cityKpiLabel,
+.cityKpiNote,
+.cityFacilityMeta,
+.cityProcessNote,
+.cityQueueMeta,
+.cityProvenance {
+  color: var(--city-muted);
+}
+.roleEyebrow {
+  margin: 0 0 2px;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+.roleDashboardHead h2 {
+  margin: 0;
+  font-size: 22px;
+  line-height: 1.12;
+  letter-spacing: 0;
+}
+.roleDashboardLead {
+  max-width: 820px;
+  margin: 5px 0 0;
+  color: #38526c;
+}
+.citySyntheticBanner {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 8px 11px;
+  border: 1px solid rgba(217, 109, 31, 0.38);
+  border-radius: 8px;
+  background: var(--city-orange-soft);
+  color: #7d3c0e;
+  font-size: 12px;
+  font-weight: 800;
+}
+.cityKpis {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.cityKpi,
+.cityUnresolvedEvidence,
+.cityPortfolio,
+.cityTimeline,
+.cityDecisionQueue,
+.cityImpact,
+.cityReadiness {
+  border: 1px solid var(--city-line);
+  border-radius: 8px;
+  background: linear-gradient(180deg, var(--city-panel), var(--city-panel-2));
+  box-shadow: var(--city-shadow);
+}
+.cityKpi {
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px;
+}
+.cityKpiValue {
+  font-size: 26px;
+  line-height: 1;
+  color: var(--city-ink);
+  font-variant-numeric: tabular-nums;
+}
+.cityUnresolvedEvidence {
+  padding: 9px 12px;
+  color: #7d3c0e;
+  background: linear-gradient(90deg, rgba(217, 109, 31, 0.14), rgba(255, 250, 241, 0.86));
+  font-weight: 800;
+}
+.roleDashboardGrid {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(760px, 1.7fr) minmax(260px, 0.62fr) minmax(260px, 0.62fr);
+  grid-template-rows: repeat(3, minmax(0, 1fr));
+  grid-template-areas:
+    "map portfolio queue"
+    "map timeline impact"
+    "map timeline readiness";
+  gap: 10px;
+}
+.roleDashboardMap {
+  grid-area: map;
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid rgba(18, 45, 72, 0.24);
+  border-radius: 8px;
+  background: #0a1723;
+  box-shadow: var(--city-shadow);
+}
+.cityPortfolio,
+.cityTimeline,
+.cityDecisionQueue,
+.cityImpact,
+.cityReadiness {
+  min-height: 0;
+  padding: 12px;
+  overflow: auto;
+}
+.cityPortfolio { grid-area: portfolio; }
+.cityTimeline { grid-area: timeline; }
+.cityDecisionQueue { grid-area: queue; border-color: rgba(217, 109, 31, 0.34); }
+.cityImpact { grid-area: impact; }
+.cityReadiness { grid-area: readiness; }
+.cityPortfolio h3,
+.cityTimeline h3,
+.cityDecisionQueue h3,
+.cityImpact h3,
+.cityReadiness h3 {
+  margin: 0 0 9px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: #183a5c;
+}
+.cityFacilityList,
+.cityReadinessGrid {
+  display: grid;
+  gap: 7px;
+}
+.cityFacilityRow,
+.cityProcessRow,
+.cityDecisionCard,
+.cityGaugeCard {
+  display: grid;
+  gap: 6px;
+  padding: 9px;
+  border: 1px solid rgba(18, 45, 72, 0.12);
+  border-radius: 7px;
+  background: rgba(255, 250, 241, 0.72);
+}
+.cityFacilityRow[data-state="ASSESSED"],
+.cityFacilityRow[data-state="VERIFIED"],
+.cityFacilityRow[data-state="CLOSED"],
+.cityProcessRow[data-state="ASSESSED"],
+.cityProcessRow[data-state="VERIFIED"],
+.cityProcessRow[data-state="CLOSED"] {
+  border-left: 4px solid var(--city-teal);
+}
+.cityFacilityRow[data-state="PROPOSED"],
+.cityFacilityRow[data-state="SUBMITTED"],
+.cityFacilityRow[data-state="APPROVED"],
+.cityFacilityRow[data-state="NOTIFIED"],
+.cityFacilityRow[data-state="EXECUTING"],
+.cityProcessRow[data-state="PROPOSED"],
+.cityProcessRow[data-state="SUBMITTED"],
+.cityProcessRow[data-state="APPROVED"],
+.cityProcessRow[data-state="NOTIFIED"],
+.cityProcessRow[data-state="EXECUTING"] {
+  border-left: 4px solid var(--city-orange);
+}
+.cityFacilityRow[data-state="NOT_IN_CURRENT_DEMO"] {
+  background: rgba(247, 241, 231, 0.68);
+}
+.cityFacilityMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  font-size: 11px;
+}
+.statePill,
+.cityProcessState {
+  display: inline-flex;
+  width: max-content;
+  align-items: center;
+  min-height: 20px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--city-teal-soft);
+  color: #0a6760;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .02em;
+}
+[data-state="PROPOSED"] .statePill,
+[data-state="SUBMITTED"] .statePill,
+[data-state="APPROVED"] .statePill,
+[data-state="NOTIFIED"] .statePill,
+[data-state="EXECUTING"] .statePill,
+[data-state="PROPOSED"] .cityProcessState,
+[data-state="SUBMITTED"] .cityProcessState,
+[data-state="APPROVED"] .cityProcessState,
+[data-state="NOTIFIED"] .cityProcessState,
+[data-state="EXECUTING"] .cityProcessState {
+  background: var(--city-orange-soft);
+  color: #9a4a12;
+}
+.cityFacilityMetric {
+  color: #244965;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.cityPlantLink {
+  justify-self: start;
+  min-height: 44px;
+  border: 1px solid rgba(20, 143, 134, 0.34);
+  border-radius: 7px;
+  background: #e7f5f1;
+  color: #0c605a;
+  padding: 6px 8px;
+  font-size: 12px;
+  font-weight: 800;
+}
+.cityPlantLink:hover,
+.cityPlantLink:focus-visible {
+  outline: none;
+  border-color: var(--city-teal);
+  background: #d8eee9;
+}
+.cityDecisionCard.pending {
+  border-color: rgba(217, 109, 31, 0.32);
+  background: linear-gradient(180deg, rgba(255, 242, 229, 0.95), rgba(255, 250, 241, 0.86));
+}
+.cityDecisionCard p,
+.cityQueueMeta,
+.cityProvenance {
+  margin: 0;
+}
+.cityGaugeCard {
+  grid-template-columns: minmax(100px, 1fr) auto;
+  align-items: center;
+}
+.cityGaugeCard span:last-child {
+  grid-column: 1 / -1;
+  color: var(--city-muted);
+  font-size: 12px;
+}
+.cityProvenance {
+  margin-top: 9px;
+  padding-top: 8px;
+  border-top: 1px solid var(--city-line);
+  font-size: 11px;
+}
+@keyframes cityEnter {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.cityDashboard .cityKpi,
+.cityDashboard .cityUnresolvedEvidence,
+.cityDashboard .roleDashboardGrid > * {
+  animation: cityEnter .28s ease-out both;
+}
+.cityDashboard .roleDashboardGrid > *:nth-child(2) { animation-delay: .03s; }
+.cityDashboard .roleDashboardGrid > *:nth-child(3) { animation-delay: .06s; }
+.cityDashboard .roleDashboardGrid > *:nth-child(4) { animation-delay: .09s; }
+@media (min-width: 721px) and (max-width: 1299px) {
+  .roleDashboardHead {
+    display: grid;
+    align-items: start;
+  }
+  .citySyntheticBanner {
+    width: 100%;
+  }
+  .roleDashboardGrid {
+    grid-template-columns: minmax(0, 1.35fr) minmax(220px, 0.65fr);
+    grid-template-rows: repeat(4, minmax(0, 1fr));
+    grid-template-areas:
+      "map queue"
+      "map readiness"
+      "map impact"
+      "portfolio timeline";
+  }
+}
+@media (max-width: 720px) {
+  .workspaceNav {
+    left: 8px;
+    right: 8px;
+    transform: none;
+    justify-content: center;
+  }
+  .workspaceNav button {
+    flex: 1 1 0;
+    min-height: 44px;
+    padding: 7px 6px;
+  }
+  .workspacePlaceholder { padding-top: 72px; }
+  .cityDashboard {
+    padding: 74px 8px 8px;
+    overflow: auto;
+    grid-template-rows: auto auto auto auto;
+  }
+  .roleDashboardHead {
+    display: grid;
+    gap: 8px;
+  }
+  .roleDashboardHead h2 { font-size: 19px; }
+  .citySyntheticBanner {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+  }
+  .cityKpis {
+    grid-template-columns: 1fr;
+  }
+  .roleDashboardGrid {
+    grid-template-columns: 1fr;
+    grid-template-rows: none;
+    grid-template-areas:
+      "queue"
+      "map"
+      "portfolio"
+      "timeline"
+      "impact"
+      "readiness";
+  }
+  .roleDashboardMap {
+    min-height: min(52vh, 440px);
+  }
+  .cityPortfolio,
+  .cityTimeline,
+  .cityDecisionQueue,
+  .cityImpact,
+  .cityReadiness {
+    max-height: none;
+    overflow: visible;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cityDashboard .cityKpi,
+  .cityDashboard .cityUnresolvedEvidence,
+  .cityDashboard .roleDashboardGrid > * {
+    animation: none;
+  }
+}
+
+body[data-workspace="plant"] {
+  --plant-bg: #071119;
+  --plant-surface: #0f202d;
+  --plant-surface-2: #122b3a;
+  --plant-line: rgba(145, 187, 208, 0.22);
+  --plant-line-strong: rgba(145, 187, 208, 0.38);
+  --plant-ink: #e8f3f7;
+  --plant-muted: #9db4c1;
+  --plant-amber: #e0a235;
+  --plant-amber-soft: rgba(224, 162, 53, 0.14);
+  --plant-green: #54c27d;
+  --plant-green-soft: rgba(84, 194, 125, 0.15);
+  --plant-shadow: 0 18px 44px rgba(0, 0, 0, 0.28);
+}
+body[data-workspace="plant"] .roleWorkspaceHost {
+  color: var(--plant-ink);
+  background:
+    linear-gradient(180deg, rgba(7, 17, 25, 0.94), rgba(9, 23, 33, 0.98)),
+    repeating-linear-gradient(90deg, rgba(145, 187, 208, 0.035) 0 1px, transparent 1px 96px),
+    var(--plant-bg);
+}
+.plantDashboard {
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 10px;
+  padding: 68px 12px 12px;
+  overflow: hidden;
+}
+.plantDashboard .roleDashboardHead,
+.plantFacilityBar,
+.plantDashboard .roleDashboardGrid {
+  width: min(1640px, 100%);
+  margin: 0 auto;
+}
+.plantDashboard .roleEyebrow,
+.plantMetricLabel,
+.plantMetricNote,
+.plantSourceLine,
+.plantProvenance,
+.plantNotice,
+.plantUnavailableText {
+  color: var(--plant-muted);
+}
+.plantDashboard .roleDashboardLead {
+  color: #bad0dc;
+}
+.plantSyntheticBanner {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 8px 11px;
+  border: 1px solid rgba(224, 162, 53, 0.42);
+  border-radius: 8px;
+  background: var(--plant-amber-soft);
+  color: #ffd993;
+  font-size: 12px;
+  font-weight: 900;
+}
+.plantFacilityBar {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) minmax(260px, 0.45fr) minmax(320px, 0.9fr);
+  gap: 10px;
+  align-items: stretch;
+}
+.plantFacilityIdentity,
+.plantFacilitySelect,
+.plantSourceLine,
+.plantPanel {
+  border: 1px solid var(--plant-line);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(18, 43, 58, 0.96), rgba(15, 32, 45, 0.96));
+  box-shadow: var(--plant-shadow);
+}
+.plantFacilityIdentity,
+.plantFacilitySelect,
+.plantSourceLine {
+  min-height: 56px;
+  display: grid;
+  gap: 4px;
+  align-content: center;
+  margin: 0;
+  padding: 9px 11px;
+}
+.plantFacilityIdentity strong {
+  font-size: 15px;
+}
+.plantFacilityIdentity span,
+.plantFacilitySelect span,
+.plantSourceLine {
+  font-size: 12px;
+}
+.plantFacilitySelect select {
+  min-width: 0;
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--plant-line-strong);
+  border-radius: 7px;
+  background: #07131d;
+  color: var(--plant-ink);
+  padding: 5px 8px;
+}
+.plantDashboard .roleDashboardGrid {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(620px, 1.42fr) minmax(230px, 0.5fr) minmax(230px, 0.5fr) minmax(230px, 0.5fr);
+  grid-template-rows: repeat(3, minmax(0, 1fr));
+  grid-template-areas:
+    "map current advisory approved"
+    "map alternatives advisory checklist"
+    "map alternatives execution checklist";
+  gap: 10px;
+}
+.plantDashboard .roleDashboardMap {
+  border-color: rgba(145, 187, 208, 0.3);
+  background: #07131d;
+  box-shadow: var(--plant-shadow);
+}
+.plantPanel {
+  min-height: 0;
+  padding: 11px;
+  overflow: auto;
+}
+.plantPanel h3 {
+  margin: 0 0 9px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: #d9edf4;
+}
+.plantPanel h4 {
+  margin: 10px 0 6px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: #ffd993;
+}
+.plantCurrentState { grid-area: current; }
+.plantAdvisory {
+  grid-area: advisory;
+  border-color: rgba(224, 162, 53, 0.46);
+}
+.plantAlternatives { grid-area: alternatives; }
+.plantApprovedOrder {
+  grid-area: approved;
+  border-color: rgba(84, 194, 125, 0.42);
+  background: linear-gradient(180deg, rgba(16, 54, 43, 0.95), rgba(13, 38, 37, 0.96));
+}
+.plantChecklist { grid-area: checklist; }
+.plantExecution { grid-area: execution; }
+.plantMetricGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+.plantMetric,
+.plantAlternative,
+.plantCheckRow {
+  display: grid;
+  gap: 5px;
+  padding: 8px;
+  border: 1px solid rgba(145, 187, 208, 0.16);
+  border-radius: 7px;
+  background: rgba(7, 19, 29, 0.52);
+}
+.plantMetric strong {
+  font-size: 19px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.plantMetricLabel,
+.plantMetricNote {
+  font-size: 11px;
+}
+.plantLifecycleBadge {
+  display: inline-flex;
+  width: fit-content;
+  margin: 0 0 8px;
+  padding: 4px 8px;
+  border: 1px solid rgba(224, 162, 53, 0.45);
+  border-radius: 999px;
+  background: var(--plant-amber-soft);
+  color: #ffd993;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .02em;
+}
+.plantLifecycleBadge.approved {
+  border-color: rgba(84, 194, 125, 0.5);
+  background: var(--plant-green-soft);
+  color: #9df0b7;
+}
+.plantNotice,
+.plantProvenance,
+.plantAssumption,
+.plantOrderEmpty,
+.plantUnavailableText,
+.plantAlternative p {
+  margin: 0 0 8px;
+  font-size: 12px;
+  line-height: 1.35;
+}
+.plantNotice.missing,
+.plantAssumption,
+.plantMissingDependencies {
+  color: #ffd993;
+}
+.plantAssumption {
+  padding: 8px;
+  border: 1px solid rgba(224, 162, 53, 0.38);
+  border-radius: 7px;
+  background: var(--plant-amber-soft);
+}
+.plantAction {
+  width: 100%;
+  min-height: 44px;
+  margin: 5px 0 0;
+  border: 1px solid rgba(145, 187, 208, 0.2);
+  border-radius: 7px;
+  background: rgba(145, 187, 208, 0.08);
+  color: var(--plant-muted);
+  font-weight: 800;
+}
+.plantAction:disabled {
+  cursor: not-allowed;
+  opacity: .72;
+}
+.plantAlternative strong {
+  color: #eef8fb;
+}
+.plantAlternative span {
+  color: #9df0b7;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.plantCheckRow {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  margin-bottom: 7px;
+  color: var(--plant-muted);
+  font-size: 12px;
+}
+.plantMissingDependencies {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+}
+@keyframes plantEnter {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.plantDashboard .plantFacilityBar > *,
+.plantDashboard .roleDashboardGrid > * {
+  animation: plantEnter .24s ease-out both;
+}
+@media (min-width: 721px) and (max-width: 1299px) {
+  .plantDashboard {
+    padding-top: 68px;
+  }
+  .plantFacilityBar {
+    grid-template-columns: minmax(0, 1fr) minmax(230px, 0.42fr);
+  }
+  .plantSourceLine {
+    grid-column: 1 / -1;
+  }
+  .plantDashboard .roleDashboardGrid {
+    grid-template-columns: minmax(0, 1.15fr) minmax(220px, 0.7fr) minmax(220px, 0.7fr);
+    grid-template-rows: repeat(4, minmax(0, 1fr));
+    grid-template-areas:
+      "map current approved"
+      "map advisory checklist"
+      "map execution checklist"
+      "alternatives alternatives checklist";
+  }
+}
+@media (min-width: 721px) and (max-width: 1099px) {
+  .plantDashboard .roleDashboardGrid {
+    grid-template-columns: minmax(320px, 1fr) minmax(220px, 0.62fr);
+    grid-template-rows: repeat(5, minmax(0, 1fr));
+    grid-template-areas:
+      "map current"
+      "map approved"
+      "map execution"
+      "advisory checklist"
+      "alternatives checklist";
+  }
+}
+@media (max-width: 720px) {
+  .plantDashboard {
+    padding: 74px 8px 8px;
+    overflow: auto;
+    grid-template-rows: auto auto auto;
+  }
+  .plantSyntheticBanner {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+  }
+  .plantFacilityBar {
+    grid-template-columns: 1fr;
+  }
+  .plantDashboard .roleDashboardGrid {
+    grid-template-columns: 1fr;
+    grid-template-rows: none;
+    grid-template-areas:
+      "current"
+      "approved"
+      "map"
+      "advisory"
+      "alternatives"
+      "checklist"
+      "execution";
+  }
+  .plantDashboard .roleDashboardMap {
+    min-height: min(52vh, 430px);
+  }
+  .plantPanel {
+    max-height: none;
+    overflow: visible;
+  }
+  .plantMetricGrid {
+    grid-template-columns: 1fr;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .plantDashboard .plantFacilityBar > *,
+  .plantDashboard .roleDashboardGrid > * {
+    animation: none;
+  }
+}
+
 /* ============ TOP BAR ============ */
 .topbar {
   display: flex;

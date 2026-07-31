@@ -241,6 +241,12 @@
 
     <!-- ============ CENTER STAGE ============ -->
     <main class="stage">
+      <nav class="workspaceNav" id="workspaceNav" aria-label="Không gian vận hành">
+        <button type="button" data-workspace="city">Điều hành thành phố</button>
+        <button type="button" data-workspace="plant">Vận hành nhà máy</button>
+      </nav>
+      <div class="roleWorkspaceHost" id="roleWorkspaceHost" hidden></div>
+
       <div class="viewBar">
         <div class="viewTabs" id="viewTabs" role="tablist">
           <button type="button" data-view="3d" class="isActive" role="tab" aria-selected="true"><span data-i18n="view.3d">Song sinh số 3D</span></button>
@@ -523,6 +529,8 @@
   <script src="./js/core.js?v=133"></script>
   <script src="./js/geo.js?v=133"></script>
   <script src="./js/data.js?v=133"></script>
+  <script src="./js/facility-registry.js?v=133"></script>
+  <script src="./js/workspaces.js?v=133"></script>
   <script src="./js/address.js?v=133"></script>
   <script src="./js/hydro.js?v=133"></script>
   <script src="./js/decision.js?v=133"></script>
@@ -540,7 +548,10 @@
   <script src="./js/record.js?v=133"></script>
   <script src="./js/grounding.js?v=133"></script>
   <script src="./js/lifecycle.js?v=133"></script>
+  <script src="./js/release-workflows.js?v=133"></script>
+  <script src="./js/city-dashboard.js?v=133"></script>
   <script src="./js/scenario-compare.js?v=133"></script>
+  <script src="./js/plant-dashboard.js?v=133"></script>
   <script src="./js/explainability.js?v=133"></script>
   <script src="./js/ui.js?v=133"></script>
   <script src="./js/opsui.js?v=133"></script>
