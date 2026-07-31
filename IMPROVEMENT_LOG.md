@@ -3,6 +3,53 @@
 > File này là TRẠNG THÁI BỀN của phiên cải tiến dài. Mỗi batch: cập nhật Done + chọn mục Backlog kế tiếp.
 > Quy tắc bất di bất dịch: xem memory `floodtwin-q1-demo` (do-not-regress list). Bump `?v=N` mỗi lần sửa để pane reload.
 
+## v134 — Zoom xuống được tầm toà nhà, nét đều toàn khung, nhãn kiểu bản đồ
+
+Người dùng: "không zoom hết cỡ được và sẽ có 1 khung sáng duy nhất tại 1 chỗ", "tôi muốn
+sáng full", "tên đường và địa danh dễ nhìn theo style google map". Đo ra **hai lỗi riêng**.
+
+**1. Zoom bị chặn ở 1,2 km.** `controls.minDistance = 1.2` — bấm zoom thêm không có tác
+dụng, khung nhìn vẫn rộng 5 km. Hạ về **0,45 km** (nhà 15 m ≈ 11 px).
+
+**2. Khung sáng đơn lẻ.** Cửa sổ ảnh nét tính theo **khoảng cách camera** (`dist * 1.15`)
+chứ không theo **vùng đất camera thực sự thấy**. Đo: ở mọi cự ly gần nó ra đúng ~27% bề
+rộng khung nhìn, tức phủ **7% diện tích** — 93% còn lại là ảnh nền mờ. Đây lại là **lớp bug
+"định cỡ cho tầm tổng quan, không co theo cảnh thật"**, lần thứ sáu.
+
+**Bản sửa đầu SAI và phải làm lại.** Cho cửa sổ phủ trọn khung nhìn → **mờ toàn bộ**: một
+tấm texture phẳng không thể đủ nét cho khung nghiêng, vì đất ở đáy khung chỉ cách ~200 m
+(cần ~0,15 m/px) trong khi texture chỉ có 1,43 m/px. Một con số không thể đúng ở cả hai đầu.
+
+**Bản sửa đúng: drape hai mức** (như Google Earth). Lớp xa phủ trọn khung; lớp gần nhỏ,
+zoom cao, đặt đúng vùng tiền cảnh (giao điểm tia màn hình y = −0,72 với mặt đất). Lớp gần
+dùng `polygonOffset` chứ **không** nâng cao độ — nâng lên sẽ khiến nó nổi trên nóc nhà.
+
+**Hoá đơn tile phải trả đúng chỗ.** Lần đo đầu: **113 tile lớp xa + 64 tile lớp gần không
+về**, nền rơi về tile cha kéo giãn — mờ hơn cả bản một lớp nó thay thế. Cắt bằng cách hạ
+lớp xa một mức zoom (nó bị nén trên màn hình) và bỏ hẳn overlay `rd`/`pl`. Sau đó
+**`pending: 0` cả hai lớp**.
+
+**Gate bắt được hồi quy do chính bản sửa này gây ra.** Mức `street` tốt lên rõ (Ái Nghĩa
+murk 17,2 → 2,6; luma 151 → 161) nhưng mức `asset` **tệ đi** (Hội An luma 140 → 113): trần
+cửa sổ 14 km tôi đặt **nhỏ hơn** cách tính cũ ~18,4 km, tức vô tình thu hẹp vùng phủ. Sửa:
+trần 24 km và `max(viewW, dist*1.15)` — không bao giờ nhỏ hơn hành vi cũ. Lớp gần chỉ bật
+khi khung nhìn ≤ 9 km, vì ở tầm trung nó sẽ thành đúng cái khung sáng cần loại bỏ.
+
+**Nhãn: chữ có quầng, không hộp.** `.label3d` bỏ nền tối + viền, dùng chữ trắng với quầng
+đen kép (đọc được trên cả cát trắng lẫn nước sẫm), phân cấp cỡ thành phố / phường-xã / cầu;
+nhãn bấm được vẫn giữ chip nhẹ để còn nhận ra là tương tác. Bỏ luôn lớp nhãn **nướng vào
+nền**: tile `rd`/`pl` mang nhãn vẽ cho góc nhìn thẳng đứng, đắp lên đất rồi nhìn nghiêng thì
+nhoè thành chữ cao hàng mét vắt ngang thung lũng ("ĐƯỜNG HỒ CHÍ MINH" dài 3 km). Không mất
+gì: ảnh nền đã có giao thông vẽ sẵn, đường chính là ribbon 3D thật, địa danh là nhãn DOM.
+
+**Một lượt chạy suýt bị nhận nhầm là đạt.** `ZOOM_EXIT=0` nhưng số liệu **giống hệt nhau ở
+cả 9 khung** — dấu hiệu không thể có thật. Hoá ra `imagery=false`, harness tự bỏ qua gate
+đúng như thiết kế. Guard đó vừa chứng minh giá trị của nó.
+
+Baseline được ghi lại vì nội dung render đã đổi hợp lệ (drape phủ rộng hơn nên lộ ra rừng
+xanh thẫm thật của Bà Nà thay vì nền nhạt cũ) — chỉ ghi sau khi đã xác nhận bằng mắt là đẹp
+hơn, và chỉ trên lượt chạy có ảnh vệ tinh.
+
 ## v133 — Hội An không có một ngôi nhà nào khi OSM sập, và quét lỗi bản đồ
 
 Thêm `tests/map-errors.mjs` (`npm run test:map-errors`, đã nối vào `npm test`): lái bản đồ

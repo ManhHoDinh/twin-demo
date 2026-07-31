@@ -1113,12 +1113,29 @@ body[data-workspace="plant"] .roleWorkspaceHost {
 .stageCanvas { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; pointer-events: none; transition: opacity .25s ease; }
 .stageCanvas.isActive { opacity: 1; pointer-events: auto; }
 .labels3d { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+/* Map labels read like a map, not like UI chrome: text with a halo, no box.
+   A dark pill over satellite imagery hides the very ground the label describes, and at
+   street zoom a dozen of them tile over the city. The halo is doubled and near-opaque
+   because these sit on anything from white sand to dark water. */
 .label3d {
   position: absolute; transform: translate(-50%, -110%);
-  font-size: 11px; color: var(--ink-1);
-  background: rgba(7, 19, 32, 0.72); border: 1px solid var(--line);
-  padding: 2px 7px; border-radius: 7px; white-space: nowrap;
-  backdrop-filter: blur(4px);
+  font-size: 12px; font-weight: 650; letter-spacing: .01em;
+  color: #fff; white-space: nowrap;
+  background: none; border: 0; padding: 0 2px; border-radius: 0;
+  backdrop-filter: none;
+  text-shadow:
+    0 0 2px rgba(0, 0, 0, .98), 0 0 4px rgba(0, 0, 0, .92),
+    0 0 8px rgba(0, 0, 0, .72), 0 1px 2px rgba(0, 0, 0, .95);
+}
+/* size hierarchy, like a real gazetteer: city > ward/commune > bridge */
+.label3d.city { font-size: 15px; font-weight: 700; letter-spacing: .02em; }
+.label3d.pl-dist { font-size: 12.5px; }
+.label3d.pl-bridge { font-size: 11px; font-weight: 600; color: #eaf3ff; }
+/* interactive ones keep a light chip so they still read as clickable */
+.labels3d button.label3d {
+  background: rgba(7, 19, 32, .58); border: 1px solid var(--line);
+  padding: 2px 7px; border-radius: 7px; backdrop-filter: blur(3px);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, .8);
 }
 .labels3d button.label3d { font: inherit; cursor: pointer; pointer-events: auto; }
 .labels3d button.label3d:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }

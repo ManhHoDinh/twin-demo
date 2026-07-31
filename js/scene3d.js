@@ -1395,65 +1395,158 @@
   }
 
   /* ============ dynamic close-zoom detail (live slippy tiles draped on terrain — Google-Earth style) ============ */
-  const DQ = { mesh: null, cv: null, ctx: null, tex: null, N: 64, acc: 9, key: "", pending: 0 };
-  function ensureDetail() {
-    if (DQ.mesh || !FT.geo || !FT.geo.hasImagery || !FT.geo.tile) return;
-    DQ.cv = document.createElement("canvas");
-    DQ.cv.width = DQ.cv.height = 1024;
-    DQ.ctx = DQ.cv.getContext("2d");
-    DQ.tex = new THREE.CanvasTexture(DQ.cv);
-    DQ.tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
-    const N = DQ.N, V = N + 1;
+  /* 2048 px over the window: at the old 1024 a view-sized window would have dropped two
+     zoom levels and blurred everything, which trades one defect for another. */
+  /* 24 km, not 14: the first attempt capped below the old dist*1.15 sizing and so made
+   the mid ("asset") zoom WORSE than before — meanLuma 140 -> 113, murk 19 -> 35. The
+   cap must never shrink coverage relative to what it replaced. */
+  const DQ_PX = 2048, DQ_MAX_KM = 24, DQ_TILE_BUDGET = 340;
+  /* TWO levels, because one flat texture cannot serve a tilted view.
+     Measured: at 0.45 km the far window is 2.93 km wide, so its 2048 px texture is
+     1.43 m/px — finer than the screen needs at the horizon, but the ground at the
+     BOTTOM of the frame is only ~200 m away, where a screen pixel covers ~0.15 m.
+     That single number cannot be right at both ends, which is why the far field looked
+     fine while the foreground was mush. The near layer is a small, high-zoom window
+     parked over the foreground; the far layer keeps the whole view covered. */
+  const DQ_NEAR_FRAC = 0.34;               // near window as a fraction of the view width
+  const DQ_NEAR_MIN = 0.35, DQ_NEAR_MAX = 3.2;
+  /* Tile policy per layer. Measured with both layers at full policy: 113 img tiles never
+     arrived in the far window and 64 in the near one, so the ground fell back to stretched
+     parent tiles — blurrier than the single-layer version it replaced. The bill has to be
+     paid where the eye is: the near window keeps the high zoom, the far window drops one
+     level (it is compressed on screen anyway), and neither bakes the label layer, which
+     was a third of the requests and rendered as metre-high text smeared across the ground. */
+  /* img only — no live "rd"/"pl" overlay. Those tiles carry map labels sized for a
+     top-down view of their own zoom level; baked onto the ground and seen at a tilt they
+     smear into metre-high text across the valley ("ĐƯỜNG HỒ CHÍ MINH" spanning 3 km).
+     Nothing is lost: the baked base imagery already has transport drawn in, main roads
+     are real 3D ribbons, and place names are screen-space DOM labels that stay upright. */
+  const DQ = { mesh: null, cv: null, ctx: null, tex: null, N: 96, acc: 9, key: "", pending: 0,
+               maxZ: 16, layers: ["img"] };
+  const DQN = { mesh: null, cv: null, ctx: null, tex: null, N: 64, acc: 9, key: "", pending: 0,
+                maxZ: 19, layers: ["img"] };
+  function makeDrapeMesh(L, px, renderOrder) {
+    L.cv = document.createElement("canvas");
+    L.cv.width = L.cv.height = px;
+    L.ctx = L.cv.getContext("2d");
+    L.tex = new THREE.CanvasTexture(L.cv);
+    L.tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    const N = L.N, V = N + 1;
     const pos = new Float32Array(V * V * 3);
     const uv = new Float32Array(V * V * 2);
     const idx = [];
-    for (let iy = 0; iy < V; iy++) {
-      for (let ix = 0; ix < V; ix++) {
-        const k = iy * V + ix;
-        uv[k * 2] = ix / N; uv[k * 2 + 1] = 1 - iy / N;
-      }
+    for (let iy = 0; iy < V; iy++) for (let ix = 0; ix < V; ix++) {
+      const k = iy * V + ix;
+      uv[k * 2] = ix / N; uv[k * 2 + 1] = 1 - iy / N;
     }
-    for (let iy = 0; iy < N; iy++) {
-      for (let ix = 0; ix < N; ix++) {
-        const a = iy * V + ix, b = a + 1, c2 = a + V, d2 = c2 + 1;
-        idx.push(a, c2, b, b, c2, d2);
-      }
+    for (let iy = 0; iy < N; iy++) for (let ix = 0; ix < N; ix++) {
+      const a = iy * V + ix, b = a + 1, c2 = a + V, d2 = c2 + 1;
+      idx.push(a, c2, b, b, c2, d2);
     }
     const g = new THREE.BufferGeometry();
     g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
     g.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
     g.setIndex(idx);
-    DQ.mesh = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ map: DQ.tex }));
-    DQ.mesh.visible = false;
-    DQ.mesh.frustumCulled = false;          // bỏ tính boundingSphere mỗi lần cập nhật (đỡ hitch)
-    scene.add(DQ.mesh);
-    S3._dq = DQ;
+    /* The near layer sits on the same ground as the far one, so it needs a depth bias
+       rather than a height offset — lifting it would make it float over buildings. */
+    const mat = new THREE.MeshBasicMaterial({ map: L.tex });
+    if (renderOrder > 0) { mat.polygonOffset = true; mat.polygonOffsetFactor = -4; mat.polygonOffsetUnits = -4; }
+    L.mesh = new THREE.Mesh(g, mat);
+    L.mesh.visible = false;
+    L.mesh.renderOrder = renderOrder;
+    L.mesh.frustumCulled = false;          // bỏ tính boundingSphere mỗi lần cập nhật (đỡ hitch)
+    scene.add(L.mesh);
   }
+  function ensureDetail() {
+    if (DQ.mesh || !FT.geo || !FT.geo.hasImagery || !FT.geo.tile) return;
+    makeDrapeMesh(DQ, DQ_PX, 0);
+    makeDrapeMesh(DQN, DQ_PX, 1);
+    S3._dq = DQ; S3._dqn = DQN;
+  }
+  /* Ground actually inside the frustum, by intersecting the screen corners with the
+     ground plane. Sizing the deep-zoom window off camera DISTANCE instead of off this
+     is what produced the single bright square: at every close distance the window came
+     out ~27% of the view width, i.e. it covered 7% of the visible ground area and the
+     other 93% stayed blurred base imagery. Rays that escape over the horizon are
+     reported so the caller can fall back instead of using a garbage box. */
+  const dqRay = { rc: null, plane: null, hit: null, ndc: null };
+  function viewGroundBox() {
+    if (!dqRay.rc) {
+      dqRay.rc = new THREE.Raycaster();
+      dqRay.plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+      dqRay.hit = new THREE.Vector3();
+      dqRay.ndc = new THREE.Vector2();
+    }
+    let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity, miss = 0;
+    for (const c of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+      dqRay.rc.setFromCamera(dqRay.ndc.set(c[0], c[1]), camera);
+      if (!dqRay.rc.ray.intersectPlane(dqRay.plane, dqRay.hit)) { miss++; continue; }
+      x0 = Math.min(x0, dqRay.hit.x); x1 = Math.max(x1, dqRay.hit.x);
+      z0 = Math.min(z0, dqRay.hit.z); z1 = Math.max(z1, dqRay.hit.z);
+    }
+    if (miss >= 3) return null;                 // looking at the horizon — nothing usable
+    return { x0, x1, z0, z1, w: Math.max(x1 - x0, z1 - z0), cx: (x0 + x1) / 2, cz: (z0 + z1) / 2, miss };
+  }
+
+  /* Ground point under the lower part of the frame — where the foreground blur lives. */
+  function nearFieldPoint() {
+    if (!dqRay.rc) return null;
+    dqRay.rc.setFromCamera(dqRay.ndc.set(0, -0.72), camera);
+    if (!dqRay.rc.ray.intersectPlane(dqRay.plane, dqRay.hit)) return null;
+    return { x: dqRay.hit.x, z: dqRay.hit.z };
+  }
+
   function updateDetail(dt) {
-    DQ.acc += dt;
+    DQ.acc += dt; DQN.acc += dt;
     ensureDetail();
     if (!DQ.mesh) return;
     const dist = camera.position.distanceTo(controls.target);
-    if (dist > 34) { DQ.mesh.visible = false; DQ.key = ""; return; }
+    if (dist > 34) {
+      DQ.mesh.visible = false; DQ.key = "";
+      DQN.mesh.visible = false; DQN.key = "";
+      return;
+    }
+    /* Cover what is on screen. DQ_MAX_KM bounds the tile bill; beyond it the window
+       stops growing and the far field goes back to base imagery, which is the honest
+       trade — a uniformly slightly-softer view beats a sharp patch in a blurred field. */
+    const box = viewGroundBox();
+    const viewW = box ? box.w : dist * 1.15;
+    /* Near layer first: it is the one the eye judges, and it is cheap (small window). */
+    /* Only worth a near layer when it is a real fraction of the view. At mid zoom the
+       clamped near window would be a 3 km sharp patch inside a 50 km frame — the exact
+       bright square this work set out to remove. */
+    const np = nearFieldPoint();
+    if (np && dist < 12 && viewW <= 9) {
+      const Sn = U.clamp(viewW * DQ_NEAR_FRAC, DQ_NEAR_MIN, DQ_NEAR_MAX);
+      drawDrape(DQN, Sn, np.x, np.z, dist, "near");
+    } else if (DQN.mesh) { DQN.mesh.visible = false; DQN.key = ""; }
+    const S = U.clamp(Math.max(viewW * 1.08, dist * 1.15), 1.1, DQ_MAX_KM);   // never below the pre-fix sizing
+    /* Centre on the visible ground, not on the orbit target: with a tilted camera most
+       of what you see lies beyond the target, so a target-centred window wastes half
+       its area behind the viewer. */
+    const tcx = box ? box.cx : controls.target.x, tcy = box ? box.cz : controls.target.z;
+    drawDrape(DQ, S, tcx, tcy, dist, "far");
+  }
+
+  function drawDrape(DQ, S, tcx, tcy, dist, tagName) {
     if (DQ.acc < 0.35) return;
     const G2 = FT.geo, SZk = G2.SZ, tm = G2.tileMath;
-    const S = U.clamp(dist * 1.15, 1.1, 30);
-    const cx = U.clamp(controls.target.x, 0, SZk), cy = U.clamp(controls.target.z, 0, SZk);
+    const cx = U.clamp(tcx, 0, SZk), cy = U.clamp(tcy, 0, SZk);
     const x0 = U.clamp(cx - S / 2, 0, SZk - S), y0 = U.clamp(cy - S / 2, 0, SZk - S);
-    const mpp = (S * 1000) / 1024;
+    const mpp = (S * 1000) / DQ_PX;
     const latMid = G2.km2ll(cx, cy)[1];
     let z = Math.round(Math.log2((156543 * Math.cos((latMid * Math.PI) / 180)) / mpp));
-    z = Math.max(13, Math.min(19, z));
+    z = Math.max(13, Math.min(DQ.maxZ, z));
     const key = `${z}|${x0.toFixed(2)}|${y0.toFixed(2)}|${S.toFixed(2)}`;
     const keySame = key === DQ.key;
     if (keySame && !DQ.pending) return;
     if (keySame && DQ.acc < 0.55) return;   // chỉ chờ tile nạp nốt → cadence chậm hơn, đỡ giật
     DQ.acc = 0;
     DQ.key = key;
-    if ((DQ.logs = (DQ.logs || 0) + 1) <= 5) console.info(`[3d] detail z${z} · ${S.toFixed(1)} km · cam ${dist.toFixed(1)}`);
+    if ((DQ.logs = (DQ.logs || 0) + 1) <= 4) console.info(`[3d] detail ${tagName} z${z} · ${S.toFixed(2)} km · cam ${dist.toFixed(1)}`);
     /* base: baked equirect canvas (đã gồm z14 đô thị + giao thông) — không bao giờ trống */
-    const ctx = DQ.ctx, ps = 1024 / S, bs = G2.imagery.width / SZk;
-    ctx.drawImage(G2.imagery, x0 * bs, y0 * bs, S * bs, S * bs, 0, 0, 1024, 1024);
+    const ctx = DQ.ctx, ps = DQ_PX / S, bs = G2.imagery.width / SZk;
+    ctx.drawImage(G2.imagery, x0 * bs, y0 * bs, S * bs, S * bs, 0, 0, DQ_PX, DQ_PX);
     for (const p of G2.detailPatches || []) {
       if (p.x1 < x0 || p.x0 > x0 + S || p.y1 < y0 || p.y0 > y0 + S) continue;
       ctx.drawImage(p.canvas, (p.x0 - x0) * ps, (p.y0 - y0) * ps, (p.x1 - p.x0) * ps, (p.y1 - p.y0) * ps);
@@ -1463,8 +1556,8 @@
     const nw = G2.km2ll(x0, y0), se = G2.km2ll(x0 + S, y0 + S);
     const tx0 = Math.floor(tm.lon2t(nw[0], z)), tx1 = Math.floor(tm.lon2t(se[0], z));
     const ty0 = Math.floor(tm.lat2t(nw[1], z)), ty1 = Math.floor(tm.lat2t(se[1], z));
-    let budget = 200;
-    for (const layer of ["img", "rd", "pl"]) {
+    let budget = DQ_TILE_BUDGET;
+    for (const layer of DQ.layers) {
       for (let ty = ty0; ty <= ty1 && budget > 0; ty++) {
         for (let tx = tx0; tx <= tx1 && budget > 0; tx++) {
           budget--;
@@ -1535,7 +1628,9 @@
     controls.dampingFactor = 0.08;
     controls.zoomToCursor = true;           // zoom về phía con trỏ như Google Maps
     controls.maxPolarAngle = 1.45;
-    controls.minDistance = 1.2;
+    /* 1.2 km bottomed out well above building level — the view was still 5 km wide and
+       "zoom in" simply stopped responding. 0.45 km puts a 15 m building at ~11 px. */
+    controls.minDistance = 0.45;
     controls.maxDistance = 220;
     controls.target.set(...CAMS.overview.tgt);
     controls.addEventListener("start", cancelFly);
@@ -1732,7 +1827,7 @@
     const v = cameraVector();
     if (!v) return false;
     const factor = direction === "out" || direction < 0 ? 1.38 : 0.72;
-    const next = U.clamp(v.length() * factor, controls.minDistance || 1.2, controls.maxDistance || 220);
+    const next = U.clamp(v.length() * factor, controls.minDistance || 0.45, controls.maxDistance || 220);
     v.setLength(next);
     camera.position.copy(controls.target).add(v);
     controls.update();
@@ -1755,7 +1850,7 @@
     cancelFly();
     const v = cameraVector();
     if (!v) return false;
-    const dist = U.clamp(v.length(), controls.minDistance || 1.2, controls.maxDistance || 220);
+    const dist = U.clamp(v.length(), controls.minDistance || 0.45, controls.maxDistance || 220);
     const bearing = Math.atan2(v.x, v.z);
     const current = Math.atan2(Math.hypot(v.x, v.z), Math.max(0.0001, v.y)) * 180 / Math.PI;
     const nextTilt = current > 47 ? 32 : 64;

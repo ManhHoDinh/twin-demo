@@ -1,0 +1,64 @@
+{
+  "_feeds": {
+    "imagery": true,
+    "dem": true,
+    "osmBldg": false
+  },
+  "hoian/district": {
+    "meanLuma": 80.2,
+    "murkPct": 23.5,
+    "darkPct": 38.72,
+    "detail": 8.19
+  },
+  "hoian/asset": {
+    "meanLuma": 120.4,
+    "murkPct": 29.25,
+    "darkPct": 0.44,
+    "detail": 5.13
+  },
+  "hoian/street": {
+    "meanLuma": 150.7,
+    "murkPct": 16.68,
+    "darkPct": 0.19,
+    "detail": 11.78,
+    "oversized": []
+  },
+  "danang/district": {
+    "meanLuma": 67.8,
+    "murkPct": 21.05,
+    "darkPct": 51.48,
+    "detail": 5.02
+  },
+  "danang/asset": {
+    "meanLuma": 126.8,
+    "murkPct": 21.84,
+    "darkPct": 1.32,
+    "detail": 5.58
+  },
+  "danang/street": {
+    "meanLuma": 155.6,
+    "murkPct": 15.35,
+    "darkPct": 0.36,
+    "detail": 10.67,
+    "oversized": []
+  },
+  "aiNghiaT/district": {
+    "meanLuma": 74.5,
+    "murkPct": 35.87,
+    "darkPct": 38.82,
+    "detail": 9.03
+  },
+  "aiNghiaT/asset": {
+    "meanLuma": 106.9,
+    "murkPct": 52.52,
+    "darkPct": 1.18,
+    "detail": 6.52
+  },
+  "aiNghiaT/street": {
+    "meanLuma": 161.6,
+    "murkPct": 2.16,
+    "darkPct": 0.11,
+    "detail": 6.79,
+    "oversized": []
+  }
+}

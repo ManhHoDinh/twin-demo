@@ -33,7 +33,11 @@ import { bootApp } from './harness.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ARTIFACTS = path.resolve(HERE, 'artifacts');
-const BASELINE = path.join(ARTIFACTS, 'zoom-visual-baseline.json');
+/* Tracked in git, NOT under tests/artifacts/ — that directory is gitignored, so a
+   baseline kept there is per-machine: every fresh checkout silently records whatever it
+   first renders (including a broken frame) as the reference, and the gate then only
+   protects against changes made after that. A shared baseline is the whole point. */
+const BASELINE = path.join(HERE, 'zoom-visual-baseline.json');
 const UPDATE = process.argv.includes('--update-baseline');
 /* --compare[=switch]: sweep again with a kill switch on and print both columns.
    Each switch declares the metric it is supposed to move and in which direction, so
@@ -282,6 +286,7 @@ async function oversizedAtStreet(page) {
       console.log('\nREFUSING to write baseline from a degraded run (imagery/DEM missing). Re-run when the tile feeds are up.');
       process.exit(1);
     }
+    if (!UPDATE) console.log('NOTE no baseline on disk — RECORDING one, not gating this run.');
     fs.writeFileSync(BASELINE, JSON.stringify(results, null, 2) + '\n');
     console.log(`\nbaseline written → ${path.relative(HERE, BASELINE)}`);
     if (UPDATE) process.exit(0);
