@@ -1056,6 +1056,46 @@ async function workspaceRouting(browser) {
       !new URLSearchParams(state.search).has('workspace');
   });
 
+  await check('map route language changes update workspace nav labels without changing route', async (detail) => {
+    const state = await directPlant.page.evaluate(async () => {
+      FT.workspaces.navigate('map');
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const snapshot = () => [...document.querySelectorAll('#workspaceNav [data-workspace]')].map((button) => ({
+        workspace: button.dataset.workspace,
+        text: button.textContent.replace(/\s+/g, ' ').trim(),
+        ariaLabel: button.getAttribute('aria-label') || '',
+      }));
+      FT.i18n.setLang('en');
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const en = snapshot();
+      const afterEn = { current: FT.workspaces.current(), bodyWorkspace: document.body.dataset.workspace, htmlLang: document.documentElement.lang };
+      FT.i18n.setLang('vi');
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const vi = snapshot();
+      const afterVi = { current: FT.workspaces.current(), bodyWorkspace: document.body.dataset.workspace, htmlLang: document.documentElement.lang };
+      return { en, afterEn, vi, afterVi };
+    });
+    detail(state);
+    const enCity = state.en.find((item) => item.workspace === 'city');
+    const enPlant = state.en.find((item) => item.workspace === 'plant');
+    const viCity = state.vi.find((item) => item.workspace === 'city');
+    const viPlant = state.vi.find((item) => item.workspace === 'plant');
+    return state.afterEn.current.workspace === 'map' &&
+      state.afterVi.current.workspace === 'map' &&
+      state.afterEn.bodyWorkspace === 'map' &&
+      state.afterVi.bodyWorkspace === 'map' &&
+      state.afterEn.htmlLang === 'en' &&
+      state.afterVi.htmlLang === 'vi' &&
+      enCity?.text === 'City operations' &&
+      enCity?.ariaLabel === 'City operations' &&
+      enPlant?.text === 'Plant operations' &&
+      enPlant?.ariaLabel === 'Plant operations' &&
+      viCity?.text === 'Điều hành thành phố' &&
+      viCity?.ariaLabel === 'Điều hành thành phố' &&
+      viPlant?.text === 'Vận hành nhà máy' &&
+      viPlant?.ariaLabel === 'Vận hành nhà máy';
+  });
+
   await check('shared map node identity survives route switches', async (detail) => {
     const identity = await directPlant.page.evaluate(() => {
       const before = window.FT.workspaces.sharedMapNode;

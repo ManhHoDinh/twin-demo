@@ -21,6 +21,17 @@
     return FT.i18n && FT.i18n.t ? FT.i18n.t(key) : key;
   }
 
+  function syncNavLabels() {
+    if (!nav) return;
+    nav.setAttribute("aria-label", tr("workspace.nav"));
+    nav.querySelectorAll("[data-workspace]").forEach((button) => {
+      const labelKey = button.dataset.workspace === "plant" ? "workspace.plant" : "workspace.city";
+      const label = tr(labelKey);
+      button.textContent = label;
+      button.setAttribute("aria-label", label);
+    });
+  }
+
   function normalizeWorkspace(value) {
     const key = String(value || "map").toLowerCase();
     return ROUTES.has(key) ? key : "map";
@@ -182,15 +193,12 @@
       FT.state.workspace = route.workspace;
       FT.state.selectedFacilityId = route.facilityId;
     }
+    syncNavLabels();
     nav && nav.querySelectorAll("[data-workspace]").forEach((button) => {
       const active = button.dataset.workspace === route.workspace;
-      const labelKey = button.dataset.workspace === "plant" ? "workspace.plant" : "workspace.city";
-      button.textContent = tr(labelKey);
-      button.setAttribute("aria-label", tr(labelKey));
       button.classList.toggle("isActive", active);
       button.setAttribute("aria-current", active ? "page" : "false");
     });
-    if (nav) nav.setAttribute("aria-label", tr("workspace.nav"));
 
     if (route.workspace === "map") {
       restoreMapNode();
@@ -307,6 +315,7 @@
         navigate(button.dataset.workspace, {});
       });
     }
+    if (FT.bus) FT.bus.on("lang", syncNavLabels);
     window.addEventListener("popstate", () => {
       const next = parseRoute();
       applyRoute(next, { push: false });
