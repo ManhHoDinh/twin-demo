@@ -40,7 +40,7 @@ happening"* to *"the right people have been told, and it is on the record"*.
 | Map | 3 | View switch, shelter layer paints with live validity, every layer toggle wired |
 | Cross-cutting | 5 | i18n, keyboard reach, shape-not-colour-only, rapid-scrub resilience, scrub responsiveness |
 | Scenario matrix | 6 | Every scenario × policy runs the full event clean |
-| Role workspaces | 34 | Governed hydropower registry, URL/nav routing, City dashboard, Plant demo/non-demo facility handling, RACI refusal/approval, shared orders/checklist/execution state, bilingual copy, accessibility and responsive desktop/mobile layouts |
+| Role workspaces | 73 | Governed hydropower registry, URL/nav routing, City dashboard, Plant demo/non-demo facility handling, RACI refusal/approval, shared orders/checklist/execution state, bilingual copy, accessibility and responsive desktop/mobile layouts |
 
 `npm run test:role-workspaces` is the executable release gate for the City and Plant
 operations workspaces. It covers the governed 44-facility registry and routing contract,
