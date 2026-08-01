@@ -90,6 +90,12 @@ canvas { display: block; }
 .statusbar { grid-area: foot; }
 
 /* ============ ROLE WORKSPACE ROUTING ============ */
+/* Two homes, one node. On the map, shell.js docks this into the command bar (see
+   dockWorkspaceNav) — the fixed pill below is what the classic layout uses, and what a
+   workspace falls back to when the command bar yields. */
+/* Two homes, one node. On the map, shell.js docks this into the command bar (see
+   dockWorkspaceNav) — the fixed pill below is what the classic layout uses, and what a
+   workspace falls back to when the command bar yields. */
 .workspaceNav {
   position: fixed;
   top: 12px;
@@ -104,6 +110,40 @@ canvas { display: block; }
   border-radius: 10px;
   box-shadow: var(--shadow);
   backdrop-filter: blur(12px);
+}
+.workspaceNav.cmdWorkspaceNav {
+  position: static;
+  transform: none;
+  z-index: auto;
+  padding: 0;
+  gap: 3px;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+.workspaceNav.cmdWorkspaceNav button {
+  min-height: 40px;
+  padding: 5px 9px;
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+.workspaceNav.cmdWorkspaceNav {
+  position: static;
+  transform: none;
+  z-index: auto;
+  padding: 0;
+  gap: 3px;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+.workspaceNav.cmdWorkspaceNav button {
+  min-height: 30px;
+  padding: 5px 9px;
+  font-size: 11.5px;
+  white-space: nowrap;
 }
 .workspaceNav button {
   border: 1px solid transparent;
@@ -289,9 +329,12 @@ body[data-workspace="city"] .roleWorkspaceHost {
   display: grid;
   grid-template-columns: minmax(760px, 1.7fr) minmax(260px, 0.62fr) minmax(260px, 0.62fr);
   grid-template-rows: repeat(3, minmax(0, 1fr));
+  /* Portfolio spans two rows, timeline one. It used to be the other way round: the
+     44-facility registry list sat in a one-row cell hiding ~3 300px of content while the
+     four-row process timeline had two rows to spare. */
   grid-template-areas:
     "map portfolio queue"
-    "map timeline impact"
+    "map portfolio impact"
     "map timeline readiness";
   gap: 10px;
 }
@@ -647,9 +690,11 @@ body[data-workspace="plant"] .roleWorkspaceHost {
   display: grid;
   grid-template-columns: minmax(620px, 1.42fr) minmax(230px, 0.5fr) minmax(230px, 0.5fr) minmax(230px, 0.5fr);
   grid-template-rows: repeat(3, minmax(0, 1fr));
+  /* Current state carries four metrics plus a provenance paragraph and was clipping ~250px
+     in a one-row cell; alternatives is a short list and does not need two. */
   grid-template-areas:
     "map current advisory approved"
-    "map alternatives advisory checklist"
+    "map current advisory checklist"
     "map alternatives execution checklist";
   gap: 10px;
 }
@@ -2942,4 +2987,145 @@ body.geoshell .geoFlyout { top: 76px; }
   body.geoshell .geoViewCtl .camPresets { flex: 0 0 auto; }
   body.geoshell .geoViewCtl .viewTabs button,
   body.geoshell .geoViewCtl .camPresets button { min-height: 40px; }
+}
+
+/* ==========================================================================
+   ROLE WORKSPACES — legibility pass
+   The city and plant dashboards are fixed-viewport panel grids, so several panels are
+   genuinely scrollable. Before this block they scrolled invisibly: no scrollbar track, no
+   count, no bottom edge — a sentence simply stopped mid-word and read as a layout bug.
+   Everything here is about making "there is more below" legible, plus hit sizes.
+   ========================================================================== */
+
+/* --- scroll affordance on every panel that can overflow --- */
+.cityPortfolio,
+.cityTimeline,
+.cityDecisionQueue,
+.cityImpact,
+.cityReadiness,
+.plantPanel {
+  scrollbar-width: thin;
+  overscroll-behavior: contain;
+}
+.cityPortfolio::-webkit-scrollbar,
+.cityTimeline::-webkit-scrollbar,
+.cityDecisionQueue::-webkit-scrollbar,
+.cityImpact::-webkit-scrollbar,
+.cityReadiness::-webkit-scrollbar,
+.plantPanel::-webkit-scrollbar { width: 9px; }
+.cityPortfolio::-webkit-scrollbar-thumb,
+.cityTimeline::-webkit-scrollbar-thumb,
+.cityDecisionQueue::-webkit-scrollbar-thumb,
+.cityImpact::-webkit-scrollbar-thumb,
+.cityReadiness::-webkit-scrollbar-thumb {
+  background: rgba(24, 58, 92, 0.28);
+  border-radius: 5px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+.plantPanel::-webkit-scrollbar-thumb {
+  background: rgba(145, 187, 208, 0.34);
+  border-radius: 5px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+.cityPortfolio { scrollbar-color: rgba(24, 58, 92, 0.34) transparent; }
+.plantPanel { scrollbar-color: rgba(145, 187, 208, 0.36) transparent; }
+
+/* Panel headings stay put while their body scrolls, so you never lose the label. */
+.cityPortfolio h3,
+.cityTimeline h3,
+.cityDecisionQueue h3,
+.cityImpact h3,
+.cityReadiness h3,
+.plantPanel h3 {
+  position: sticky;
+  top: -12px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: -12px -12px 9px;
+  padding: 12px 12px 7px;
+  background: var(--city-panel, #fffaf1);
+}
+.plantPanel h3 {
+  margin: -11px -11px 9px;
+  padding: 11px 11px 7px;
+  background: rgba(18, 43, 58, 0.98);
+}
+
+/* How many rows are in there. Without it a 44-item list in a 500px panel reads as a
+   short list that got cut off. */
+.panelCount {
+  flex: 0 0 auto;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid rgba(24, 58, 92, 0.22);
+  background: rgba(24, 58, 92, 0.07);
+  color: #38526c;
+  font-size: 11px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+
+/* --- checklist boxes were 13x13: too small to read a state off, let alone tap --- */
+.plantChecklist li,
+.plantChecklist label,
+.plantChecklist .plantCheckRow {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 36px;
+}
+.plantChecklist input[type="checkbox"] {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: #54c27d;
+}
+
+/* --- the switcher, when it is the only chrome on a workspace --- */
+body[data-workspace="city"] .workspaceNav,
+body[data-workspace="plant"] .workspaceNav {
+  top: 14px;
+  padding: 4px;
+  box-shadow: 0 8px 26px rgba(6, 18, 31, 0.34);
+}
+body[data-workspace="city"] .workspaceNav {
+  background: rgba(255, 250, 241, 0.96);
+  border-color: rgba(24, 58, 92, 0.26);
+}
+body[data-workspace="city"] .workspaceNav button { color: #38526c; min-height: 44px; }
+body[data-workspace="city"] .workspaceNav button:hover,
+body[data-workspace="city"] .workspaceNav button:focus-visible {
+  color: #10293f;
+  border-color: rgba(24, 58, 92, 0.4);
+}
+body[data-workspace="city"] .workspaceNav button.isActive {
+  background: #17456f;
+  color: #fffaf1;
+}
+body[data-workspace="plant"] .workspaceNav {
+  background: rgba(12, 29, 41, 0.96);
+  border-color: rgba(145, 187, 208, 0.34);
+}
+body[data-workspace="plant"] .workspaceNav button { min-height: 44px; }
+body[data-workspace="plant"] .workspaceNav button.isActive {
+  background: #e0a235;
+  color: #12212c;
+}
+
+/* Toasts default to the bottom-right, which on a role workspace is the readiness /
+   checklist column — they were covering live panel text. Over a workspace they move to the
+   bottom-left, where the shared map is, so alerts stay visible without hiding data. */
+body[data-workspace="city"] .toasts,
+body[data-workspace="plant"] .toasts {
+  right: auto;
+  left: 18px;
+  bottom: 20px;
+  max-width: min(420px, 42vw);
 }

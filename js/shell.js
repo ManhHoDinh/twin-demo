@@ -637,7 +637,11 @@
     document.body.classList.add("geoshell");  // ← flips the whole layout on, last
     syncWorkspaceYield(FT.workspaces && FT.workspaces.current ? FT.workspaces.current() : null);
     // initial hint
-    FT.notify && FT.notify("Bản đồ toàn màn hình · ⌘K để tìm · ? xem phím tắt", "info");
+    // Map-specific onboarding hint. Booting straight into ?workspace=city|plant used to
+    // pop it over the dashboard, where none of it applies.
+    if (shellWorkspace() === "map") {
+      FT.notify && FT.notify("Bản đồ toàn màn hình · ⌘K để tìm · ? xem phím tắt", "info");
+    }
   }
 
   function workspaceYieldTargets() {
@@ -647,6 +651,11 @@
       ".geoViewCtl",
       ".geoModeRail",
       ".geoActions",
+      // These two were missing from the list, so the dark ops strip and the ✦ launcher went
+      // on floating above the light city/plant dashboards — measured overlapping
+      // .roleDashboardHead at every viewport. Both are map-context surfaces.
+      ".geoOpsStrip",
+      ".aiLauncher",
       ".geoFloat",
       ".decisionPill",
       ".cmdPalette",
@@ -680,8 +689,30 @@
     workspaceYieldState.delete(node);
   }
 
+  /* The switcher lives inside the command bar on the map, but the command bar is one of the
+     surfaces that yields to a workspace. If the nav yielded with it, city and plant would
+     have no exit at all. So it moves out to its own fixed pill for the duration, and moves
+     back when the map returns. */
+  function dockWorkspaceNav(workspace) {
+    const nav = document.getElementById("workspaceNav");
+    if (!nav) return;
+    const slot = FT.dom && FT.dom.workspaceNavSlot;
+    if (workspace === "map") {
+      if (slot && slot.parentNode && nav.parentNode !== slot.parentNode) {
+        nav.classList.add("cmdWorkspaceNav");
+        slot.parentNode.insertBefore(nav, slot);
+      }
+      return;
+    }
+    if (nav.parentNode !== document.body) {
+      nav.classList.remove("cmdWorkspaceNav");
+      document.body.appendChild(nav);
+    }
+  }
+
   function syncWorkspaceYield(detail) {
     const workspace = detail && detail.workspace || (FT.state && FT.state.workspace) || "map";
+    dockWorkspaceNav(workspace);
     workspaceYieldTargets().forEach((node) => {
       if (workspace === "map") restoreAfterWorkspace(node);
       else hideForWorkspace(node);
@@ -706,6 +737,21 @@
     search.appendChild(input);
     bar.appendChild(brand); bar.appendChild(search);
     bar.appendChild(el("div", "cmdSep"));
+
+    // Workspace switcher, RE-HOMED (moved, not cloned → ids + listeners survive).
+    // It used to be a fixed pill at top:12/left:50%, i.e. exactly where the command bar
+    // sits: the two workspace buttons rendered underneath the scenario select and were
+    // unreachable. Docking it here makes the two role screens a first-class, always-visible
+    // route instead of a hidden one.
+    const ws = $("workspaceNav");
+    if (ws) {
+      ws.classList.add("cmdWorkspaceNav");
+      bar.appendChild(ws);
+      const wsSep = el("div", "cmdSep");
+      bar.appendChild(wsSep);
+      FT.dom = FT.dom || {};
+      FT.dom.workspaceNavSlot = wsSep;   // anchor for re-docking, see dockWorkspaceNav()
+    }
 
     // scenario + policy re-homed (moved, not cloned → keeps listeners)
     const sc = document.querySelector(".scenarioSelect"); if (sc) bar.appendChild(sc);

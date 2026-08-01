@@ -25,10 +25,12 @@
     if (!nav) return;
     nav.setAttribute("aria-label", tr("workspace.nav"));
     nav.querySelectorAll("[data-workspace]").forEach((button) => {
-      const labelKey = button.dataset.workspace === "plant" ? "workspace.plant" : "workspace.city";
-      const label = tr(labelKey);
+      const name = button.dataset.workspace;
+      const label = tr(name === "plant" ? "workspace.plant" : name === "map" ? "workspace.map" : "workspace.city");
       button.textContent = label;
-      button.setAttribute("aria-label", label);
+      // The map button is the way out of a workspace, so it says where it goes, not just
+      // where it is.
+      button.setAttribute("aria-label", name === "map" ? tr("workspace.backToMap") : label);
     });
   }
 

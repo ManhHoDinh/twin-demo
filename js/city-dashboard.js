@@ -44,8 +44,21 @@
   }
 
   function fmt(value, digits) {
+    if (FT.i18n && FT.i18n.num) return FT.i18n.num(value, digits);
     if (!Number.isFinite(value)) return "—";
-    return value.toLocaleString("en-US", { maximumFractionDigits: digits == null ? 1 : digits });
+    return value.toLocaleString("vi-VN", { maximumFractionDigits: digits == null ? 1 : digits });
+  }
+
+  /* Workflow enums are audit-grade codes. They stay in data-state (tests and reports read
+     them) but the user reads a phrase. */
+  function statusLabel(code) {
+    return FT.i18n && FT.i18n.status ? FT.i18n.status(code) : String(code || "—");
+  }
+
+  function statusNode(tag, className, code) {
+    const node = text(tag, className, statusLabel(code));
+    if (code) node.title = String(code);
+    return node;
   }
 
   function relTime() {
@@ -105,6 +118,20 @@
     if (node) node.textContent = value == null || value === "" ? "—" : String(value);
   }
 
+  function setStatus(root, selector, code) {
+    const node = root.querySelector(selector);
+    if (!node) return;
+    node.textContent = statusLabel(code);
+    node.title = code ? String(code) : "";
+  }
+
+  function setStatus(root, selector, code) {
+    const node = root.querySelector(selector);
+    if (!node) return;
+    node.textContent = statusLabel(code);
+    node.title = code ? String(code) : "";
+  }
+
   function kpi(label, value, key, note) {
     const card = el("article", "cityKpi", { dataset: { cityKpi: key } });
     card.append(text("span", "cityKpiLabel", label), text("strong", "cityKpiValue", value));
@@ -138,7 +165,12 @@
 
   function renderPortfolio(facilities, snapshot, hydroSnap) {
     const aside = el("aside", "cityPortfolio", { dataset: { cityPortfolio: "" }, "aria-label": tr("city.portfolioLabel") });
-    aside.append(text("h3", "", tr("city.portfolio")));
+    // The list holds every registry facility (44 in the Da Nang source), far more than fits
+    // the panel. Without the count in the heading the scroller reads as a short list that
+    // happens to be cut off, which is how the panel got mistaken for a layout bug.
+    const heading = text("h3", "", tr("city.portfolio"));
+    heading.append(el("span", "panelCount", { text: String(facilities.length) }));
+    aside.append(heading);
     const list = el("div", "cityFacilityList");
     const sorted = facilities.slice().sort((a, b) => {
       const da = DEMO_ORDER.indexOf(a.id);
@@ -154,13 +186,13 @@
       row.append(text("strong", "", facility.name));
       const meta = el("span", "cityFacilityMeta");
       meta.append(
-        text("span", "statePill", state),
+        statusNode("span", "statePill", state),
         text("span", "", facility.demoReservoirId ? tr("city.demoMapped") : tr("city.registryOnly"))
       );
       row.append(meta);
       const reservoir = reservoirStateFor(facility, hydroSnap);
       if (facility.demoReservoirId) {
-        row.append(text("span", "cityFacilityMetric", reservoir ? `Z ${fmt(reservoir.Z, 1)} m · O ${fmt(reservoir.O, 0)} m3/s` : tr("city.simPending")));
+        row.append(text("span", "cityFacilityMetric", reservoir ? `Z ${fmt(reservoir.Z, 1)} m · Q ${fmt(reservoir.O, 0)} m³/s` : tr("city.simPending")));
         const button = el("button", "cityPlantLink", {
           type: "button",
           dataset: { plantFacilityId: facility.id },
@@ -193,8 +225,8 @@
       const row = el("article", "cityProcessRow", {
         dataset: { processRow: "", state, facilityId: facility.id },
       });
-      row.append(text("span", "cityProcessFacility", facility.name), text("strong", "cityProcessState", state));
-      row.append(text("span", "cityProcessNote", order ? tr("city.noExecutionOrder", { id: order.id, status: order.status }) : tr("city.noExecution")));
+      row.append(text("span", "cityProcessFacility", facility.name), statusNode("strong", "cityProcessState", state));
+      row.append(text("span", "cityProcessNote", order ? tr("city.noExecutionOrder", { id: order.id, status: statusLabel(order.status) }) : tr("city.noExecution")));
       section.append(row);
     });
     return section;
@@ -297,10 +329,10 @@
       if (!row) return;
       const state = statusForFacility(snapshot, facility);
       row.dataset.state = state;
-      setText(row, ".statePill", state);
+      setStatus(row, ".statePill", state);
       const reservoir = reservoirStateFor(facility, hydroSnap);
       const metric = row.querySelector(".cityFacilityMetric");
-      if (metric) metric.textContent = reservoir ? `Z ${fmt(reservoir.Z, 1)} m · O ${fmt(reservoir.O, 0)} m3/s` : tr("city.simPending");
+      if (metric) metric.textContent = reservoir ? `Z ${fmt(reservoir.Z, 1)} m · Q ${fmt(reservoir.O, 0)} m³/s` : tr("city.simPending");
     });
   }
 
@@ -311,8 +343,8 @@
       const state = statusForFacility(snapshot, facility);
       const order = orderForFacility(snapshot, facility.id);
       row.dataset.state = state;
-      setText(row, ".cityProcessState", state);
-      setText(row, ".cityProcessNote", order ? tr("city.noExecutionOrder", { id: order.id, status: order.status }) : tr("city.noExecution"));
+      setStatus(row, ".cityProcessState", state);
+      setText(row, ".cityProcessNote", order ? tr("city.noExecutionOrder", { id: order.id, status: statusLabel(order.status) }) : tr("city.noExecution"));
     });
   }
 
@@ -326,14 +358,19 @@
       if (orders.length) {
         const order = orders[0];
         const storedDecision = decisions[order.decisionId];
+        const facility = FT.facilities.get(order.facilityId);
         card.append(
-          text("strong", "", `${order.decisionId} · APPROVED_PLAN`),
-          text("p", "", `approved_order_id ${order.id}; event_id ${order.eventId}; facility_id ${order.facilityId}`),
+          text("strong", "", `${order.decisionId} · ${statusLabel("APPROVED_PLAN")}`),
+          text("p", "", tr("city.orderRef", {
+            id: order.id,
+            event: order.eventId,
+            facility: facility ? facility.name : order.facilityId,
+          })),
           text("p", "", storedDecision ? tr("city.accountableApproval", { actor: storedDecision.actor, reason: storedDecision.reason }) : tr("city.approvalEvidence"))
         );
       } else if (decision) {
         card.append(
-          text("strong", "", `${decision.id} · ${decision.kind || "CURRENT_PACKAGE"}`),
+          text("strong", "", `${decision.id} · ${statusLabel(decision.kind || "CURRENT_PACKAGE")}`),
           text("p", "", tr("city.accountableRole", { role: decision.accountable || tr("city.unassignedRaci") })),
           text("p", "", decision.consulted && decision.consulted.length ? tr("city.consulted", { roles: decision.consulted.join(", ") }) : tr("city.consultedNone"))
         );

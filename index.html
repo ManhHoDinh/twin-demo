@@ -17,7 +17,7 @@
   <meta property="og:locale" content="vi_VN" />
   <meta name="twitter:card" content="summary_large_image" />
   <link rel="canonical" href="https://app.skylabs.vn/" />
-  <link rel="stylesheet" href="./styles.css?v=134" />
+  <link rel="stylesheet" href="./styles.css?v=136" />
 </head>
 <body>
   <div id="app" class="app">
@@ -241,7 +241,12 @@
 
     <!-- ============ CENTER STAGE ============ -->
     <main class="stage">
+      <!-- Three routes, always all three on screen: without a "Bản đồ" button the city and
+           plant workspaces were one-way doors — the only way back was the browser Back
+           button. In geoshell mode shell.js re-houses this node into the command bar so it
+           stops colliding with it. -->
       <nav class="workspaceNav" id="workspaceNav" aria-label="Không gian vận hành">
+        <button type="button" data-workspace="map">Bản đồ</button>
         <button type="button" data-workspace="city">Điều hành thành phố</button>
         <button type="button" data-workspace="plant">Vận hành nhà máy</button>
       </nav>
@@ -526,36 +531,36 @@
     }
   </script>
 
-  <script src="./js/core.js?v=134"></script>
-  <script src="./js/geo.js?v=134"></script>
-  <script src="./js/data.js?v=134"></script>
-  <script src="./js/facility-registry.js?v=134"></script>
-  <script src="./js/workspaces.js?v=134"></script>
-  <script src="./js/address.js?v=134"></script>
-  <script src="./js/hydro.js?v=134"></script>
-  <script src="./js/decision.js?v=134"></script>
-  <script src="./js/roles.js?v=134"></script>
-  <script src="./js/world.js?v=134"></script>
-  <script src="./js/forecast.js?v=134"></script>
-  <script src="./js/alerts.js?v=134"></script>
-  <script src="./js/domain.js?v=134"></script>
-  <script src="./js/reports.js?v=134"></script>
-  <script src="./js/traffic.js?v=134"></script>
-  <script src="./js/zones.js?v=134"></script>
-  <script src="./js/charts.js?v=134"></script>
-  <script src="./js/map2d.js?v=134"></script>
-  <script src="./js/scene3d.js?v=134"></script>
-  <script src="./js/record.js?v=134"></script>
-  <script src="./js/grounding.js?v=134"></script>
-  <script src="./js/lifecycle.js?v=134"></script>
-  <script src="./js/release-workflows.js?v=134"></script>
-  <script src="./js/city-dashboard.js?v=134"></script>
-  <script src="./js/scenario-compare.js?v=134"></script>
-  <script src="./js/plant-dashboard.js?v=134"></script>
-  <script src="./js/explainability.js?v=134"></script>
-  <script src="./js/ui.js?v=134"></script>
-  <script src="./js/opsui.js?v=134"></script>
-  <script src="./js/main.js?v=134"></script>
-  <script src="./js/shell.js?v=134"></script>
+  <script src="./js/core.js?v=136"></script>
+  <script src="./js/geo.js?v=136"></script>
+  <script src="./js/data.js?v=136"></script>
+  <script src="./js/facility-registry.js?v=136"></script>
+  <script src="./js/workspaces.js?v=136"></script>
+  <script src="./js/address.js?v=136"></script>
+  <script src="./js/hydro.js?v=136"></script>
+  <script src="./js/decision.js?v=136"></script>
+  <script src="./js/roles.js?v=136"></script>
+  <script src="./js/world.js?v=136"></script>
+  <script src="./js/forecast.js?v=136"></script>
+  <script src="./js/alerts.js?v=136"></script>
+  <script src="./js/domain.js?v=136"></script>
+  <script src="./js/reports.js?v=136"></script>
+  <script src="./js/traffic.js?v=136"></script>
+  <script src="./js/zones.js?v=136"></script>
+  <script src="./js/charts.js?v=136"></script>
+  <script src="./js/map2d.js?v=136"></script>
+  <script src="./js/scene3d.js?v=136"></script>
+  <script src="./js/record.js?v=136"></script>
+  <script src="./js/grounding.js?v=136"></script>
+  <script src="./js/lifecycle.js?v=136"></script>
+  <script src="./js/release-workflows.js?v=136"></script>
+  <script src="./js/city-dashboard.js?v=136"></script>
+  <script src="./js/scenario-compare.js?v=136"></script>
+  <script src="./js/plant-dashboard.js?v=136"></script>
+  <script src="./js/explainability.js?v=136"></script>
+  <script src="./js/ui.js?v=136"></script>
+  <script src="./js/opsui.js?v=136"></script>
+  <script src="./js/main.js?v=136"></script>
+  <script src="./js/shell.js?v=136"></script>
 </body>
 </html>

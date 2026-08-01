@@ -37,13 +37,18 @@
   }
 
   function fmt(value, digits) {
+    if (FT.i18n && FT.i18n.num) return FT.i18n.num(value, digits);
     if (!Number.isFinite(value)) return "—";
-    return value.toLocaleString("en-US", { maximumFractionDigits: digits == null ? 1 : digits });
+    return value.toLocaleString("vi-VN", { maximumFractionDigits: digits == null ? 1 : digits });
   }
 
   function fmtInt(value) {
-    if (!Number.isFinite(value)) return "—";
-    return Math.round(value).toLocaleString("en-US");
+    return fmt(value, 0);
+  }
+
+  /* Audit-grade enum codes stay in data-* attributes; the user reads a phrase. */
+  function statusLabel(code) {
+    return FT.i18n && FT.i18n.status ? FT.i18n.status(code) : String(code || "—");
   }
 
   function relTime() {
@@ -186,7 +191,7 @@
     const identity = el("div", "plantFacilityIdentity", { dataset: { plantFacilityIdentity: "" } });
     identity.append(
       text("strong", "", facility ? facility.name : tr("plant.unknownFacility")),
-      text("span", "", facility ? tr("plant.identityMeta", { id: facility.id, type: facility.entityType, status: facility.inspectionStatus }) : tr("plant.noRegistry"))
+      text("span", "", facility ? tr("plant.identityMeta", { id: facility.id, type: statusLabel(facility.entityType), status: statusLabel(facility.inspectionStatus) }) : tr("plant.noRegistry"))
     );
 
     const label = el("label", "plantFacilitySelect");
@@ -209,7 +214,7 @@
 
     const source = el("p", "plantSourceLine", { dataset: { provenance: "registry" } });
     source.textContent = facility
-      ? tr("plant.registrySource", { source: facility.sourceId, date: facility.validFrom, state: facility.operationalDataState })
+      ? tr("plant.registrySource", { source: facility.sourceId, date: facility.validFrom, state: statusLabel(facility.operationalDataState) })
       : tr("plant.registryMissing");
     bar.append(identity, label, source);
   }
@@ -226,8 +231,8 @@
 
     if (!facility || state === "NOT_IN_CURRENT_DEMO") {
       section.append(
-        text("p", "plantUnavailableText", facility ? tr("plant.noPlantData", { name: facility.name, type: facility.entityType }) : tr("plant.selectedUnavailable")),
-        text("p", "plantProvenance", facility ? tr("plant.inspectionSource", { status: facility.inspectionStatus, source: facility.sourceId, date: facility.validFrom }) : tr("plant.noSource"))
+        text("p", "plantUnavailableText", facility ? tr("plant.noPlantData", { name: facility.name, type: statusLabel(facility.entityType) }) : tr("plant.selectedUnavailable")),
+        text("p", "plantProvenance", facility ? tr("plant.inspectionSource", { status: statusLabel(facility.inspectionStatus), source: facility.sourceId, date: facility.validFrom }) : tr("plant.noSource"))
       );
       section.querySelector(".plantProvenance").dataset.provenance = "registry";
       return;
@@ -240,13 +245,13 @@
     const grid = el("div", "plantMetricGrid");
     grid.append(
       metric(tr("plant.reservoirLevel"), rs ? `${fmt(rs.Z, 1)} m` : "—", tr("plant.syntheticReservoir")),
-      metric(tr("plant.inflow"), rs ? `${fmtInt(rs.I)} m3/s` : "—", tr("plant.simNotTelemetry")),
-      metric(tr("plant.currentRelease"), rs ? `${fmtInt(rs.O)} m3/s` : "—", tr("plant.simActivePolicy")),
-      metric(tr("plant.freeboard"), margins && Number.isFinite(margins.freeboard) ? `${fmt(margins.freeboard, 1)} m` : "MISSING", marginResult && marginResult.state === "OK" ? tr("plant.assumedDesign") : tr("plant.marginUnavailable"))
+      metric(tr("plant.inflow"), rs ? `${fmtInt(rs.I)} m³/s` : "—", tr("plant.simNotTelemetry")),
+      metric(tr("plant.currentRelease"), rs ? `${fmtInt(rs.O)} m³/s` : "—", tr("plant.simActivePolicy")),
+      metric(tr("plant.freeboard"), margins && Number.isFinite(margins.freeboard) ? `${fmt(margins.freeboard, 1)} m` : statusLabel("MISSING"), marginResult && marginResult.state === "OK" ? tr("plant.assumedDesign") : tr("plant.marginUnavailable"))
     );
     section.append(grid);
     if (marginResult && marginResult.state !== "OK") {
-      const warning = text("p", "plantNotice missing", tr("plant.marginFailed", { state: marginResult.state, name: facility.name }));
+      const warning = text("p", "plantNotice missing", tr("plant.marginFailed", { name: facility.name }));
       warning.dataset.provenance = "diagnostic";
       section.append(warning);
     }
@@ -276,7 +281,7 @@
     if (!targeted) {
       section.dataset.plantLifecycleClass = "MISSING";
       section.dataset.plantActionable = "false";
-      section.append(text("p", "plantLifecycleBadge", tr("plant.lifecycle", { class: "MISSING", actionable: "false" })));
+      section.append(text("p", "plantLifecycleBadge", tr("plant.lifecycle", { class: statusLabel("MISSING"), actionable: tr("plant.notActionable") })));
       section.append(text("p", "plantNotice missing", tr("plant.notTargeted", { name: facility.name })));
       section.append(actionButton("propose", tr("plant.proposeUnavailable"), tr("plant.proposeReason")));
       section.append(actionButton("approve", tr("plant.approveUnavailable"), tr("plant.approveReason")));
@@ -297,7 +302,7 @@
     };
     section.dataset.plantLifecycleClass = advisory.lifecycleClass;
     section.dataset.plantActionable = String(advisory.actionable);
-    section.append(text("p", "plantLifecycleBadge", tr("plant.lifecycle", { class: advisory.lifecycleClass, actionable: advisory.actionable ? "true" : "false" })));
+    section.append(text("p", "plantLifecycleBadge", tr("plant.lifecycle", { class: statusLabel(advisory.lifecycleClass), actionable: tr(advisory.actionable ? "plant.actionable" : "plant.notActionable") })));
     section.append(text("p", "plantNotice", advisory.notice || tr("plant.noActionable")));
 
     const proposal = proposalForFacility(snapshot, facility.id);
@@ -306,7 +311,7 @@
     } else if (targeted) {
       const grid = el("div", "plantMetricGrid");
       grid.append(
-        metric(tr("plant.proposedRelease"), `${fmtInt(pkg.action.q0)} -> ${fmtInt(pkg.action.q1)} m3/s`, tr("plant.recommendationOnly")),
+        metric(tr("plant.proposedRelease"), `${fmtInt(pkg.action.q0)} → ${fmtInt(pkg.action.q1)} m³/s`, tr("plant.recommendationOnly")),
         metric(tr("plant.start"), relTimeLabel(pkg.action.tStart), tr("plant.requiresApproval")),
         metric(tr("plant.controlPoint"), pkg.gauge ? pkg.gauge.name : "—", tr("plant.downstreamSimulation")),
         metric(tr("plant.peakCut"), Number.isFinite(pkg.cut) ? `${fmt(pkg.cut, 2)} m` : "—", tr("plant.modelledComparison"))
@@ -382,13 +387,15 @@
     section.dataset.plantLifecycleClass = order.lifecycleClass || "APPROVED_PLAN";
     const decision = snapshot && snapshot.decisions ? snapshot.decisions[order.decisionId] : null;
     section.append(
-      text("p", "plantLifecycleBadge approved", tr("plant.lifecycle", { class: order.lifecycleClass, actionable: order.actionable ? "true" : "false" })),
-      metric(tr("plant.approvedOrderId"), order.id, order.status),
+      text("p", "plantLifecycleBadge approved", tr("plant.lifecycle", { class: statusLabel(order.lifecycleClass), actionable: tr(order.actionable ? "plant.actionable" : "plant.notActionable") })),
+      metric(tr("plant.approvedOrderId"), order.id, statusLabel(order.status)),
       metric(tr("plant.package"), order.packageId, tr("plant.revision", { revision: order.revision })),
-      metric(tr("plant.commandedTarget"), Number.isFinite(order.commandedCms) ? `${fmtInt(order.commandedCms)} m3/s` : "—", tr("plant.assumedCommand")),
+      metric(tr("plant.commandedTarget"), Number.isFinite(order.commandedCms) ? `${fmtInt(order.commandedCms)} m³/s` : "—", tr("plant.assumedCommand")),
       metric(tr("plant.decisionAudit"), decision ? `#${decision.auditSeq}` : `#${order.auditSeq}`, decision ? `${decision.actor}; ${decision.reason}` : tr("plant.storedApproval"))
     );
-    const valid = text("p", "plantProvenance", `approved_order_id ${order.id}; event_id ${order.eventId}; facility_id ${order.facilityId}; proposal_id ${order.proposalId}; decision_id ${order.decisionId}.`);
+    const valid = text("p", "plantProvenance", tr("plant.orderRef", {
+      id: order.id, event: order.eventId, proposal: order.proposalId, decision: order.decisionId,
+    }));
     valid.dataset.provenance = "workflow";
     section.append(valid);
   }
@@ -457,11 +464,11 @@
     if (canClose) { close.disabled = false; close.removeAttribute("disabled"); close.setAttribute("aria-disabled", "false"); }
     close.addEventListener("click", () => { FT.releaseOps.close(order.id); refreshPlant(); });
     section.append(
-      metric(tr("plant.order"), order.id, order.status),
-      metric(tr("plant.execution"), execution ? execution.id : "—", execution ? execution.status : tr("plant.notStarted")),
-      metric(tr("plant.commandedRelease"), Number.isFinite(order.commandedCms) ? `${fmtInt(order.commandedCms)} m3/s` : "—", tr("plant.approvedCommand")),
-      metric(tr("plant.observedRelease"), actual && Number.isFinite(actual.observedCms) ? `${fmtInt(actual.observedCms)} m3/s` : tr("plant.telemetryMissing"), actual && actual.provenance === "ASSUMED_FOR_DEMO" ? "ASSUMED_FOR_DEMO" : "MISSING"),
-      metric(tr("plant.deviation"), actual && Number.isFinite(actual.deviationCms) ? `${fmt(actual.deviationCms, 1)} m3/s` : tr("plant.telemetryMissing"), actual && actual.status ? actual.status : "MISSING")
+      metric(tr("plant.order"), order.id, statusLabel(order.status)),
+      metric(tr("plant.execution"), execution ? execution.id : "—", execution ? statusLabel(execution.status) : tr("plant.notStarted")),
+      metric(tr("plant.commandedRelease"), Number.isFinite(order.commandedCms) ? `${fmtInt(order.commandedCms)} m³/s` : "—", tr("plant.approvedCommand")),
+      metric(tr("plant.observedRelease"), actual && Number.isFinite(actual.observedCms) ? `${fmtInt(actual.observedCms)} m³/s` : tr("plant.telemetryMissing"), statusLabel(actual && actual.provenance === "ASSUMED_FOR_DEMO" ? "ASSUMED_FOR_DEMO" : "MISSING")),
+      metric(tr("plant.deviation"), actual && Number.isFinite(actual.deviationCms) ? `${fmt(actual.deviationCms, 1)} m³/s` : tr("plant.telemetryMissing"), statusLabel(statusLabel(actual && actual.status ? actual.status : "MISSING")))
     );
     section.dataset.state = actual && actual.status === "DEVIATING" ? "DEVIATING" : order.status;
     section.append(text("p", "plantProvenance", tr("plant.tolerance", { value: FT.releaseOps.DEMO_TOLERANCE_CMS })));

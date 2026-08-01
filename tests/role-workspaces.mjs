@@ -8,6 +8,15 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
 let BASE = '';
 
+/* Order ids nest: ORD-…-action is a literal prefix of ORD-…-action-R3 and -R5. A plain
+   substring test therefore "finds" a superseded order inside the current one's id and every
+   not-rendered assertion silently passes. (The old assertions dodged this by matching the
+   trailing ";" of a `approved_order_id <id>;` debug dump, which is no longer printed at the
+   reader.) Match the id only where it is not followed by more of an identifier. */
+const showsOrderId = (text, id) =>
+  new RegExp(`${String(id).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![-\\w])`).test(String(text || ''));
+
+
 async function workspaceRouting(browser) {
   step('RW · URL routed role workspaces');
   const directCity = await bootApp(browser, BASE, { hash: '?workspace=city' });
@@ -74,8 +83,9 @@ async function workspaceRouting(browser) {
       city.map === true &&
       city.plantLinkFacilityId === 'a-vuong' &&
       city.unresolvedCards.length === 1 &&
-      /10 (identities awaiting authoritative registry|danh tính đang chờ sổ đăng ký có thẩm quyền)/i.test(city.unresolvedCards[0]) &&
-      city.rowStates.every((row) => row.text.length > 0 && row.state.length > 0 && /[A-Z_]+/.test(row.text)) &&
+      /10 (facilities with no matching reservoir|công trình chưa khớp được với hồ nào)/i.test(city.unresolvedCards[0]) &&
+      city.rowStates.every((row) => row.text.length > 0 && ['PROPOSED','SUBMITTED','APPROVED','NOTIFIED','EXECUTING','DEVIATING','VERIFIED','CLOSED','ASSESSED','NOT_IN_CURRENT_DEMO'].includes(row.state) &&
+        !/\b[A-Z][A-Z0-9]+(?:_[A-Z0-9]+)+\b/.test(row.text)) &&
       /simulation|mô phỏng|synthetic|provenance|nguồn/i.test(city.downstream || '') &&
       /audit|notification|thông báo|provenance|source|nguồn/i.test(city.readiness || '') &&
       /simulation|synthetic|source|provenance|registry|audit|nguồn|đăng ký|kiểm toán/i.test(city.provenance || '');
@@ -142,14 +152,16 @@ async function workspaceRouting(browser) {
       result.en.states.every((row, index) =>
         row.facilityId === result.vi.states[index].facilityId &&
         row.state === result.vi.states[index].state &&
-        /ASSESSED/.test(row.text) &&
-        /ASSESSED/.test(result.vi.states[index].text));
+        row.state === 'ASSESSED' &&
+        // the code is carried by data-state, not printed at the reader
+        !/\b[A-Z][A-Z0-9]+(?:_[A-Z0-9]+)+\b/.test(row.text) &&
+        !/\b[A-Z][A-Z0-9]+(?:_[A-Z0-9]+)+\b/.test(result.vi.states[index].text));
     return /Municipal coordination dashboard/i.test(result.en.title) &&
       /Decision queue/i.test(result.en.queue) &&
       /Bảng điều phối đô thị/i.test(result.vi.title) &&
       /Hàng chờ quyết định/i.test(result.vi.queue) &&
-      /10 identities awaiting authoritative registry/i.test(result.en.nums.unresolvedText) &&
-      /10 danh tính đang chờ sổ đăng ký có thẩm quyền/i.test(result.vi.nums.unresolvedText) &&
+      /10 facilities with no matching reservoir in the demo/i.test(result.en.nums.unresolvedText) &&
+      /10 công trình chưa khớp được với hồ nào trong bản demo/i.test(result.vi.nums.unresolvedText) &&
       valuesStable &&
       tokensStable;
   });
@@ -193,14 +205,14 @@ async function workspaceRouting(browser) {
           missing: enPlant.includes('MISSING'),
           facility: enPlant.includes('song-tranh-2'),
           date: enPlant.includes('2026-05-06'),
-          proposalUnits: /1,100 -> 2,000 m3\/s/.test(enPlant),
+          proposalUnits: /1,100 → 2,000 m³\/s/.test(enPlant),
         },
         viTokens: {
           assumed: viPlant.includes('ASSUMED_FOR_DEMO'),
           missing: viPlant.includes('MISSING'),
           facility: viPlant.includes('song-tranh-2'),
           date: viPlant.includes('2026-05-06'),
-          proposalUnits: /1,100 -> 2,000 m3\/s/.test(viPlant),
+          proposalUnits: /1\.100 → 2\.000 m³\/s/.test(viPlant),
         },
       };
     });
@@ -277,10 +289,11 @@ async function workspaceRouting(browser) {
     const viText = `${state.viCity.queue} ${state.viCity.readiness} ${state.viPlant}`;
     return /unassigned in RACI|unknown role|required role/i.test(`${state.enCity.queue} ${state.enCity.readiness}`) &&
       /No current proposal-class decision package/i.test(state.enPlant) &&
-      /chưa phân công trong RACI|vai trò không xác định|vai trò bắt buộc/i.test(viText) &&
-      /Không có gói quyết định loại đề xuất tại thời điểm hiện tại/i.test(state.viPlant) &&
+      /chưa phân công|vai trò không xác định|vai trò bắt buộc/i.test(viText) &&
+      /Tại thời điểm này chưa có gói ở dạng đề xuất/i.test(state.viPlant) &&
       !/unassigned in RACI|unknown role|required role|No current proposal-class decision package/i.test(viText) &&
-      /PROPOSAL|RECOMMENDATION|MISSING/i.test(`${state.viCity.queue} ${state.viPlant}`);
+      /Đề xuất|Khuyến nghị|Chưa có dữ liệu/i.test(`${state.viCity.queue} ${state.viPlant}`) &&
+      !/\b[A-Z][A-Z0-9]+(?:_[A-Z0-9]+)+\b/.test(`${state.viCity.queue} ${state.viPlant}`);
   });
 
   await check('role workspace DOM order puts critical decision content before shared map for keyboard flow', async (detail) => {
@@ -568,8 +581,8 @@ async function workspaceRouting(browser) {
       /current|state|mực|release|xả|synthetic|assumed/i.test(plant.current) &&
       plant.advisoryClass === 'RECOMMENDATION' &&
       plant.advisoryActionable === 'false' &&
-      /RECOMMENDATION|not in force|not actionable|CHƯA có hiệu lực/i.test(plant.advisory) &&
-      /ASSUMED_FOR_DEMO|individual gate geometry is not modelled|not modelled/i.test(plant.advisory) &&
+      /RECOMMENDATION|Recommendation|not in force|not actionable|Khuyến nghị|chưa thể chuyển thành đề xuất/i.test(plant.advisory) &&
+      /ASSUMED_FOR_DEMO|Assumed for the demo|individual gate geometry is not modelled|not modelled|Giả định cho demo|chưa được mô hình hóa/i.test(plant.advisory) &&
       /alternative|rule|coordinate|peak|modelled|phương án|đỉnh mô hình/i.test(plant.alternatives) &&
       /approved order|none approved|no approved|lệnh đã phê duyệt|không có lệnh/i.test(plant.approved) &&
       /plantApprovedOrder/.test(plant.approvedClass) &&
@@ -631,7 +644,7 @@ async function workspaceRouting(browser) {
         row.currentState === 'ASSUMED_FOR_DEMO' &&
         row.advisoryClass === 'MISSING' &&
         row.advisoryActionable === 'false' &&
-        /not currently targeted|hiện không được|MISSING/i.test(row.advisory) &&
+        /not currently targeted|does not target|không nhắm tới|hiện không được/i.test(row.advisory) &&
         row.advisory.includes(row.selectedName) &&
         !row.advisory.includes('A Vương release advice') &&
         !row.advisory.includes(result.target.name) &&
@@ -751,7 +764,7 @@ async function workspaceRouting(browser) {
     return unavailable.state === 'NOT_IN_CURRENT_DEMO' &&
       /Trà Linh 1|HydropowerFacility|not-generating/i.test(unavailable.identity || '') &&
       /source|provenance|dn-inspection-2026-05-06|2026-05-06/i.test(unavailable.source || '') &&
-      /telemetry|storage|outlet geometry|operating rules|routing|forecast/i.test(unavailable.missing || '') &&
+      /telemetry|storage|outlet geometry|operating rules|routing|forecast|số đo thời gian thực|dung tích hồ|cửa xả|quy tắc vận hành|định tuyến|dự báo/i.test(unavailable.missing || '') &&
       unavailable.enabledActions === 0 &&
       !/(gate opening|deviation|observed release|commanded release|m3\/s|m³\/s|telemetry advice|recommend \d)/i.test(unavailable.whole || '');
   });
@@ -866,13 +879,13 @@ async function workspaceRouting(browser) {
     });
     detail(result);
     return result.failedState === 'MARGIN_CALCULATION_FAILED' &&
-      /MARGIN_CALCULATION_FAILED|safety margin could not be calculated|MISSING/i.test(result.failedText) &&
-      !/Freeboard\s*\d/i.test(result.failedText) &&
+      /không tính được biên an toàn|safety margin could not be calculated/i.test(result.failedText) &&
+      !/(Freeboard|Độ vượt cao an toàn)\s*\d/i.test(result.failedText) &&
       result.matchingLogs.length === 1 &&
       result.matchingLogs[0].kind === 'warn' &&
       result.recoveredState === 'OK' &&
       !/MARGIN_CALCULATION_FAILED/.test(result.recoveredText) &&
-      /Freeboard\s*\d/i.test(result.recoveredText);
+      /(Freeboard|Độ vượt cao an toàn)\s*\d/i.test(result.recoveredText);
   });
 
   await check('plant dashboard layout remains usable across desktop, tablet and mobile widths', async (detail) => {
@@ -2063,14 +2076,14 @@ async function sharedReleaseWorkflowStore(browser) {
       auditSuperseded[1] === r.orderIds[0] &&
       auditSuperseded[2] === r.orderIds[1] &&
       r.createAuditDetails[2].supersedesOrderId === r.orderIds[1] &&
-      r.cityRowText.includes(`approved_order_id ${r.thirdOrderId};`) &&
-      !r.orderIds.slice(0, 2).some((orderId) => r.cityRowText.includes(`approved_order_id ${orderId};`)) &&
-      r.approvedText.includes(`approved_order_id ${r.thirdOrderId};`) &&
-      !r.orderIds.slice(0, 2).some((orderId) => r.approvedText.includes(`approved_order_id ${orderId};`)) &&
+      showsOrderId(r.cityRowText, r.thirdOrderId) &&
+      !r.orderIds.slice(0, 2).some((orderId) => showsOrderId(r.cityRowText, orderId)) &&
+      showsOrderId(r.approvedText, r.thirdOrderId) &&
+      !r.orderIds.slice(0, 2).some((orderId) => showsOrderId(r.approvedText, orderId)) &&
       r.approvedText.replace(/\D/g, '').includes('3333') &&
-      r.executionText.includes(r.thirdOrderId) &&
-      !r.executionText.includes('Commanded release1,000 m3/s') &&
-      !r.executionText.includes('Commanded release2,222 m3/s');
+      showsOrderId(r.executionText, r.thirdOrderId) &&
+      !/1\.000 m³\/s/.test(r.executionText) &&
+      !/2\.222 m³\/s/.test(r.executionText);
   });
 
   await check('City and Plant render the current changed-command order, not superseded order history', async (detail) => {
@@ -2109,14 +2122,14 @@ async function sharedReleaseWorkflowStore(browser) {
       r.staleCommandedCms === 1000 &&
       r.currentSupersededBy === null &&
       r.staleSupersededBy === r.currentOrderId &&
-      r.cityRowText.includes(`approved_order_id ${r.currentOrderId};`) &&
-      !r.cityRowText.includes(`approved_order_id ${r.staleOrderId};`) &&
-      r.approvedText.includes(`approved_order_id ${r.currentOrderId};`) &&
-      !r.approvedText.includes(`approved_order_id ${r.staleOrderId};`) &&
+      showsOrderId(r.cityRowText, r.currentOrderId) &&
+      !showsOrderId(r.cityRowText, r.staleOrderId) &&
+      showsOrderId(r.approvedText, r.currentOrderId) &&
+      !showsOrderId(r.approvedText, r.staleOrderId) &&
       r.approvedDigits.includes('2222') &&
-      r.executionText.includes(r.currentOrderId) &&
-      !r.executionText.includes(`Order${r.staleOrderId}APPROVED`) &&
-      !r.executionText.includes('Commanded release1,000 m3/s');
+      showsOrderId(r.executionText, r.currentOrderId) &&
+      !showsOrderId(r.executionText, r.staleOrderId) &&
+      !/1\.000 m³\/s/.test(r.executionText);
   });
 
   await signOnRole(page, ROLE.authority);
@@ -2464,12 +2477,11 @@ async function sharedReleaseWorkflowStore(browser) {
       r.ordersForPackage.some((item) => item.id === r.octOrder.id && item.eventId === 'EVT-oct2020' && item.commandedCms === 1111 && !item.supersededBy) &&
       r.ordersForPackage.some((item) => item.id === r.yagiOrder.id && item.eventId === 'EVT-yagi' && item.commandedCms === 2222 && !item.supersededBy) &&
       r.octStartOutsideEvent === null &&
-      r.approvedText.includes(`approved_order_id ${r.yagiOrder.id};`) &&
-      !r.approvedText.includes(`approved_order_id ${r.octOrder.id};`) &&
+      showsOrderId(r.approvedText, r.yagiOrder.id) &&
+      !showsOrderId(r.approvedText, r.octOrder.id) &&
       r.approvedText.replace(/\D/g, '').includes('2222') &&
-      r.executionText.includes(r.yagiOrder.id) &&
-      !r.executionText.includes(`Order${r.octOrder.id}APPROVED`) &&
-      !r.executionText.includes(`Lệnh${r.octOrder.id}APPROVED`) &&
+      showsOrderId(r.executionText, r.yagiOrder.id) &&
+      !showsOrderId(r.executionText, r.octOrder.id) &&
       r.restoredEventId === 'EVT-oct2020';
   });
 
@@ -2793,8 +2805,8 @@ async function approvalExecutionIntegration(browser) {
   await check('City readiness ignores unscoped and cross-event refusal audit entries', (detail) => {
     detail(unscopedRefusal);
     return unscopedRefusal.eventId === selectedEventId &&
-      /No refused approval recorded for the current event|Chưa ghi nhận từ chối phê duyệt cho sự kiện hiện tại/i.test(unscopedRefusal.cityText) &&
-      !/Legacy unscoped role|Yagi role|Latest refused approval|Phê duyệt bị từ chối gần nhất/i.test(unscopedRefusal.cityText);
+      /No approval has been refused in this event|Chưa có phê duyệt nào bị từ chối trong sự kiện này/i.test(unscopedRefusal.cityText) &&
+      !/Legacy unscoped role|Yagi role|Most recent refusal|Lần từ chối gần nhất/i.test(unscopedRefusal.cityText);
   });
 
   const refused = await page.evaluate(async (role) => {
@@ -2829,7 +2841,7 @@ async function approvalExecutionIntegration(browser) {
       refused.afterOrders === 0 &&
       refused.refusalAction === 'decision.refused' &&
       refused.refusalEventId === selectedEventId &&
-      /Latest refused approval|no approved order created|Phê duyệt bị từ chối gần nhất|không tạo lệnh đã phê duyệt/i.test(refused.cityText);
+      /Most recent refusal|no order could be created|Lần từ chối gần nhất|không tạo được lệnh/i.test(refused.cityText);
   });
 
   await signOnRole(page, ROLE.authority);
@@ -2875,8 +2887,8 @@ async function approvalExecutionIntegration(browser) {
     return /^ORD-/.test(approved.orderId) &&
       /Ban Chỉ huy PCTT&TKCN/.test(approved.decisionActor || '') &&
       /authority approves/.test(approved.decisionReason || '') &&
-      approved.cityText.includes(`approved_order_id ${approved.orderId}`) &&
-      approved.plantText.includes(`approved_order_id ${approved.orderId}`) &&
+      approved.cityText.includes(approved.orderId) &&
+      approved.plantText.includes(approved.orderId) &&
       approved.plantTextDigits.includes(String(Math.round(approved.commandedCms)));
   });
   if (!/^ORD-/.test(approved.orderId || '') || !approved.facilityId) {
@@ -2955,13 +2967,14 @@ async function approvalExecutionIntegration(browser) {
   await check('City updates in place to EXECUTING and Plant renders actual-versus-commanded evidence', (detail) => {
     detail({ cityState: execution.cityState, actual: execution.actual, plantText: execution.plantText });
     return execution.cityState === 'EXECUTING' &&
-      /EXECUTING/.test(execution.cityText || '') &&
+      /Đang thực thi|Executing/.test(execution.cityText || '') &&
+      !/\bEXECUTING\b/.test(execution.cityText || '') &&
       Number.isFinite(execution.actual.commandedCms) &&
       Number.isFinite(execution.actual.observedCms) &&
       Number.isFinite(execution.actual.deviationCms) &&
       ['ON_COMMAND', 'DEVIATING'].includes(execution.actual.status) &&
       execution.actual.provenance === 'ASSUMED_FOR_DEMO' &&
-      /Actual-versus-commanded tolerance|Dung sai thực tế-so-với-lệnh/i.test(execution.plantText);
+      /Tolerance between actual and commanded|Dung sai giữa thực tế và lệnh/i.test(execution.plantText);
   });
 
   await check('completion gate is explicit and remains locked until actual and later checks are present', (detail) => {
