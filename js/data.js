@@ -88,17 +88,32 @@
   ].map((r) => ({ ...r, x: r.ll[0], y: r.ll[1] }));
 
   /* ---------- rivers (REAL courses, upstream → mouth) ---------- */
-  const mkRiver = (id, name, w, depth, lls) => ({ id, name, w, depth, pts: lls.map((p) => LL(p[0], p[1])) });
+  /* `w` is the HYDRAULIC corridor half-width (km): it shapes the carved valley, the
+     mountain swelling corridor and how far overbank water is allowed to reach. It is a
+     calibration parameter, not a measurement.
+
+     `cw` is the CHANNEL half-width — the actual wetted river at normal flow. The two were
+     the same number, so resting baseflow filled the whole corridor and the Thu Bồn drew
+     2 km wide: 524 km² of the basin sat under "permanent water" before any flood existed,
+     which is what reads as the plain being flooded everywhere. Measured against OSM water
+     polygons the Thu Bồn runs about 59 m median and 192 m at P90, so the corridor
+     overstated the channel by roughly an order of magnitude.
+
+     ⚠ cw values are ASSUMPTIONS anchored on that measurement and on the reach each river
+     occupies; they are not surveyed cross-sections. They govern the drawn river and the
+     resting water surface only — flood routing still uses `w`, so the calibrated gauge
+     behaviour is untouched. */
+  const mkRiver = (id, name, w, depth, lls, cw) => ({ id, name, w, depth, cw: cw || w, pts: lls.map((p) => LL(p[0], p[1])) });
   const RIVERS = [
-    mkRiver("avuong", "Sông A Vương", 0.5, 6, [[107.59, 15.805], [107.66, 15.79], [107.73, 15.775], [107.79, 15.765]]),
-    mkRiver("dakmi", "Sông Đắk Mi (Cái)", 0.55, 6, [[107.79, 15.44], [107.845, 15.53], [107.86, 15.63], [107.85, 15.72], [107.835, 15.755]]),
+    mkRiver("avuong", "Sông A Vương", 0.5, 6, [[107.59, 15.805], [107.66, 15.79], [107.73, 15.775], [107.79, 15.765]], 0.04),
+    mkRiver("dakmi", "Sông Đắk Mi (Cái)", 0.55, 6, [[107.79, 15.44], [107.845, 15.53], [107.86, 15.63], [107.85, 15.72], [107.835, 15.755]], 0.05),
     mkRiver("vugia", "Sông Vu Gia", 0.9, 8,
-      [[107.68, 15.745], [107.755, 15.755], [107.83, 15.765], [107.895, 15.79], [107.95, 15.815], [108.025, 15.85], [108.105, 15.882], [108.145, 15.875]]),
-    mkRiver("yen", "Sông Yên → Hàn", 0.75, 7, [[108.145, 15.875], [108.17, 15.915], [108.19, 15.965], [108.20, 16.005], [108.215, 16.05], [108.225, 16.09]]),
-    mkRiver("quanghue", "Sông Quảng Huế", 0.45, 5, [[108.13, 15.868], [108.132, 15.845], [108.135, 15.822]]),
+      [[107.68, 15.745], [107.755, 15.755], [107.83, 15.765], [107.895, 15.79], [107.95, 15.815], [108.025, 15.85], [108.105, 15.882], [108.145, 15.875]], 0.12),
+    mkRiver("yen", "Sông Yên → Hàn", 0.75, 7, [[108.145, 15.875], [108.17, 15.915], [108.19, 15.965], [108.20, 16.005], [108.215, 16.05], [108.225, 16.09]], 0.2),
+    mkRiver("quanghue", "Sông Quảng Huế", 0.45, 5, [[108.13, 15.868], [108.132, 15.845], [108.135, 15.822]], 0.05),
     mkRiver("thubon", "Sông Thu Bồn", 1.0, 8,
-      [[108.12, 15.345], [108.095, 15.46], [108.105, 15.58], [108.10, 15.68], [108.135, 15.785], [108.17, 15.82], [108.21, 15.845], [108.262, 15.858], [108.31, 15.872], [108.375, 15.878]]),
-    mkRiver("vinhdien", "Sông Vĩnh Điện", 0.4, 4, [[108.25, 15.90], [108.245, 15.955], [108.235, 16.00], [108.22, 16.035]]),
+      [[108.12, 15.345], [108.095, 15.46], [108.105, 15.58], [108.10, 15.68], [108.135, 15.785], [108.17, 15.82], [108.21, 15.845], [108.262, 15.858], [108.31, 15.872], [108.375, 15.878]], 0.15),
+    mkRiver("vinhdien", "Sông Vĩnh Điện", 0.4, 4, [[108.25, 15.90], [108.245, 15.955], [108.235, 16.00], [108.22, 16.035]], 0.04),
   ];
   const DIVERSION = { from: LL(107.79, 15.44), to: LL(108.05, 15.44), name: "Tuyến năng lượng Đắk Mi 4 → Thu Bồn" };
 

@@ -248,7 +248,14 @@
     const ri = W.riverIdx[k], d = W.riverDist[k];
     if (ri < 0) return 0;
     const r = riverGeo[ri].r;
-    const normal = d < r.w ? r.depth * 0.35 * (1 - Math.pow(d / r.w, 2)) : 0;    // base flow in channel
+    /* Base flow occupies the CHANNEL, not the whole hydraulic corridor. Using `r.w` here
+       put resting water across 524 km² of the basin — the Thu Bồn alone drew 2 km wide —
+       so the plain looked flooded before a single millimetre of rain. `r.cw` is the real
+       wetted width; everything downstream of this line (overbank reach, mountain corridor,
+       valley carve) still uses `r.w`, so flood routing and the calibrated gauge response
+       are unchanged. */
+    const cw = r.cw || r.w;
+    const normal = d < cw ? r.depth * 0.35 * (1 - Math.pow(d / cw, 2)) : 0;      // base flow in channel
     if (!W.dyn[k]) {
       // mountain reach: swollen channel corridor only — no overbank ponding on rough terrain
       const corridor = r.w * 1.6;
