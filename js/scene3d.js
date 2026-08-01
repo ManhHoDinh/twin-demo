@@ -97,8 +97,67 @@
   /* ============ terrain ============ */
   const imTmp = [0, 0, 0];
   /* high-detail branch: 320² mesh straight from the real DEM + satellite drape */
+  /* Terrain mesh density. The DEM behind it resolves 36.8 m per pixel (9.2 m in the fine
+     windows), measured; at TN = 384 over the 96 km domain the mesh sampled it every 250 m
+     and threw away roughly six sevenths of the relief, which is why the mountains read as
+     smooth lumps rather than ridges. TN is now chosen from what the device can carry, so
+     a laptop gets real ridgelines and a weak GPU still boots. */
+  function terrainGridSize() {
+    if (/[?&]coarseterrain\b/.test(location.search)) return 384;      // kill switch
+    if (FT.state.quality === "low") return 384;
+    const px = (window.devicePixelRatio || 1) * Math.max(screen.width, screen.height);
+    return px >= 1400 ? 768 : 576;
+  }
+
+  /* Terrarium tiles carry isolated bad pixels: 56 cells of 357 604 sampled stand more than
+     45 m above ALL FOUR neighbours, the worst 312 m above ground that is 2 m elevation.
+     Rendered, each becomes a tall thin dark triangle — the scattered black spikes visible
+     across the basin. A real ridge rises together with its neighbours, so requiring a cell
+     to beat every neighbour by a wide margin isolates the artefact without shaving summits;
+     the replacement is the neighbour median, not the mean, so a spike beside a genuine
+     cliff does not drag the edge down with it. */
+  function despike(grid, n, thresholdM) {
+    let fixed = 0;
+    const src = grid.slice();                 // judge against the original, not half-fixed data
+    const at = (ix, iy) => src[Math.min(n - 1, Math.max(0, iy)) * n + Math.min(n - 1, Math.max(0, ix))];
+    const median = (a) => { a.sort((p, q) => p - q); const m = a.length >> 1; return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2; };
+    for (let iy = 1; iy < n - 1; iy++) {
+      for (let ix = 1; ix < n - 1; ix++) {
+        const k = iy * n + ix;
+        const c = src[k];
+        const near = [at(ix - 1, iy), at(ix + 1, iy), at(ix, iy - 1), at(ix, iy + 1)];
+        if (c - Math.max(...near) > thresholdM || Math.min(...near) - c > thresholdM) {
+          grid[k] = median(near.slice());
+          fixed++;
+          continue;
+        }
+        /* A spike two cells wide props itself up: each half beats the outside world but not
+           its twin, so the 4-neighbour test walks straight past it — that is the dark shard
+           left standing in the bay off Sơn Trà. Judging against a ring at radius 2 catches
+           the pair, and the ring is far enough out that a genuine summit (whose flanks fall
+           away gradually) still passes. */
+        const ring = [
+          at(ix - 2, iy), at(ix + 2, iy), at(ix, iy - 2), at(ix, iy + 2),
+          at(ix - 2, iy - 2), at(ix + 2, iy - 2), at(ix - 2, iy + 2), at(ix + 2, iy + 2),
+        ];
+        const med = median(ring.slice());
+        const spread = Math.max(...ring) - Math.min(...ring);
+        /* The flatness condition is what keeps this off the mountains. On a hillside the
+           ring straddles a slope and its spread is large, so a cell standing above the
+           median is just the hill continuing — an earlier version without this test
+           "fixed" 68 457 of 589 824 cells and quietly shaved the ridges it was supposed to
+           sharpen. A genuine artefact sits in surroundings that agree with each other. */
+        if (c - med > thresholdM * 1.6 && spread < thresholdM) {
+          grid[k] = med;
+          fixed++;
+        }
+      }
+    }
+    return fixed;
+  }
+
   function buildTerrainHiRes() {
-    const TN = 384;
+    const TN = terrainGridSize();
     const SZ2 = D.DOMAIN.sizeKm;
     const step = SZ2 / (TN - 1);
     const pos = new Float32Array(TN * TN * 3);
@@ -110,6 +169,10 @@
         elevGrid[iy * TN + ix] = FT.geo.elevAt(ix * step, iy * step);
       }
     }
+    /* Threshold scales with cell size: at a finer mesh, neighbours are closer together, so
+       a given metre difference is a steeper — and less plausible — slope. */
+    const spikes = despike(elevGrid, TN, 45 * (step / 0.25));
+    if (spikes) console.info(`[scene3d] terrain ${TN}² (${(step * 1000) | 0} m/cell) — ${spikes} DEM spikes filtered`);
     for (let iy = 0; iy < TN; iy++) {
       for (let ix = 0; ix < TN; ix++) {
         const k = iy * TN + ix, o = k * 3;
@@ -402,6 +465,14 @@
         const hb = Bb[a] * w00 + Bb[b] * w10 + Bb[c] * w01 + Bb[d] * w11;
         const t = T[a] * w00 + T[b] * w10 + T[c] * w01 + T[d] * w11;
         const k = iy * WN + ix, o = k * 3;
+        /* NOTE — do not make this sheet yield its baseflow to the OSM layer yet.
+           Tried and measured: OSM maps the Thu Bồn and Vu Gia as `waterway=river`
+           CENTRELINES only, with no riverbank polygon, so `natural=water` covers the
+           ponds and lagoons but not the main channels. Handing the permanent water to the
+           polygon layer therefore deleted the rivers instead of sharpening them. Drawing
+           the channel from real geometry needs the centrelines widened into ribbons
+           first; until that exists this coarse sheet is the only thing carrying the
+           river, blurry as it is at 333 m per cell. */
         if (h > 0.02) {
           /* The solver runs on the 288² sim terrain; the viewer sees the 384² DEM mesh.
              Where the rendered ground sits above the simulated water surface, the flood
@@ -838,10 +909,19 @@
     const dummy = new THREE.Object3D();
     const sB = 1 - cf * 0.86;
     const hFix = buildingHeightFix(cf);
+    /* Coarse procedural blocks are a density impression for the overview: a box placed
+       where the satellite pixels look built-up, not a building anyone surveyed. Held at
+       full size up close they became the scattered dark specks over open fields that
+       this pass exists to remove — and worse, they asserted a house where OSM has none.
+       So they shrink away as the camera arrives, leaving the real footprints (which are
+       exempt via p[5]) to carry the close view. Fading rather than hard-switching keeps
+       the transition from popping. */
+    const coarseFade = 1 - U.clamp((cf - 0.42) / 0.3, 0, 1);
     bldgPlacements.forEach((p, i) => {
-      const f = p[5] ? p[5] : sB;         // nhà đô thị đã đúng cỡ thật → không co thêm theo cf
+      const real = !!p[5];
+      const f = real ? p[5] : sB * coarseFade;
       dummy.position.set(p[0], p[1], p[2]);
-      dummy.scale.set(f, p[3] * hFix, f);
+      dummy.scale.set(f, p[3] * hFix * (real ? 1 : coarseFade), f);
       dummy.rotation.y = p[4] !== undefined ? -p[4] : (i % 7) * 0.22;
       dummy.updateMatrix();
       cityMesh.setMatrixAt(i, dummy.matrix);
@@ -928,7 +1008,13 @@
       const te = terrAt(fp.cx, fp.cy);
       if (te > 60 || te < 0.2) continue;
       const y0 = groundY(fp.cx, fp.cy, 0.25);
-      const hM = 4 + rng() * 6 + (n > 12 ? 5 : 0);
+      /* Height is the wall the waterline is measured against, so it comes from the data
+         when the data has it. It used to be `4 + rng()*6`, a random 4–10 m per building:
+         with that, "the water is up to two thirds of this house" was two thirds of a
+         random number. OSM tags a height for very few buildings here (261 of ~68 000), so
+         most fall back to a stated 6.6 m assumption carried in fp.hSrc rather than to
+         noise — an assumption can be labelled, a random draw cannot. */
+      const hM = Number.isFinite(fp.hM) ? fp.hM : 4 + rng() * 6 + (n > 12 ? 5 : 0);
       const y1 = y0;                    // extrusion now happens in the shader, from aUpM
       const vStart = pos.length / 3;
       /* Walls and roof get their OWN vertices. Sharing the top ring makes
@@ -997,6 +1083,74 @@
     bldgScaleF = -1;
     updateBuildingScale(roadCloseF);
     buildOsmBuildingsMesh();
+  }
+
+  /* ============ real river channels (OSM water polygons) ============
+
+     Why this layer exists at all. The permanent river was drawn only as part of the
+     simulation water surface, which lives on the 288² solver grid — 333 m per cell over
+     the 96 km domain. The Thu Bồn at Giao Thủy is roughly 100–200 m wide, so the river is
+     narrower than one cell: the model knows it is there (hBase measures 3.56 m of standing
+     water at the gauge) but the mesh has no resolution to draw a channel, which is why
+     standing at Giao Thủy showed no river at all.
+
+     Fixing that inside the solver would mean refining the grid basin-wide — expensive, and
+     it would move hydrology that is already calibrated. So the wet surface is drawn from
+     real OSM polygons at their true shape, while the flood on top stays on the solver
+     grid. This layer is presentation only: it feeds nothing back into the model.          */
+  let riverMesh = null;
+  function buildOsmRivers() {
+    if (/[?&]noosmwater\b/.test(location.search)) return;   // kill switch, matches ?classic
+    const wt = FT.geo && FT.geo.osmWater;
+    if (!wt || !wt.areas || !wt.areas.length || !THREE.ShapeUtils) return;
+    const pos = [], idx = [], shade = [];
+    let skipped = 0;
+    for (const area of wt.areas) {
+      const ring = area.p;
+      if (!ring || ring.length < 4) continue;
+      /* Drop the closing vertex: a repeated first/last point makes the triangulator emit
+         a degenerate ear and the polygon comes out with a missing wedge. */
+      const pts = ring[0][0] === ring[ring.length - 1][0] && ring[0][1] === ring[ring.length - 1][1]
+        ? ring.slice(0, -1) : ring.slice();
+      if (pts.length < 3 || pts.length > 4000) { skipped++; continue; }
+      let tris;
+      try {
+        tris = THREE.ShapeUtils.triangulateShape(pts.map((p) => new THREE.Vector2(p[0], p[1])), []);
+      } catch (e) { skipped++; continue; }
+      if (!tris || !tris.length) { skipped++; continue; }
+      const vStart = pos.length / 3;
+      for (const p of pts) {
+        /* Sit exactly ON the ground and settle the co-planar fight with polygonOffset,
+           never with a height bias. Biasing by height is the trap this codebase has hit
+           twice: lift and the surface floats over its own banks at a tilt, drop and the
+           terrain swallows it — measured, a 0.6 m drop made this layer invisible while
+           still costing 152 000 triangles. */
+        pos.push(p[0], groundY(p[0], p[1], 0), p[1]);
+        shade.push(1);
+      }
+      for (const t of tris) idx.push(vStart + t[0], vStart + t[1], vStart + t[2]);
+    }
+    if (!idx.length) return;
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+    g.setIndex(idx);
+    g.computeVertexNormals();
+    const mat = new THREE.MeshLambertMaterial({
+      color: new THREE.Color(WATER_STYLE.permanentWaterColor),
+      transparent: true,
+      opacity: 0.88,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -2,
+    });
+    riverMesh = new THREE.Mesh(g, mat);
+    riverMesh.name = "osmRivers";
+    riverMesh.renderOrder = 2;                       // under the flood sheet, over the ground
+    riverMesh.frustumCulled = false;
+    scene.add(riverMesh);
+    console.info(`[scene3d] real river channels — ${wt.areas.length - skipped} polygons, ` +
+                 `${(idx.length / 3) | 0} triangles${skipped ? `, ${skipped} skipped` : ""}`);
   }
 
   /* ---------- human impact: buildings recoloured by flood depth ---------- */
@@ -1752,9 +1906,17 @@
 
     buildTerrain();
     buildWater();
+    /* after the terrain so groundY() can drape the channels on the real DEM */
+    if (FT.geo && FT.geo.hasOSMWater) buildOsmRivers();
     buildRoads();
     buildVehicles();
+    /* Baked footprints are already in memory by the time the scene builds (main.js awaits
+       them with the DEM), so the real city goes up on the first frame instead of appearing
+       later via the osmBuildings event — and the procedural filler is skipped inside the
+       city windows from the start rather than being drawn and then swapped out. */
+    if (FT.geo && FT.geo.hasOSMBldg) skipPatchProcedural = true;
     buildCities();
+    if (FT.geo && FT.geo.hasOSMBldg) buildOsmBuildingsMesh();
     buildDams();
     buildGauges();
     buildZones();
@@ -2018,6 +2180,7 @@
       cfAcc = 0; cfJump = true; roadCloseF = cf; updateBuildingScale(cf); updateRoadWidth(cf);
     }
     waterMesh.visible = FT.state.layers.water;
+    if (riverMesh) riverMesh.visible = FT.state.layers.water;
     /* nước: mặt/độ sâu đổi theo sim (Δt 2.5 s) — cập nhật 10 Hz là đủ, shimmer đã chạy bằng uTime */
     wAcc += dtReal;
     if (waterMesh.visible && wAcc >= 0.1) { wAcc = 0; updateWater(); }

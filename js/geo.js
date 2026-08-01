@@ -200,12 +200,21 @@
   }
 
   /* draw z14 tiles (≈19 m/px) for city windows straight onto the equirect canvas */
+  /* Native-resolution imagery windows. Anywhere outside these gets the basin-wide z12
+     texture, where a 150 m river is one or two pixels of haze — which is why standing at
+     Giao Thủy showed no river even though the channel is right there in the photograph.
+     The two gauge towns on the Thu Bồn are the places an operator zooms into most, so
+     they belong here: the river then comes from the satellite image itself, at its real
+     shape, instead of from a channel width nobody has measured (OSM tags a width on 1 of
+     539 river ways in this basin). */
   const DETAIL_WINDOWS = [
     { lon: 108.21, lat: 16.055, r: 0.055 },   // Đà Nẵng trung tâm
     { lon: 108.328, lat: 15.878, r: 0.038 },  // Hội An
     { lon: 108.10, lat: 15.885, r: 0.03 },    // Ái Nghĩa (Đại Lộc)
     { lon: 108.248, lat: 15.92, r: 0.032 },   // Vĩnh Điện – Điện Bàn
     { lon: 108.26, lat: 15.85, r: 0.03 },     // Nam Phước – cầu Câu Lâu
+    { lon: 108.135, lat: 15.788, r: 0.03 },   // Giao Thủy — trạm thuỷ văn trên Thu Bồn
+    { lon: 108.20, lat: 15.830, r: 0.028 },   // Duy Xuyên — hợp lưu Thu Bồn
   ];
   G.detailPatches = [];                        // [{x0,y0,x1,y1 (km), canvas}] native-res for deep zoom
   async function addDetailPatches(octx, S, timeoutMs) {
@@ -377,8 +386,59 @@
     }
   };
 
+  /* ---------- Baked OSM (repo data, always available) ----------
+     Overpass refuses connections often enough that the live path lost the buildings on
+     one of two consecutive measured runs, and the failure is silent: the scene quietly
+     falls back to scattered procedural boxes. Shipping the geometry means the demo always
+     has the real city; the network path below then becomes an optional refresh on top,
+     not a dependency. scripts/prebake-osm.mjs regenerates these files.                  */
+  G.hasBakedBldg = false;
+  G.osmWater = null;                         // {lines:[{n,k,w,p}], areas:[{n,p}]} in km
+  G.hasOSMWater = false;
+
+  async function loadJSON(url, timeoutMs) {
+    const ctrl = new AbortController();
+    const to = setTimeout(() => ctrl.abort(), timeoutMs || 20000);
+    try {
+      const res = await fetch(url, { signal: ctrl.signal });
+      clearTimeout(to);
+      return res.ok ? await res.json() : null;
+    } catch (e) { clearTimeout(to); return null; }
+  }
+
+  G.loadBakedBuildings = async function (timeoutMs) {
+    const js = await loadJSON("./data/osm-buildings.json", timeoutMs);
+    if (!js || !Array.isArray(js.b) || js.b.length < 50) return false;
+    /* Heights come from the file, and so does where each one came from. 99.6% of the
+       footprints carry no height tag in OSM, so the metre value is an assumption — the
+       waterline is drawn against it, which makes "water is up to here on this house" an
+       assumption too. Keeping `hSrc` per building is what lets the UI say so instead of
+       presenting a guess as a measurement. */
+    G.osmBuildings = js.b.map((it) => {
+      const pts = it.p;
+      let cx = 0, cy = 0;
+      for (const p of pts) { cx += p[0]; cy += p[1]; }
+      return { pts, cx: cx / pts.length, cy: cy / pts.length, hM: it.h, hSrc: it.s };
+    });
+    G.bldgHeightSources = js.heightSources || null;
+    G.hasOSMBldg = true;
+    G.hasBakedBldg = true;
+    console.info(`[geo] baked OSM buildings — ${G.osmBuildings.length} footprints ` +
+                 `(${(js.heightSources && js.heightSources.assumed) || 0} with assumed height)`);
+    return true;
+  };
+
+  G.loadBakedWaterways = async function (timeoutMs) {
+    const js = await loadJSON("./data/osm-waterways.json", timeoutMs);
+    if (!js || !Array.isArray(js.l) || js.l.length < 20) return false;
+    G.osmWater = { lines: js.l, areas: Array.isArray(js.a) ? js.a : [] };
+    G.hasOSMWater = true;
+    console.info(`[geo] baked OSM waterways — ${js.l.length} centrelines, ${(js.a || []).length} water areas`);
+    return true;
+  };
+
   /* ---------- REAL building footprints (OSM way["building"], 5 cửa sổ đô thị) ---------- */
-  G.osmBuildings = null;                     // [{pts:[[xKm,yKm]…], cx, cy}]
+  G.osmBuildings = null;                     // [{pts:[[xKm,yKm]…], cx, cy, hM, hSrc}]
   G.hasOSMBldg = false;
   G.loadBuildingsOSM = async function (timeoutMs) {
     const boxes = DETAIL_WINDOWS.map((w) =>
@@ -410,10 +470,27 @@
         let cx = 0, cy = 0;
         for (const p of pts) { cx += p[0]; cy += p[1]; }
         cx /= pts.length; cy /= pts.length;
-        fps.push({ pts, cx, cy });
+        /* Same height contract as the baked file, so a live refresh cannot silently
+           downgrade the waterline to a different scale. */
+        const t = el.tags || {};
+        const hTag = parseFloat(t.height), lv = parseFloat(t["building:levels"]);
+        const h = Number.isFinite(hTag) && hTag > 1 && hTag < 200 ? { hM: hTag, hSrc: "h" }
+          : Number.isFinite(lv) && lv >= 1 && lv < 60 ? { hM: lv * 3.3, hSrc: "l" }
+            : { hM: 6.6, hSrc: "a" };
+        fps.push({ pts, cx, cy, hM: h.hM, hSrc: h.hSrc });
         if (fps.length >= 7000) break;
       }
       if (fps.length < 50) return false;
+      /* Never let a live fetch replace a richer baked set. The live query is capped at
+         7000 footprints across five windows while the bake carries ~68 000 across seven,
+         so overwriting on every boot would make the scene worse whenever Overpass is up —
+         a regression that only shows on good network days, which is the hardest kind to
+         notice. */
+      if (G.hasBakedBldg && G.osmBuildings && fps.length <= G.osmBuildings.length) {
+        console.info(`[geo] live OSM buildings (${fps.length}) not richer than baked ` +
+                     `(${G.osmBuildings.length}) — keeping baked`);
+        return false;
+      }
       G.osmBuildings = fps;
       G.hasOSMBldg = true;
       console.info(`[geo] OSM buildings OK — ${fps.length} footprints`);

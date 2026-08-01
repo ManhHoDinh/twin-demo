@@ -33,6 +33,14 @@
     const fpsEl = document.getElementById("fpsMeter");
     if (fpsEl) fpsEl.textContent = "tải DEM…";
     await FT.geo.load(9000);
+    /* Baked OSM geometry loads with the DEM, BEFORE the world is built, because the river
+       network feeds W.init() and the buildings must exist by first paint. These are files
+       in the repo, so unlike the Overpass calls further down they cannot fail because a
+       public API is busy — which is the whole reason they were baked. */
+    await Promise.all([
+      FT.geo.loadBakedWaterways(15000),
+      FT.geo.loadBakedBuildings(20000),
+    ]);
     if (fpsEl) fpsEl.textContent = "60 fps";
 
     H.rebuild();
