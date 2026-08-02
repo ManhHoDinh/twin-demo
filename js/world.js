@@ -203,17 +203,54 @@
     }
   }
 
-  /* ---------- population field ---------- */
+  /* ---------- population field ----------
+     W.pop is PEOPLE PER CELL. It used to be an unnamed weight that consumers multiplied
+     by 14 to "convert to people", and that factor was never anchored to anything: the
+     field summed to 788 354 weight, so the model's total population came out at 11.0
+     million against roughly 2.7 million actually living in Đà Nẵng and Quảng Nam
+     combined. The exposure headline inherited the error directly — the deployed build
+     reported 4.7 million people exposed, more than the region contains, and 2.0 million
+     at the T+24 peak, which is 74% of both provinces for a flood covering 535 km² of an
+     8 464 km² basin.
+
+     Now each city Gaussian is normalised to integrate to that city's real population, and
+     the countryside carries a stated rural density instead of a flat per-cell number that
+     also filled empty mountain valleys. Nothing downstream rescales any more. */
+  /* "urban" used to mean pop weight > 0.35, i.e. a hair above the flat rural baseline of
+     6. In people-per-cell the equivalent is anything clearly denser than open country. */
+  const URBAN_POP_PER_CELL = 40;
+  const RURAL_DENSITY_PER_KM2 = 140;   // ⚠ ASSUMPTION: Quảng Nam rural average, order-of-magnitude
+  const POP_ELEV_LIMIT_M = 60;         // above this the model carries no settlement
+
   function buildPop() {
+    const cellKm2 = (SZ / N) * (SZ / N);
+    /* Normalise each city's kernel by its own discrete sum, so the Gaussian delivers
+       exactly c.pop people however coarse the grid is. Dividing by an arbitrary constant
+       (it was c.pop / 900) makes the delivered total depend on cell size, which is how a
+       "population" can drift an order of magnitude from the number it was built from. */
+    const kernelSum = D.CITIES.map(() => 0);
     for (let iy = 0; iy < N; iy++) {
       for (let ix = 0; ix < N; ix++) {
         const k = iy * N + ix;
-        if (W.sea[k] || W.terrain[k] > 60) { W.pop[k] = 0; continue; }
+        if (W.sea[k] || W.terrain[k] > POP_ELEV_LIMIT_M) continue;
         const x = ix2km(ix), y = ix2km(iy);
-        let p = 6;                                                              // rural plain baseline (people/cell-ish weight)
-        for (const c of D.CITIES) {
+        for (let ci = 0; ci < D.CITIES.length; ci++) {
+          const c = D.CITIES[ci];
           const d = Math.hypot(x - c.x, y - c.y);
-          p += (c.pop / 900) * Math.exp(-(d * d) / (2 * c.size * c.size));
+          kernelSum[ci] += Math.exp(-(d * d) / (2 * c.size * c.size));
+        }
+      }
+    }
+    for (let iy = 0; iy < N; iy++) {
+      for (let ix = 0; ix < N; ix++) {
+        const k = iy * N + ix;
+        if (W.sea[k] || W.terrain[k] > POP_ELEV_LIMIT_M) { W.pop[k] = 0; continue; }
+        const x = ix2km(ix), y = ix2km(iy);
+        let p = RURAL_DENSITY_PER_KM2 * cellKm2;
+        for (let ci = 0; ci < D.CITIES.length; ci++) {
+          const c = D.CITIES[ci];
+          const d = Math.hypot(x - c.x, y - c.y);
+          p += (c.pop / Math.max(1, kernelSum[ci])) * Math.exp(-(d * d) / (2 * c.size * c.size));
         }
         W.pop[k] = p;
       }
@@ -339,7 +376,7 @@
     for (let k = 0; k < NC; k++) {
       if (W.sea[k]) { W.manning[k] = 0.025; continue; }        // open water
       const inChannel = W.riverDist[k] < 0.4;
-      const urban = W.pop[k] > 0.35;
+      const urban = W.pop[k] > URBAN_POP_PER_CELL;
       W.manning[k] = inChannel ? 0.032 : urban ? 0.08 : 0.06;  // channel / urban / vegetated floodplain
     }
   }
@@ -569,7 +606,7 @@
     }
     stats.areaKm2 = cells * (CELL / 1000) * (CELL / 1000);
     /* rounded to the model's actual resolution, not to the integer — see zones.js */
-    const rawExp = exp * 14;                                                     // weight → people (synthetic)
+    const rawExp = exp;                        // W.pop is already people per cell
     stats.exposedRaw = rawExp;
     stats.exposed = rawExp >= 1000 ? Math.round(rawExp / 100) * 100
       : rawExp >= 100 ? Math.round(rawExp / 10) * 10 : Math.round(rawExp);

@@ -104,7 +104,7 @@
          support and invites literal use. Rounded to the resolution the docs state
          (nearest 100, nearest 10 below a thousand). docs/05-product/04-ux-principles.md §7
          and docs/01-domain-model/04-exposure-and-impact-model.md §5. */
-      const rawExposed = expo * 14;
+      const rawExposed = expo;                 // W.pop is people per cell, no rescale
       zs.exposedRaw = rawExposed;
       zs.exposed = rawExposed >= 1000 ? Math.round(rawExposed / 100) * 100
         : rawExposed >= 100 ? Math.round(rawExposed / 10) * 10
