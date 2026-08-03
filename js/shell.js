@@ -188,15 +188,20 @@
      Auto-hide chrome while manipulating the map
      ====================================================================== */
   let hideTimer = null;
-  const chromeEls = () => document.querySelectorAll(".cmdBar, .geoDock, .geoViewCtl, .geoModeRail");
-  function chromeHide() { chromeEls().forEach((n) => n.classList.add("hidden-chrome")); }
-  function chromeShow() { chromeEls().forEach((n) => n.classList.remove("hidden-chrome")); }
+  const chromeEls = () => document.querySelectorAll(".geoTopBar, .geoDock, .geoViewCtl, .geoModeRail");
+  /* `hidden` tracks the state so the pointermove handler below — which fires on every
+     mouse move across the window — can return without touching the DOM in the common
+     case where the chrome is already showing. It used to re-query four selectors and
+     rewrite a class on each of them on every move inside the top 60 px. */
+  let chromeHidden = false;
+  function chromeHide() { if (chromeHidden) return; chromeHidden = true; chromeEls().forEach((n) => n.classList.add("hidden-chrome")); }
+  function chromeShow() { if (!chromeHidden) return; chromeHidden = false; chromeEls().forEach((n) => n.classList.remove("hidden-chrome")); }
   function armAutoHide() {
     const wrap = $("stageWrap"); if (!wrap) return;
     const onActive = () => { chromeHide(); clearTimeout(hideTimer); hideTimer = setTimeout(chromeShow, 1400); };
     wrap.addEventListener("pointerdown", (e) => { if (e.target.closest(".geoFloat, .geoViewCtl, .geoModeRail")) return; onActive(); });
     wrap.addEventListener("wheel", onActive, { passive: true });
-    window.addEventListener("pointermove", (e) => { if (e.clientY < 60) chromeShow(); });
+    window.addEventListener("pointermove", (e) => { if (chromeHidden && e.clientY < 60) chromeShow(); }, { passive: true });
   }
 
   /* ======================================================================
@@ -229,6 +234,25 @@
   }
 
   /* ======================================================================
+     SHELL HEARTBEAT
+     The shell mirrors engine state it does not own (escalation, alarm count, the
+     control-bar faces, a pending decision, the fps readout). That was five separate
+     setIntervals at 700/800/900/1000/1000 ms, so the main thread woke ~6×/s and each
+     wake read the DOM — getBoundingClientRect and textContent — while the map was
+     drawing. They now share ONE timer, and it stands down entirely while the tab is
+     hidden, where the numbers cannot be seen and the timer is throttled anyway.
+     ====================================================================== */
+  const beats = [];
+  const everyTick = (fn) => beats.push(fn);
+  function startHeartbeat() {
+    setInterval(() => {
+      if (document.hidden) return;
+      for (const b of beats) { try { b(); } catch (e) { /* one stale mirror must not stop the rest */ } }
+    }, 600);
+  }
+  let syncEsc = () => {}, syncAlert = () => {};
+
+  /* ======================================================================
      BUILD — runs after the original UI has initialised
      ====================================================================== */
   function build() {
@@ -249,6 +273,8 @@
     buildCheatsheet();
     armAutoHide();
     initKeys();
+    everyTick(syncEsc); everyTick(syncAlert);
+    startHeartbeat();
     document.body.classList.add("geoshell");  // ← flips the whole layout on, last
     // initial hint
     FT.notify && FT.notify("Bản đồ toàn màn hình · ⌘K để tìm · ? xem phím tắt", "info");
@@ -290,21 +316,27 @@
     const tour = $("btnTour"); if (tour) bar.appendChild(tour);
     const lang = $("langToggle"); if (lang) bar.appendChild(lang);
 
-    document.body.appendChild(bar);
-    FT.dom = FT.dom || {}; FT.dom.cmdBar = bar;
+    /* One header block, two rows: the command row above the ops-signal row. They used to
+       be three independently-positioned fixed boxes (bar centred at y=8, action menu at
+       y=60 hard right, ops strip centred at y=106) that shared no edge with each other and
+       stole 140 px of map height between them. Docking them in one full-width header
+       aligns every control to the same two baselines and returns that height to the map. */
+    const top = el("header", "geoTopBar");
+    top.appendChild(bar);
+    document.body.appendChild(top);
+    FT.dom = FT.dom || {}; FT.dom.cmdBar = bar; FT.dom.topBar = top;
 
     // keep escalation/alert pills in sync with existing values
-    const syncEsc = () => {
+    syncEsc = () => {
       const v = ($("opsEscVal") && $("opsEscVal").textContent || "L0").trim();
       const cev = $("cmdEscVal"); if (cev) cev.textContent = v;
-      const n = (v.match(/\d/) || ["0"])[0]; esc.dataset.esc = n;
+      const n = (v.match(/\d/) || ["0"])[0]; if (esc.dataset.esc !== n) esc.dataset.esc = n;
     };
-    const syncAlert = () => {
+    syncAlert = () => {
       const c = ($("alarmCount") && $("alarmCount").textContent || "0").trim();
-      const cn = $("cmdAlertN"); if (cn) cn.textContent = c;
+      const cn = $("cmdAlertN"); if (cn && cn.textContent !== c) cn.textContent = c;
       const active = +c > 0; al.classList.toggle("active", active); al.classList.toggle("quiet", !active);
     };
-    setInterval(() => { syncEsc(); syncAlert(); }, 900);
     syncEsc(); syncAlert();
 
     key("cmd+k", "Bảng lệnh", () => Palette.toggle(), "Chung");
@@ -314,59 +346,60 @@
   }
 
   /* ---------- Persistent action toolbar ----------
-     Safety-critical dispatch + report actions must never be hidden behind a
-     summon. We MOVE the real buttons here (ids + handlers preserved), so both
-     operators and the e2e flows always reach them in one click. */
-  /* ---------- Persistent action toolbar ----------
-     Consolidated into a sleek Top Right Glassmorphic Dropdown Menu */
-  function buildActions() {
-    const wrap = el("div", "topDropdownWrap");
-    wrap.style.position = "fixed";
-    wrap.style.top = "60px";
-    wrap.style.right = "12px";
-    wrap.style.zIndex = "85";
+     Safety-critical dispatch and report actions must never sit behind a summon. This
+     briefly became a dropdown of proxy items that forwarded a click to the real button
+     wherever it happened to live — and the real buttons live inside floating panels that
+     are display:none while closed, so "send the evacuation order" was two summons deep and
+     unreachable to anything driving the page. The real nodes are MOVED here instead (ids
+     and handlers intact), grouped and labelled, one click from anywhere.
 
-    const btn = el("button", "topDropBtn", FT.icon("file-text") + ' Báo cáo &amp; tác vụ <span class="topDropCaret" aria-hidden="true">▾</span>');
-    btn.type = "button";
-    
-    const menu = el("div", "topDropMenu");
-    
-    const addItem = (icon, label, targetId) => {
-      const item = el("button", "topDropItem", `${FT.icon(icon)}<span>${label}</span>`);
-      item.type = "button";
-      item.addEventListener("click", () => {
-        menu.classList.remove("open");
-        btn.classList.remove("active");
-        const target = $(targetId);
-        if (target) target.click();
+     The row wraps rather than clipping when it runs out of width; the header measures its
+     own height (see buildOpsStrip), so a wrapped bar just pushes the panels down. */
+  function buildActions() {
+    const wrap = el("div", "geoActions");
+    wrap.setAttribute("role", "group");
+    wrap.setAttribute("aria-label", "Báo cáo và điều phối");
+
+    /* The buttons keep their own markup: the icon and the [data-i18n] label inside them are
+       what FT.i18n.apply() rewrites on a language switch, so replacing the contents here
+       would strand them in Vietnamese. Only the class, the tooltip and the home change. */
+    /* The cluster caption is an aria-label, not visible text: two captions cost ~155 px of
+       the command row, which is the difference between the header fitting on one line at
+       1600 and wrapping to two. The separator plus the amber dispatch styling carries the
+       grouping visually; every button still states its own full purpose on hover. */
+    const group = (label, items) => {
+      const g = el("div", "actGroup");
+      g.setAttribute("role", "group");
+      g.setAttribute("aria-label", label);
+      items.forEach(([id, tip, icon]) => {
+        const real = $(id);
+        if (!real) return;
+        real.classList.add("actBtn");
+        if (!real.title) real.title = tip;        // keep the richer titles index.html already sets
+        real.setAttribute("aria-label", real.title);
+        if (icon && !real.querySelector("svg")) real.insertAdjacentHTML("afterbegin", FT.icon(icon));
+        g.appendChild(real);
       });
-      menu.appendChild(item);
+      wrap.appendChild(g);
     };
 
-    addItem("printer", "Báo cáo tình huống lũ bão", "btnReport");
-    addItem("clipboard-text", "Báo cáo vận hành hồ chứa", "btnRepOperation");
-    addItem("note-pencil", "Báo cáo sự cố khẩn cấp", "btnRepEvent");
-    
-    const div1 = el("div", "topDropDivider"); menu.appendChild(div1);
+    group("Báo cáo", [
+      ["btnReport", "Báo cáo tình huống lũ bão"],
+      ["btnRepOperation", "Báo cáo vận hành hồ chứa"],
+      ["btnRepEvent", "Báo cáo sự cố, tổng kết sau lũ"],
+    ]);
+    group("Điều phối", [
+      ["nfThreshold", "Soạn bản tin mực nước vượt ngưỡng", "megaphone"],
+      ["nfRelease", "Thông báo xả lũ hồ chứa", "waves"],
+      ["nfEvac", "Lệnh sơ tán dân cư", "siren"],
+    ]);
 
-    addItem("megaphone", "Thông báo vượt ngưỡng", "nfThreshold");
-    addItem("waves", "Thông báo xả lũ hồ chứa", "nfRelease");
-    addItem("siren", "Thông báo sơ tán dân cư", "nfEvac");
-
-    btn.addEventListener("click", (ev) => {
-      ev.stopPropagation();
-      const isOpen = menu.classList.toggle("open");
-      btn.classList.toggle("active", isOpen);
-    });
-
-    document.addEventListener("click", () => {
-      menu.classList.remove("open");
-      btn.classList.remove("active");
-    });
-
-    wrap.appendChild(btn);
-    wrap.appendChild(menu);
-    document.body.appendChild(wrap);
+    /* docked between the policy toggle and the language switch, not floated over the map */
+    const bar = FT.dom.cmdBar;
+    const lang = $("langToggle");
+    if (bar && lang && lang.parentElement === bar) bar.insertBefore(wrap, lang);
+    else if (bar) bar.appendChild(wrap);
+    else document.body.appendChild(wrap);
     FT.dom.actions = wrap;
   }
 
@@ -382,8 +415,27 @@
     ["opsEsc", "opsHealth", "opsKappa", "opsPex", "opsDeadline"].forEach((id) => {
       const n = $(id); if (n) { n.classList.add("opsStripItem"); strip.appendChild(n); }
     });
-    document.body.appendChild(strip);
+    /* The impact headline (flooded area · people exposed · homes flooded) used to float
+       alone over the map at mid-left, in 11 px type, below every control. It is the answer
+       to the first question anyone asks this screen, so it belongs on the signal row with
+       the other persistent numbers — same baseline, same type scale, right-aligned. */
+    const badge = $("waterBadge");
+    if (badge) { strip.appendChild(el("span", "opsStripSpacer")); strip.appendChild(badge); }
+    (FT.dom.topBar || document.body).appendChild(strip);
     FT.dom.opsStrip = strip;
+
+    /* Every summoned panel hangs off the bottom of the header. Measure it instead of
+       hard-coding an offset: the command row reflows to two lines at narrow widths and
+       under browser text zoom, and a fixed 62 px put the inspector under the header there. */
+    const top = FT.dom.topBar;
+    if (top) {
+      const syncTopY = () => {
+        const h = Math.ceil(top.getBoundingClientRect().bottom) + 8;
+        document.documentElement.style.setProperty("--geoTopY", h + "px");
+      };
+      requestAnimationFrame(syncTopY);
+      if (window.ResizeObserver) new ResizeObserver(syncTopY).observe(top);
+    }
   }
 
   function cycleScenario() {
@@ -495,7 +547,9 @@
       const src = d.src[0] === "." ? document.querySelector(d.src) : $(d.src);
       const fp = new FloatingPanel("fly_" + d.id, { cls: "geoFlyout", title: d.title, role: "tabpanel", label: d.title, pinnable: true });
       if (src) fp.adopt(src);
-      const b = el("button", "dockBtn", FT.icon(d.ico, "icLg") + `<span class="dockKey">${d.key}</span><span class="dockTip">${d.title}</span>`);
+      /* the shortcut letter used to sit as an 8 px glyph on top of every icon; it now lives
+         in the hover tip beside the name, where it is legible and does not clutter the rail */
+      const b = el("button", "dockBtn", FT.icon(d.ico, "icLg") + `<span class="dockTip">${d.title}<kbd>${d.key}</kbd></span>`);
       b.type = "button"; b.dataset.fly = d.id; b.setAttribute("role", "tab"); b.setAttribute("aria-label", d.title); b.setAttribute("aria-keyshortcuts", d.key);
       b.addEventListener("click", () => toggleFlyout(d.id, b));
       dock.appendChild(b);
@@ -706,13 +760,10 @@
     const perf = $("btnPerfMode");
     if (perf) { perf.classList.add("ctlOpt", "wide"); ctlRow(gGfx.menu, "Lối tắt", perf); }
 
-    /* The map-summary badge and the control bar share one bottom-left column instead of
-       being two independently-positioned fixed boxes. They used to sit side by side with a
-       hard-coded gutter, which collided the moment the exposure figures grew wide — and the
-       figures are live. Stacked in normal flow, an overlap is not expressible. */
+    /* The control bar rides in a dock pinned just above the timeline. It is a wrapper rather
+       than a second fixed box so the gap to the timeline is expressed once, in flow, and
+       cannot drift when the timeline is collapsed or the exposure figures grow wide. */
     const dock = el("div", "geoMapDock");
-    const badge = $("waterBadge");
-    if (badge) dock.appendChild(badge);
     dock.appendChild(v);
     document.body.appendChild(dock);
     FT.dom.viewCtl = v;
@@ -722,7 +773,7 @@
     /* the view switch changes which groups are meaningful (cameras and rendering are 3D-only) */
     if (tabs) tabs.addEventListener("click", () => setTimeout(syncCtl, 0));
     document.addEventListener("keyup", (ev) => { if (/^[12oahfid\\]$/i.test(ev.key)) syncCtl(); });
-    setInterval(syncCtl, 700);                    // backstop for state changed elsewhere
+    everyTick(syncCtl);                           // backstop for state changed elsewhere
     /* click-away and Escape close the open group */
     document.addEventListener("pointerdown", (ev) => {
       if (ev.target.closest && ev.target.closest(".ctlGroup")) return;
@@ -863,7 +914,7 @@
       lastHidden = !has;
       if (!pending()) minimizePill(false);
     };
-    setInterval(check, 800);
+    everyTick(check);
     FT.bus.on("scrubbed", check);
 
     key("d", "Bảng quyết định", () => fp.toggle(), "Quyết định");
@@ -877,11 +928,11 @@
     key("n", "Cảnh báo", () => fp.toggle(), "Cảnh báo");
     // auto-surface when count rises
     let last = 0;
-    setInterval(() => {
+    everyTick(() => {
       const c = +(($("alarmCount") && $("alarmCount").textContent) || 0);
       if (c > last && fp.mode === "hidden") { fp.show("expanded"); }
       last = c;
-    }, 1000);
+    });
   }
 
   /* ---------- AI assistant ---------- */
@@ -939,10 +990,10 @@
       '<span class="ribbonFps" id="ribbonFps">- fps · H✓</span>';
     document.body.appendChild(r);
     // mirror fps + selftest from existing meters
-    setInterval(() => {
-      const fps = ($("fpsMeter") && $("fpsMeter").textContent) || "";
-      const rf = $("ribbonFps"); if (rf) rf.textContent = fps + " · H✓";
-    }, 1000);
+    everyTick(() => {
+      const fps = (($("fpsMeter") && $("fpsMeter").textContent) || "") + " · H✓";
+      const rf = $("ribbonFps"); if (rf && rf.textContent !== fps) rf.textContent = fps;
+    });
   }
 
   /* ---------- Keyboard cheatsheet ---------- */

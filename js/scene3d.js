@@ -58,6 +58,11 @@
     if (Q.detail !== s.detail) { Q.detail = s.detail; if (DQ.cv) { DQ.cv.width = DQ.cv.height = s.detail; DQ.key = ""; } }
     if (renderer) renderer.setPixelRatio(Math.min(s.pr, window.devicePixelRatio || 1));
     if (renderer) S3.resize();
+    /* The chrome is a sixth rung of the same ladder. Every translucent surface floating
+       over this canvas costs the compositor a backdrop re-blur EVERY frame, because the
+       canvas under it is never the same twice. Once the governor has started shedding
+       scene detail, that cost buys nothing an operator wants, so the glass goes too. */
+    document.body.classList.toggle("perfLite", Q.step >= 3);
   }
   /* Frame delta alone cannot detect headroom: with vsync on, a scene using 3 ms and one
      using 15 ms both present every 16.7 ms. So the ladder climbs only when frames are
@@ -1202,6 +1207,9 @@
         el.type = "button";
         el.dataset.explainKind = selection.kind;
         el.dataset.explainId = selection.id;
+        /* the accessible name is a function of (kind, name, language) — none of which change
+           between frames — so it is written once here instead of once per label per frame */
+        el.setAttribute("aria-label", `${FT.i18n.t(`explain.label.${selection.kind}`)}: ${txt}`);
         el.addEventListener("click", (ev) => {
           ev.stopPropagation();
           FT.explain.select(selection);
@@ -1235,27 +1243,33 @@
        per frame purely to read a size that only changes on resize */
     const rect = canvasRect || (canvasRect = renderer.domElement.getBoundingClientRect());
     const camDist = camera.position.distanceTo(controls.target);
+    const sy2 = scene.scale.y;
     for (const L of labels) {
-      if (!show || (L.nearDist && camDist > L.nearDist)) { L.el.style.display = "none"; continue; }
+      const off = !show || (L.nearDist && camDist > L.nearDist);
+      if (off) { if (!L.off) { L.off = true; L.el.style.display = "none"; } continue; }
       const te = terrAt(L.x, L.z);
-      const sy2 = scene.scale.y;
       v.set(L.x, elevToY(Math.max(1, te)) * sy2 + L.elevOff * Math.max(sy2, 0.35), L.z);
       v.project(camera);
-      if (v.z > 1 || v.x < -1.05 || v.x > 1.05 || v.y < -1.05 || v.y > 1.05) { L.el.style.display = "none"; continue; }
-      L.el.style.display = "";
-      L.el.style.left = `${((v.x + 1) / 2) * rect.width}px`;
-      L.el.style.top = `${((1 - v.y) / 2) * rect.height}px`;
-      if (L.selection) {
-        const kind = FT.i18n.t(`explain.label.${L.selection.kind}`);
-        L.el.setAttribute("aria-label", `${kind}: ${L.name}`);
+      if (v.z > 1 || v.x < -1.05 || v.x > 1.05 || v.y < -1.05 || v.y > 1.05) {
+        if (!L.off) { L.off = true; L.el.style.display = "none"; }
+        continue;
       }
+      if (L.off) { L.off = false; L.el.style.display = ""; }
+      /* transform, not left/top: a compositor-only property. Writing left/top put every
+         visible label into the layout tree on every frame, so a camera nudge with ~80
+         labels up cost 80 layout invalidations per frame for a purely visual move. */
+      L.el.style.transform =
+        `translate3d(${(((v.x + 1) / 2) * rect.width).toFixed(1)}px, ${(((1 - v.y) / 2) * rect.height).toFixed(1)}px, 0) translate(-50%, -100%)`;
       /* gauges: live stage + alert colour on the label itself */
       if (L.gaugeId) {
         const gs = snap.gauges[L.gaugeId];
         const txt = `${L.name} ${U.fmt(gs.stage, 1)} m`;
-        if (L.el.textContent !== txt) L.el.textContent = txt;
-        const cls = `label3d gauge${gs.alert ? ` gauge-${gs.alert}` : ""}`;
-        if (L.el.className !== cls) L.el.className = cls;
+        if (L.txt !== txt) { L.txt = txt; L.el.firstChild.textContent = txt; }
+        /* keep the badge class — writing the bare legacy `label3d gauge…` here used to
+           strip .mapCalloutBadge off gauge labels one frame after they were built, so
+           gauges silently rendered in a different style from every other callout */
+        const cls = `mapCalloutBadge gauge${gs.alert ? ` gauge-${gs.alert}` : ""}`;
+        if (L.cls !== cls) { L.cls = cls; L.el.className = cls; }
       }
     }
   }

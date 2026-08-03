@@ -33,12 +33,17 @@ async function collisions(page) {
       const cs = getComputedStyle(n);
       if (cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0' || cs.pointerEvents === 'none') return null;
       const r = n.getBoundingClientRect(); if (r.width === 0 || r.height === 0) return null;
-      return { s, l: r.left, t: r.top, r: r.right, b: r.bottom };
+      return { s, n, l: r.left, t: r.top, r: r.right, b: r.bottom };
     };
     const bs = sels.map(box).filter(Boolean);
     const ov = (A, B) => !(A.r <= B.l + 1 || B.r <= A.l + 1 || A.b <= B.t + 1 || B.b <= A.t + 1);
+    /* Two surfaces sharing pixels is only a defect when neither owns the other. Some of
+       these surfaces are now docked INSIDE another (the action toolbar sits in the command
+       row, the impact readout in the ops row); a child inside its parent's box is the
+       layout working, not a collision. */
+    const nested = (A, B) => A.n.contains(B.n) || B.n.contains(A.n);
     const c = [];
-    for (let i = 0; i < bs.length; i++) for (let j = i + 1; j < bs.length; j++) if (ov(bs[i], bs[j])) c.push(bs[i].s + '∩' + bs[j].s);
+    for (let i = 0; i < bs.length; i++) for (let j = i + 1; j < bs.length; j++) if (!nested(bs[i], bs[j]) && ov(bs[i], bs[j])) c.push(bs[i].s + '∩' + bs[j].s);
     // off-screen surfaces
     const off = bs.filter((x) => x.l < -2 || x.t < -2 || x.r > innerWidth + 2 || x.b > innerHeight + 2).map((x) => x.s);
     return { c, off };
