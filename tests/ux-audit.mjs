@@ -552,7 +552,11 @@ async function interaction(page) {
         const el = document.getElementById(id);
         if (!el) return { id, ok: false };
         const b = el.querySelector('b');
-        return { id, ok: !!b && b.textContent.trim().length > 0 && b.textContent.trim() !== '—' };
+        /* the "no value yet" placeholder is a plain hyphen since the em-dash was
+           removed from visible copy; reject the old glyph too so the assertion
+           cannot pass on a stale build */
+        const t = b && b.textContent.trim();
+        return { id, ok: !!t && t !== '-' && t !== '—' };
       });
     });
     d(r.filter((x) => !x.ok));

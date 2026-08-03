@@ -48,10 +48,10 @@
   };
   /* renders value + unit + a provenance dot; age shown only when it matters */
   OPS.html = function (q) {
-    if (!q || q.value == null || !isFinite(q.value)) return `<span class="q q-missing">—</span>`;
+    if (!q || q.value == null || !isFinite(q.value)) return `<span class="q q-missing">-</span>`;
     const cls = `q q-${PROV[q.provenance] || "syn"}${q.quality !== "OK" ? " q-" + q.quality.toLowerCase() : ""}`;
     const v = q.dp === 0 ? U.fmtInt(q.value) : U.fmt(q.value, q.dp);
-    const band = q.band ? `<i class="qBand">${U.fmt(q.band[0], q.dp)}–${U.fmt(q.band[1], q.dp)}</i>` : "";
+    const band = q.band ? `<i class="qBand">${U.fmt(q.band[0], q.dp)}-${U.fmt(q.band[1], q.dp)}</i>` : "";
     const age = q.ageMin > 15 ? `<i class="qAge">${Math.round(q.ageMin)}′</i>` : "";
     return `<span class="${cls}" title="${q.provenance} · ${q.source} · ${q.version}">${v}<em>${q.unit}</em>${band}${age}</span>`;
   };
@@ -65,8 +65,8 @@
   const health = { forced: null, feeds: [] };
   function buildFeeds() {
     health.feeds = [];
-    for (const r of D.RESERVOIRS) health.feeds.push({ id: `Z:${r.id}`, name: `${r.name} — mực nước`, critical: true, ageMin: 0 });
-    for (const g of D.GAUGES) health.feeds.push({ id: `H:${g.id}`, name: `${g.name} — mực nước sông`, critical: g.id === D.GAUGES[0].id, ageMin: 0 });
+    for (const r of D.RESERVOIRS) health.feeds.push({ id: `Z:${r.id}`, name: `${r.name} - mực nước`, critical: true, ageMin: 0 });
+    for (const g of D.GAUGES) health.feeds.push({ id: `H:${g.id}`, name: `${g.name} - mực nước sông`, critical: g.id === D.GAUGES[0].id, ageMin: 0 });
     health.feeds.push({ id: "rain", name: "Mưa lưu vực", critical: true, ageMin: 0 });
     health.feeds.push({ id: "qpf", name: "Dự báo mưa tổ hợp", critical: true, ageMin: 0 });
     health.feeds.push({ id: "tide", name: "Triều / nước dâng", critical: false, ageMin: 0 });
@@ -97,7 +97,7 @@
     const reason = level === 0 ? L("Mọi nguồn còn hạn", "All feeds fresh")
       : level === 1 ? L("Một số nguồn phụ đã cũ", "Some non-critical feeds stale")
       : level === 2 ? L(`Thiếu nguồn then chốt: ${missingCritical}`, `Critical feed missing: ${missingCritical}`)
-      : level === 3 ? L("Mất kết nối — dùng trạng thái lưu tại chỗ", "No connectivity — running on cached state")
+      : level === 3 ? L("Mất kết nối - dùng trạng thái lưu tại chỗ", "No connectivity - running on cached state")
       : L("Không có quan trắc dùng được", "No usable observations");
     return { level, oldest, stale, total: health.feeds.length, fresh: health.feeds.length - stale, reason, feeds: health.feeds, missingCritical };
   };
@@ -241,8 +241,8 @@
     /* DT-7: no observations → no advice. This is a feature. */
     if (hl.level >= 4) {
       return { kind: "REFUSAL", reason: L(
-        "Không có quan trắc dùng được — hệ thống KHÔNG đưa ra đề xuất. Hiển thị trạng thái cuối cùng còn hợp lệ, phương án ứng phó khẩn cấp và danh bạ liên lạc.",
-        "No usable observations — the system will NOT produce a proposal. Showing the last valid state, the emergency action plan and the contact tree."), health: hl };
+        "Không có quan trắc dùng được - hệ thống KHÔNG đưa ra đề xuất. Hiển thị trạng thái cuối cùng còn hợp lệ, phương án ứng phó khẩn cấp và danh bạ liên lạc.",
+        "No usable observations - the system will NOT produce a proposal. Showing the last valid state, the emergency action plan and the contact tree."), health: hl };
     }
     /* DT-7 / FR-02: a missing critical feed disables the optimiser and falls back to
        rule-curve guidance. Naming what is missing — and what is therefore NOT being
@@ -250,12 +250,12 @@
     if (hl.level >= 2) {
       return { kind: "DEGRADED", health: hl, missing: hl.missingCritical,
         reason: L(
-          `Thiếu nguồn dữ liệu then chốt (${hl.missingCritical}) — bộ tối ưu bị VÔ HIỆU. Không tính toán đề xuất xả trước, đỉnh dự báo hạ du hay xác suất vượt BĐ. Vận hành theo biểu đồ điều phối cho tới khi nguồn dữ liệu phục hồi.`,
-          `Critical feed missing (${hl.missingCritical}) — the optimiser is DISABLED. Pre-release proposals, downstream peak forecasts and exceedance probabilities are NOT being computed. Operate to the rule curve until the feed is restored.`) };
+          `Thiếu nguồn dữ liệu then chốt (${hl.missingCritical}) - bộ tối ưu bị VÔ HIỆU. Không tính toán đề xuất xả trước, đỉnh dự báo hạ du hay xác suất vượt BĐ. Vận hành theo biểu đồ điều phối cho tới khi nguồn dữ liệu phục hồi.`,
+          `Critical feed missing (${hl.missingCritical}) - the optimiser is DISABLED. Pre-release proposals, downstream peak forecasts and exceedance probabilities are NOT being computed. Operate to the rule curve until the feed is restored.`) };
     }
     if (!p) {
-      return { kind: "NONE", reason: L("Dòng vào dự báo nằm trong năng lực điều tiết — theo biểu đồ điều phối.",
-        "Forecast inflow is within regulation capacity — follow the rule curve."), health: hl };
+      return { kind: "NONE", reason: L("Dòng vào dự báo nằm trong năng lực điều tiết - theo biểu đồ điều phối.",
+        "Forecast inflow is within regulation capacity - follow the rule curve."), health: hl };
     }
 
     const r = D.RESERVOIRS.find((x) => x.id === p.resId);
@@ -308,15 +308,15 @@
     if (hl.level >= 1) { conf = conf === "HIGH" ? "MEDIUM" : conf; why.push(L("một số nguồn dữ liệu đã cũ", "some feeds stale")); }
     if (hl.level >= 2) { conf = "LOW"; why.push(L("thiếu nguồn dữ liệu then chốt", "critical feed missing")); }
     if (FT.state.ensSpread > 1.2) { conf = conf === "HIGH" ? "MEDIUM" : conf; why.push(L("độ tán tổ hợp rộng", "wide ensemble spread")); }
-    why.push(L("chưa có hồ sơ kiểm định — độ tin cậy tối đa LOW ở bản tổng hợp", "no verification record — synthetic build capped at LOW"));
+    why.push(L("chưa có hồ sơ kiểm định - độ tin cậy tối đa LOW ở bản tổng hợp", "no verification record - synthetic build capped at LOW"));
     conf = "LOW";                                    // R-01: synthetic build can never exceed LOW
 
     const deadline = p.tStart - CFG.notificationLeadH - CFG.approvalLeadH;
 
     if (saturated) {
       conf = "UNUSABLE";
-      why = [L("mô hình trạm đã chạm trần biểu diễn — không so sánh được hai chính sách",
-               "the gauge model has reached its representable maximum — the two policies cannot be compared")];
+      why = [L("mô hình trạm đã chạm trần biểu diễn - không so sánh được hai chính sách",
+               "the gauge model has reached its representable maximum - the two policies cannot be compared")];
     }
 
     return {
@@ -385,7 +385,7 @@
     },
     exportText() {
       return audit.entries.map((e) =>
-        `#${e.seq} ${e.tsUtc} T${e.simT} [${e.mode}] ${e.actor} — ${e.action} ${JSON.stringify(e.detail)}${e.reason ? ` · reason: ${e.reason}` : ""} · snap ${e.snapshot}`
+        `#${e.seq} ${e.tsUtc} T${e.simT} [${e.mode}] ${e.actor} - ${e.action} ${JSON.stringify(e.detail)}${e.reason ? ` · reason: ${e.reason}` : ""} · snap ${e.snapshot}`
       ).join("\n");
     },
   });
@@ -395,7 +395,7 @@
      helpers used by the UI
      ================================================================ */
   OPS.fmtHours = function (h) {
-    if (h == null || !isFinite(h)) return "—";
+    if (h == null || !isFinite(h)) return "-";
     const neg = h < 0; h = Math.abs(h);
     const hh = Math.floor(h), mm = Math.round((h - hh) * 60);
     return `${neg ? "−" : ""}${hh}h${String(mm).padStart(2, "0")}`;

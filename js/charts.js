@@ -203,7 +203,7 @@
       ctx.beginPath(); ctx.arc(hx, Y(med), 3 * dpr, 0, 7); ctx.fill();
       const isFc = hv > now;
       const txt1 = `${U.rel(hv)} · ${U.clock(hv).hm}`;
-      const txt2 = isFc ? `${U.fmt(med, 1)} m  [${U.fmt(lo, 1)}–${U.fmt(hi, 1)}]` : `${U.fmt(med, 1)} m`;
+      const txt2 = isFc ? `${U.fmt(med, 1)} m  [${U.fmt(lo, 1)}-${U.fmt(hi, 1)}]` : `${U.fmt(med, 1)} m`;
       font(9);
       const wBox = Math.max(ctx.measureText(txt1).width, ctx.measureText(txt2).width) + 12 * dpr;
       const bx = U.clamp(hx - wBox / 2, 2 * dpr, hw - wBox - 2 * dpr);

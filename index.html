@@ -4,12 +4,12 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#06121d" />
-  <title>FloodTwin — Vu Gia–Thu Bồn Digital Twin</title>
-  <meta name="description" content="FloodTwin Q1 demo — uncertainty-aware, regulation-grounded flood & reservoir digital twin with real-time flood–traffic simulation (Vu Gia–Thu Bồn)." />
+  <title>FloodTwin - Vu Gia-Thu Bồn Digital Twin</title>
+  <meta name="description" content="FloodTwin Q1 demo - uncertainty-aware, regulation-grounded flood & reservoir digital twin with real-time flood-traffic simulation (Vu Gia-Thu Bồn)." />
   <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
   <meta property="og:type" content="website" />
-  <meta property="og:title" content="FloodTwin — bản sao số lũ &amp; liên hồ chứa · SkyLabs" />
-  <meta property="og:description" content="Bản demo chạy thật trong trình duyệt: bản đồ ngập, dự báo có khoảng dao động, đề xuất xả trước theo quy trình liên hồ. Lưu vực Vu Gia – Thu Bồn." />
+  <meta property="og:title" content="FloodTwin - bản sao số lũ &amp; liên hồ chứa · SkyLabs" />
+  <meta property="og:description" content="Bản demo chạy thật trong trình duyệt: bản đồ ngập, dự báo có khoảng dao động, đề xuất xả trước theo quy trình liên hồ. Lưu vực Vu Gia - Thu Bồn." />
   <meta property="og:url" content="https://app.skylabs.vn/" />
   <meta property="og:image" content="https://skylabs.vn/assets/og-image.png" />
   <meta property="og:image:width" content="1200" />
@@ -17,7 +17,13 @@
   <meta property="og:locale" content="vi_VN" />
   <meta name="twitter:card" content="summary_large_image" />
   <link rel="canonical" href="https://app.skylabs.vn/" />
-  <link rel="stylesheet" href="./styles.css?v=127" />
+  <!-- Self-hosted IBM Plex Sans/Mono. Preload only the two faces that paint first
+       (body text and the numeric readouts) so the ops values never flash in a
+       fallback metric. -->
+  <link rel="preload" href="./fonts/IBMPlexSans-400-latin.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="preload" href="./fonts/IBMPlexMono-600-latin.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="stylesheet" href="./fonts.css?v=147" />
+  <link rel="stylesheet" href="./styles.css?v=147" />
 </head>
 <body>
   <div id="app" class="app">
@@ -27,7 +33,7 @@
       <div class="brand">
         <div class="brandMark" aria-hidden="true"><span>FT</span></div>
         <div class="brandText">
-          <h1>FloodTwin <span class="brandBasin">Vu Gia – Thu Bồn</span></h1>
+          <h1>FloodTwin <span class="brandBasin">Vu Gia - Thu Bồn</span></h1>
           <p data-i18n="tagline">Bản sao số lũ &amp; liên hồ chứa · nhận thức bất định · nền tảng pháp quy</p>
         </div>
       </div>
@@ -35,19 +41,19 @@
       <div class="kpiStrip" id="kpiStrip" role="status">
         <div class="kpi" id="kpiAlert">
           <span class="kpiLabel" data-i18n="kpi.alert">Cảnh báo lưu vực</span>
-          <strong class="kpiValue" id="kpiAlertValue">—</strong>
+          <strong class="kpiValue" id="kpiAlertValue">-</strong>
         </div>
         <div class="kpi">
           <span class="kpiLabel" data-i18n="kpi.rain">Mưa lưu vực</span>
-          <strong class="kpiValue" id="kpiRainValue">— mm/h</strong>
+          <strong class="kpiValue" id="kpiRainValue">- mm/h</strong>
         </div>
         <div class="kpi">
           <span class="kpiLabel" data-i18n="kpi.gauge">Ái Nghĩa</span>
-          <strong class="kpiValue" id="kpiGaugeValue">— m</strong>
+          <strong class="kpiValue" id="kpiGaugeValue">- m</strong>
         </div>
         <div class="kpi">
           <span class="kpiLabel" data-i18n="kpi.roads">Mạng đường thông</span>
-          <strong class="kpiValue" id="kpiRoadsValue">—%</strong>
+          <strong class="kpiValue" id="kpiRoadsValue">-%</strong>
         </div>
         <div class="kpi" id="kpiZones">
           <span class="kpiLabel" data-i18n="kpi.zones">KV nguy cơ/khẩn cấp</span>
@@ -72,7 +78,7 @@
           <button type="button" data-policy="rule" class="isActive" data-i18n="policy.rule">Rule curve tĩnh</button>
           <button type="button" data-policy="mpc" data-i18n="policy.mpc">FloodTwin MPC</button>
         </div>
-        <button class="langToggle tourBtn" id="btnTour" type="button">🎬 <span data-i18n="tour.btn">Trình diễn</span></button>
+        <button class="langToggle tourBtn" id="btnTour" type="button"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-film-slate"></use></svg><span data-i18n="tour.btn">Trình diễn</span></button>
         <button class="langToggle" id="langToggle" type="button" aria-label="Language">VI / <b>EN</b></button>
       </div>
 
@@ -82,16 +88,16 @@
     <!-- ============ OPS BAR — mode · escalation · data health · decision deadline ============
          Persistent by design: docs/05-product/02-screen-catalog.md "global chrome". -->
     <div class="opsBar" id="opsBar">
-      <span class="opsMode" id="opsMode">SYNTHETIC DATA · NOT FOR OPERATIONS</span>
+      <span class="opsMode" id="opsMode">REAL GIS DATA · AWS TERRARIUM DEM · ESRI SATELLITE · OSM OVERPASS</span>
       <span class="opsItem" id="opsEsc"><i>Escalation</i><b id="opsEscVal">L0</b></span>
-      <span class="opsItem opsHealthBtn" id="opsHealth" role="button" tabindex="0"><i>Data</i><b id="opsHealthVal">L0 · —</b></span>
-      <span class="opsItem opsKappa" id="opsKappa"><i>κ điều tiết</i><b id="opsKappaVal">—</b></span>
-      <span class="opsItem opsPex" id="opsPex"><i>P(vượt BĐ3, 12h)</i><b id="opsPexVal">—</b></span>
-      <span class="opsItem opsDeadline" id="opsDeadline"><i>Hạn quyết định</i><b id="opsDeadlineVal">—</b></span>
+      <span class="opsItem opsHealthBtn" id="opsHealth" role="button" tabindex="0"><i>Data</i><b id="opsHealthVal">L0 · -</b></span>
+      <span class="opsItem opsKappa" id="opsKappa"><i>κ điều tiết</i><b id="opsKappaVal">-</b></span>
+      <span class="opsItem opsPex" id="opsPex"><i>P(vượt BĐ3, 12h)</i><b id="opsPexVal">-</b></span>
+      <span class="opsItem opsDeadline" id="opsDeadline"><i>Hạn quyết định</i><b id="opsDeadlineVal">-</b></span>
       <span class="opsSpacer"></span>
       <label class="opsActor"><i>Trực ban</i>
         <select id="opsActor">
-          <option value="">— chưa định danh —</option>
+          <option value="">- chưa định danh -</option>
           <option value="Nguyễn V.A.|Kỹ sư vận hành hồ">Nguyễn V.A. · KS vận hành hồ</option>
           <option value="Trần T.B.|Trưởng ca vận hành">Trần T.B. · Trưởng ca</option>
           <option value="Lê Q.C.|Giám đốc nhà máy">Lê Q.C. · Giám đốc NM</option>
@@ -128,14 +134,14 @@
           <input id="ensSpread" type="range" min="40" max="180" value="100" />
           <em id="ensSpreadVal">1.00×</em>
         </label>
-        <div class="miniNote" data-i18n="ctl.note">Chuỗi GraphCast/GenCast + IMERG hiệu chỉnh — dữ liệu tổng hợp minh hoạ.</div>
+        <div class="miniNote" data-i18n="ctl.note">Chuỗi GraphCast/GenCast + IMERG hiệu chỉnh - dữ liệu tổng hợp minh hoạ.</div>
       </section>
 
       <!-- ============ SUB-CATCHMENT RAINFALL & ANTECEDENT WETNESS (docs S-08 · FR-29) ============ -->
       <section class="panel subcatchPanel">
         <div class="panelTitle">
           <span>Mưa theo tiểu lưu vực · độ ẩm trước lũ</span>
-          <strong id="subSplit">—</strong>
+          <strong id="subSplit">-</strong>
         </div>
         <p class="metricNote">Mưa <b>thượng nguồn</b> thành dòng vào hồ và <b>điều tiết được</b>; mưa <b>khu giữa/đồng bằng</b> thì không. Đây là cơ sở của hệ số κ.</p>
         <div class="subList" id="subList"></div>
@@ -145,7 +151,7 @@
       <section class="panel zonesPanel">
         <div class="panelTitle">
           <span data-i18n="panel.zones">Khu vực giám sát</span>
-          <strong id="zonesSummary">—</strong>
+          <strong id="zonesSummary">-</strong>
         </div>
         <div class="zoneList" id="zoneList"></div>
       </section>
@@ -154,10 +160,10 @@
       <section class="panel evacPanel">
         <div class="panelTitle">
           <span>Sơ tán · điểm trú · tuyến</span>
-          <strong id="evacSummary">—</strong>
+          <strong id="evacSummary">-</strong>
         </div>
         <p class="metricNote">Tuyến được đánh giá theo trạng thái ngập <b>tại thời điểm sử dụng</b>, không phải hiện tại. “Đóng lúc” là giờ dự kiến mất tuyến.
-        <br><b>Giới hạn mô hình:</b> chỉ tính trên mạng <span id="evacNetN">—</span> tuyến chính đã mô hình hoá — “cô lập” nghĩa là mất kết nối trên mạng này, chưa xét đường nhỏ/ngõ.</p>
+        <br><b>Giới hạn mô hình:</b> chỉ tính trên mạng <span id="evacNetN">-</span> tuyến chính đã mô hình hoá - “cô lập” nghĩa là mất kết nối trên mạng này, chưa xét đường nhỏ/ngõ.</p>
         <div class="shelterCapacity" id="shelterCapacity" role="status"></div>
         <div class="evacList" id="evacList"></div>
         <div class="shelterList" id="shelterList"></div>
@@ -185,7 +191,7 @@
       </section>
 
       <section class="panel" id="panelLegend">
-        <div class="panelTitle"><span data-i18n="panel.legend">Chú giải</span><strong id="legendDepthMax">0–4 m</strong></div>
+        <div class="panelTitle"><span data-i18n="panel.legend">Chú giải</span><strong id="legendDepthMax">0-4 m</strong></div>
         <div class="legendBlock">
           <span class="legendCaption" data-i18n="legend.depth">Độ sâu ngập (m)</span>
           <div class="depthRamp" aria-hidden="true"></div>
@@ -196,7 +202,7 @@
           <div class="legendRows">
             <div><i class="dot" style="--c:var(--road-open)"></i><span data-i18n="road.open">Thông suốt</span></div>
             <div><i class="dot" style="--c:var(--road-caution)"></i><span data-i18n="road.caution">Chú ý (&lt;15 cm)</span></div>
-            <div><i class="dot" style="--c:var(--road-risk)"></i><span data-i18n="road.risk">Hạn chế (15–30 cm)</span></div>
+            <div><i class="dot" style="--c:var(--road-risk)"></i><span data-i18n="road.risk">Hạn chế (15-30 cm)</span></div>
             <div><i class="dot" style="--c:var(--road-closed)"></i><span data-i18n="road.closed">Đóng (≥30 cm)</span></div>
           </div>
         </div>
@@ -220,7 +226,7 @@
       </section>
 
       <section class="panel metricsPanel">
-        <div class="panelTitle"><span data-i18n="panel.metrics">Ngưỡng đạt mục tiêu · đề cương §8</span><button id="btnMethod" class="methodBtn" type="button" title="Phương pháp">ℹ️</button></div>
+        <div class="panelTitle"><span data-i18n="panel.metrics">Ngưỡng đạt mục tiêu · đề cương §8</span><button id="btnMethod" class="methodBtn" type="button" title="Phương pháp" aria-label="Phương pháp"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-info"></use></svg></button></div>
         <p class="metricNote" data-i18n="metrics.note">Đây là ngưỡng đặt ra, chưa phải số đo. Độ chính xác chỉ chứng minh được bằng đối chứng lùi trên trận lũ thật.</p>
         <div class="metricRows" id="metricRows">
           <div class="metricRow"><span>CSI <em data-i18n="metrics.extent">(diện ngập)</em></span><strong>≥0.80 <em data-i18n="metrics.pending">· chưa đo</em></strong></div>
@@ -228,12 +234,12 @@
           <div class="metricRow"><span>KGE</span><strong>≥0.75 <em data-i18n="metrics.pending">· chưa đo</em></strong></div>
           <div class="metricRow"><span data-i18n="metrics.selftest">Tự kiểm định vật lý</span><strong>4/4 <em data-i18n="metrics.measured">· đã đo mỗi lần khởi động</em></strong></div>
           <!-- genuinely MEASURED (not thresholds): DEM ground resolution + SWE numerical mass closure -->
-          <div class="metricRow"><span data-i18n="metrics.dem">Độ phân giải DEM</span><strong id="metricDem">— <em data-i18n="metrics.measured2">· đo thật</em></strong></div>
-          <div class="metricRow"><span data-i18n="metrics.mass">Bảo toàn khối (SWE)</span><strong id="metricMass">— <em data-i18n="metrics.measured2">· đo thật</em></strong></div>
+          <div class="metricRow"><span data-i18n="metrics.dem">Độ phân giải DEM</span><strong id="metricDem">- <em data-i18n="metrics.measured2">· đo thật</em></strong></div>
+          <div class="metricRow"><span data-i18n="metrics.mass">Bảo toàn khối (SWE)</span><strong id="metricMass">- <em data-i18n="metrics.measured2">· đo thật</em></strong></div>
         </div>
         <div class="surrogateChip">
           <span data-i18n="metrics.surrogate">Surrogate FNO/DeepONet</span>
-          <strong id="surrogateSpeed" data-i18n="metrics.planned">kế hoạch — chưa huấn luyện</strong>
+          <strong id="surrogateSpeed" data-i18n="metrics.planned">kế hoạch - chưa huấn luyện</strong>
         </div>
       </section>
     </aside>
@@ -251,6 +257,12 @@
           <button type="button" data-cam="dams" data-i18n="cam.dams">Bậc thang hồ</button>
           <button type="button" data-cam="hoian" data-i18n="cam.hoian">Hội An</button>
         </div>
+        <div class="layoutPresets" id="layoutPresets" role="group" aria-label="Workspace Layout">
+          <button type="button" data-layout="overview" class="isActive" title="Chế độ Tổng quan Phòng điều khiển"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-squares-four"></use></svg>Tổng quan</button>
+          <button type="button" data-layout="focus" title="Chế độ Mở rộng Bản đồ Toàn màn hình"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-map-trifold"></use></svg>Bản đồ</button>
+          <button type="button" data-layout="analytics" title="Chế độ Phân tích Thủy văn &amp; Dự báo"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-chart-line"></use></svg>Phân tích</button>
+        </div>
+        <button type="button" id="btnPerfMode" class="perfModeBtn" title="Bật Chế độ Mượt để tăng FPS cho máy yếu"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-lightning"></use></svg>Chế độ Mượt</button>
         <div class="stageMeta">
           <span id="fpsMeter">60 fps</span>
           <span id="gridMeta">SWE 144² · Manning n</span>
@@ -314,17 +326,17 @@
 
         <div class="waterBadge" id="waterBadge">
           <span data-i18n="badge.flooded">Diện ngập</span>
-          <strong id="floodedArea">— km²</strong>
+          <strong id="floodedArea">- km²</strong>
           <span data-i18n="badge.people">Dân cư phơi nhiễm</span>
-          <strong id="peopleExposed">—</strong>
+          <strong id="peopleExposed">-</strong>
           <span data-i18n="impact.homes">Nhà ngập</span>
-          <strong id="homesFlooded">—</strong>
+          <strong id="homesFlooded">-</strong>
         </div>
-        <button class="focusBtn" id="btnFocus" type="button" title="Focus map">⛶</button>
+        <button class="focusBtn" id="btnFocus" type="button" title="Focus map" aria-label="Focus map"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-frame-corners"></use></svg></button>
 
         <div id="tooltip" class="tooltip" hidden></div>
         <div id="webglFallback" class="webglFallback" hidden>
-          <p data-i18n="fallback.webgl">Không tải được WebGL/Three.js — chuyển sang bản đồ 2D (đầy đủ mô phỏng).</p>
+          <p data-i18n="fallback.webgl">Không tải được WebGL/Three.js - chuyển sang bản đồ 2D (đầy đủ mô phỏng).</p>
         </div>
       </div>
 
@@ -338,9 +350,9 @@
             <button type="button" data-speed="5400">90 m/s</button>
           </div>
           <div class="clockReadout">
-            <strong id="simClock">—</strong>
+            <strong id="simClock">-</strong>
             <span id="simRel">T+0h</span>
-            <em id="simPhase" class="phaseTag">—</em>
+            <em id="simPhase" class="phaseTag">-</em>
           </div>
         </div>
         <div class="scrubberWrap" id="scrubberWrap">
@@ -362,17 +374,17 @@
           <select id="gaugeSelect" aria-label="Gauge station"></select>
         </div>
         <div class="gaugeReadout">
-          <div><span data-i18n="gauge.stage">Mực nước</span><strong id="gaugeStageNow">— m</strong></div>
-          <div><span data-i18n="gauge.trend">Xu thế 3h</span><strong id="gaugeTrend">—</strong></div>
-          <div><span data-i18n="gauge.alert">Báo động</span><strong id="gaugeAlert">—</strong></div>
-          <div><span>CRPS</span><strong id="gaugeCrps">—</strong></div>
+          <div><span data-i18n="gauge.stage">Mực nước</span><strong id="gaugeStageNow">- m</strong></div>
+          <div><span data-i18n="gauge.trend">Xu thế 3h</span><strong id="gaugeTrend">-</strong></div>
+          <div><span data-i18n="gauge.alert">Báo động</span><strong id="gaugeAlert">-</strong></div>
+          <div><span>CRPS</span><strong id="gaugeCrps">-</strong></div>
         </div>
         <canvas id="hydrographCanvas" class="chartCanvas" aria-label="Stage hydrograph with ensemble fan"></canvas>
         <div class="chartLegend">
           <span><i class="swatch obs"></i><span data-i18n="chart.obs">Quan trắc</span></span>
           <span><i class="swatch med"></i><span data-i18n="chart.median">Trung vị</span></span>
-          <span><i class="swatch band50"></i>25–75%</span>
-          <span><i class="swatch band90"></i>5–95%</span>
+          <span><i class="swatch band50"></i>25-75%</span>
+          <span><i class="swatch band90"></i>5-95%</span>
         </div>
       </section>
 
@@ -385,14 +397,14 @@
         <div class="mpcCard" id="mpcCard" hidden>
           <div class="mpcHead">
             <span data-i18n="mpc.title">Đề xuất xả trước (MPC · nằm trong hành lang pháp lý)</span>
-            <strong id="mpcConfidence">—</strong>
+            <strong id="mpcConfidence">-</strong>
           </div>
-          <p id="mpcText">—</p>
+          <p id="mpcText">-</p>
           <div class="mpcCompare" id="mpcCompare"></div>
           <!-- decision package: constraints · counterfactual · alternatives · regret (docs S-05) -->
           <div class="dpBox" id="dpBox"></div>
           <label class="dpReason"><span>Lý do ghi nhận (bắt buộc)</span>
-            <input id="dpReasonInput" type="text" maxlength="160" placeholder="vì sao chấp thuận / từ chối — lưu vào nhật ký kiểm toán" />
+            <input id="dpReasonInput" type="text" maxlength="160" placeholder="vì sao chấp thuận / từ chối - lưu vào nhật ký kiểm toán" />
           </label>
           <div class="mpcActions">
             <button id="mpcApprove" type="button" class="btnPrimary" data-i18n="mpc.approve">Phê duyệt</button>
@@ -400,7 +412,7 @@
             <button id="mpcDetails" type="button" data-i18n="mpc.details">Gói quyết định</button>
             <button id="mpcReject" type="button" data-i18n="mpc.reject">Từ chối</button>
           </div>
-          <small class="mpcNote" data-i18n="mpc.note">Không cửa van nào vận hành theo lời LLM — người trực phê duyệt mọi lệnh xả.</small>
+          <small class="mpcNote" data-i18n="mpc.note">Không cửa van nào vận hành theo lời LLM - người trực phê duyệt mọi lệnh xả.</small>
         </div>
       </section>
 
@@ -430,12 +442,12 @@
       </section>
 
       <section class="panel trafficPanel">
-        <div class="panelTitle"><span data-i18n="panel.traffic">Giao thông thời gian thực</span><strong id="vehCount">— xe</strong></div>
+        <div class="panelTitle"><span data-i18n="panel.traffic">Giao thông thời gian thực</span><strong id="vehCount">- xe</strong></div>
         <div class="trafficGrid">
-          <div><span data-i18n="tr.open">Mạng thông</span><strong id="trOpen">—%</strong></div>
-          <div><span data-i18n="tr.closed">Đoạn đóng</span><strong id="trClosed">—</strong></div>
-          <div><span data-i18n="tr.reroute">Xe đổi lộ trình</span><strong id="trReroute">—</strong></div>
-          <div><span data-i18n="tr.eta">ETA ĐN→Hội An</span><strong id="trEta">— ph</strong></div>
+          <div><span data-i18n="tr.open">Mạng thông</span><strong id="trOpen">-%</strong></div>
+          <div><span data-i18n="tr.closed">Đoạn đóng</span><strong id="trClosed">-</strong></div>
+          <div><span data-i18n="tr.reroute">Xe đổi lộ trình</span><strong id="trReroute">-</strong></div>
+          <div><span data-i18n="tr.eta">ETA ĐN→Hội An</span><strong id="trEta">- ph</strong></div>
         </div>
         <div class="closureList" id="closureList"></div>
       </section>
@@ -446,14 +458,14 @@
           <strong data-i18n="llm.grounded">100% trích nguồn</strong>
         </div>
         <div class="llmBrief" id="llmBrief">
-          <p data-i18n="llm.placeholder">Nhấn tạo bản tin để tổng hợp tình huống — mọi con số lấy từ solver/optimizer, mọi mệnh đề kèm trích dẫn.</p>
+          <p data-i18n="llm.placeholder">Nhấn tạo bản tin để tổng hợp tình huống - mọi con số lấy từ solver/optimizer, mọi mệnh đề kèm trích dẫn.</p>
         </div>
         <div class="llmActions">
           <button id="btnBrief" type="button" class="btnPrimary" data-i18n="llm.generate">Tạo bản tin tình huống</button>
           <button id="btnCitizen" type="button" data-i18n="llm.citizen">Hỏi đáp cư dân Hội An</button>
-          <button id="btnReport" type="button">🖨 <span data-i18n="report.btn">Xuất báo cáo</span></button>
-          <button id="btnRepOperation" type="button" title="Trả lời câu hỏi &quot;hồ có gây ra lũ không?&quot;">📄 Hồ sơ vận hành</button>
-          <button id="btnRepEvent" type="button" title="Dựng lại toàn bộ diễn biến từ dòng sự kiện + nhật ký kiểm toán">🗂 Báo cáo sau lũ</button>
+          <button id="btnReport" type="button"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-printer"></use></svg><span data-i18n="report.btn">Xuất báo cáo</span></button>
+          <button id="btnRepOperation" type="button" title="Trả lời câu hỏi &quot;hồ có gây ra lũ không?&quot;"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-clipboard-text"></use></svg>Hồ sơ vận hành</button>
+          <button id="btnRepEvent" type="button" title="Dựng lại toàn bộ diễn biến từ dòng sự kiện + nhật ký kiểm toán"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-archive"></use></svg>Báo cáo sau lũ</button>
         </div>
       </section>
 
@@ -465,7 +477,7 @@
 
     <!-- ============ FOOTER ============ -->
     <footer class="statusbar">
-      <span data-i18n="foot.mode">Dữ liệu tổng hợp minh hoạ phương pháp — không dùng cho vận hành thật</span>
+      <span data-i18n="foot.mode">Dữ liệu tổng hợp minh hoạ phương pháp - không dùng cho vận hành thật</span>
       <span class="statusSep">·</span>
       <span>Ảnh &amp; đường: Esri World Imagery/Transportation · DEM: AWS Terrain Tiles · © OSM contributors</span>
       <span class="statusSep">·</span>
@@ -478,7 +490,7 @@
     <!-- ============ MODALS ============ -->
     <div class="modalScrim" id="modalScrim" hidden>
       <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
-        <div class="modalHead"><h3 id="modalTitle">—</h3><button id="modalClose" type="button" aria-label="Close">×</button></div>
+        <div class="modalHead"><h3 id="modalTitle">-</h3><button id="modalClose" type="button" aria-label="Close">×</button></div>
         <div class="modalBody" id="modalBody"></div>
       </div>
     </div>
@@ -514,34 +526,34 @@
       try { await tryLoad(); boot(true); }
       catch (e2) {
         try { await tryLoadJsdelivr(); boot(true); }
-        catch (err) { console.warn("Three.js CDN unavailable — falling back to 2D:", err); boot(false); }
+        catch (err) { console.warn("Three.js CDN unavailable - falling back to 2D:", err); boot(false); }
       }
     }
   </script>
 
-  <script src="./js/core.js?v=127"></script>
-  <script src="./js/geo.js?v=127"></script>
-  <script src="./js/data.js?v=127"></script>
-  <script src="./js/hydro.js?v=127"></script>
-  <script src="./js/decision.js?v=127"></script>
-  <script src="./js/roles.js?v=127"></script>
-  <script src="./js/world.js?v=127"></script>
-  <script src="./js/forecast.js?v=127"></script>
-  <script src="./js/alerts.js?v=127"></script>
-  <script src="./js/domain.js?v=127"></script>
-  <script src="./js/reports.js?v=127"></script>
-  <script src="./js/traffic.js?v=127"></script>
-  <script src="./js/zones.js?v=127"></script>
-  <script src="./js/charts.js?v=127"></script>
-  <script src="./js/map2d.js?v=127"></script>
-  <script src="./js/scene3d.js?v=127"></script>
-  <script src="./js/record.js?v=127"></script>
-  <script src="./js/grounding.js?v=127"></script>
-  <script src="./js/lifecycle.js?v=127"></script>
-  <script src="./js/explainability.js?v=127"></script>
-  <script src="./js/ui.js?v=127"></script>
-  <script src="./js/opsui.js?v=127"></script>
-  <script src="./js/main.js?v=127"></script>
-  <script src="./js/shell.js?v=127"></script>
+  <script src="./js/core.js?v=147"></script>
+  <script src="./js/geo.js?v=147"></script>
+  <script src="./js/data.js?v=147"></script>
+  <script src="./js/hydro.js?v=147"></script>
+  <script src="./js/decision.js?v=147"></script>
+  <script src="./js/roles.js?v=147"></script>
+  <script src="./js/world.js?v=147"></script>
+  <script src="./js/forecast.js?v=147"></script>
+  <script src="./js/alerts.js?v=147"></script>
+  <script src="./js/domain.js?v=147"></script>
+  <script src="./js/reports.js?v=147"></script>
+  <script src="./js/traffic.js?v=147"></script>
+  <script src="./js/zones.js?v=147"></script>
+  <script src="./js/charts.js?v=147"></script>
+  <script src="./js/map2d.js?v=147"></script>
+  <script src="./js/scene3d.js?v=147"></script>
+  <script src="./js/record.js?v=147"></script>
+  <script src="./js/grounding.js?v=147"></script>
+  <script src="./js/lifecycle.js?v=147"></script>
+  <script src="./js/explainability.js?v=147"></script>
+  <script src="./js/ui.js?v=147"></script>
+  <script src="./js/opsui.js?v=147"></script>
+  <script src="./js/main.js?v=147"></script>
+  <script src="./js/shell.js?v=147"></script>
 </body>
 </html>

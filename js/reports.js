@@ -34,7 +34,7 @@
         ${hl ? ` · ${L("Dữ liệu", "Data")}: L${hl.level}` : ""}
         ${OPS && OPS.audit.actor.name ? ` · ${L("Trực ban", "Duty")}: ${esc(OPS.audit.actor.name)} (${esc(OPS.audit.actor.role)})` : ""}
       </div>
-      <div class="prBanner">${OPS ? esc(OPS.modeLabel()) : "SYNTHETIC"} — ${L(
+      <div class="prBanner">${OPS ? esc(OPS.modeLabel()) : "SYNTHETIC"} - ${L(
         "số liệu tổng hợp minh hoạ phương pháp, KHÔNG dùng cho vận hành hoặc công bố",
         "synthetic data illustrating the method; NOT for operations or publication")}</div>
       ${sub ? `<p class="prSub">${sub}</p>` : ""}`;
@@ -76,8 +76,8 @@
         const stD = FT.domain && FT.domain.RES_STATES[st];
         return `<tr><td>${r.name}</td><td>${stD ? (vi() ? stD.vi : stD.en) : ""}</td>
           <td>${U.fmt(rs.Z, 2)} / ${r.ceil} m</td>
-          <td>${m && m.freeboard != null ? U.fmt(m.freeboard, 1) + " m" : "—"}</td>
-          <td>${m && m.tToCeil != null ? FT.ops.fmtHours(m.tToCeil) : "—"}</td>
+          <td>${m && m.freeboard != null ? U.fmt(m.freeboard, 1) + " m" : "-"}</td>
+          <td>${m && m.tToCeil != null ? FT.ops.fmtHours(m.tToCeil) : "-"}</td>
           <td>${U.fmtInt(rs.I)} / ${U.fmtInt(rs.O)} m³/s</td></tr>`;
       }).join("")}</table>
 
@@ -87,7 +87,7 @@
         <td>${U.fmt(z.meanD, 1)} / ${U.fmt(z.maxD, 1)} m</td>
         <td>${U.fmtInt(z.exposed)}</td>
         <td>${z.isolated ? L("CÔ LẬP", "ISOLATED") : z.isolatesAt != null ? `${L("cô lập", "isolates")} ~${hm(z.isolatesAt)}` : L("thông", "open")}</td>
-        <td>${z.shelter ? esc(z.shelter.name) : L("— trú tại chỗ", "— shelter in place")}</td></tr>`).join("")}</table>
+        <td>${z.shelter ? esc(z.shelter.name) : L("- trú tại chỗ", "- shelter in place")}</td></tr>`).join("")}</table>
 
       <h2>${L("Giao thông", "Transport")}</h2>
       <p>${L("Mạng thông", "Network open")}: ${ts.openPct}% · ${L("đoạn đóng", "closed")}: ${ts.closed}
@@ -116,9 +116,9 @@
     /* pluvial vs fluvial: how much of the downstream response is local rain, not releases */
     const k = FT.ops ? FT.ops.kappa(g, t) : null;
     return header(L("Hồ sơ vận hành công khai", "Public operation record"),
-      L("Bản ghi này trả lời câu hỏi “hồ có gây ra lũ không?” bằng số liệu vào–ra và phần lũ đã được hồ giữ lại.",
-        "This record answers “did the reservoirs cause this flood?” with inflow–outflow figures and the volume they held back.")) + `
-      <h2>${L("Cân bằng vào – ra từng hồ (T−24h → hiện tại)", "Per-reservoir inflow–outflow balance (T−24 h → now)")}</h2>
+      L("Bản ghi này trả lời câu hỏi “hồ có gây ra lũ không?” bằng số liệu vào-ra và phần lũ đã được hồ giữ lại.",
+        "This record answers “did the reservoirs cause this flood?” with inflow-outflow figures and the volume they held back.")) + `
+      <h2>${L("Cân bằng vào - ra từng hồ (T−24h → hiện tại)", "Per-reservoir inflow-outflow balance (T−24 h → now)")}</h2>
       <table><tr><th></th><th>${L("Đỉnh lượng về", "Peak inflow")}</th><th>${L("Đỉnh lượng xả", "Peak outflow")}</th><th>${L("Chênh đỉnh", "Peak reduction")}</th><th>${L("Đã giữ lại", "Volume held back")}</th></tr>
       ${rows.map((x) => `<tr><td>${x.r.name}</td>
         <td>${U.fmtInt(x.peakI)} m³/s (${hm(x.tPeakI)})</td>
@@ -128,15 +128,15 @@
       <tr><td><b>${L("Tổng", "Total")}</b></td><td></td><td></td><td></td><td><b>${U.fmt(totalAbsorbed, 0)} Mm³</b></td></tr></table>
 
       <h2>${L("Phần lũ hồ điều tiết được", "How much of this flood the reservoirs control")}</h2>
-      <p>${L("Hệ số điều tiết κ tại", "Controllability κ at")} ${g.name}: <b>${k != null ? U.fmt(k, 2) : "—"}</b> —
+      <p>${L("Hệ số điều tiết κ tại", "Controllability κ at")} ${g.name}: <b>${k != null ? U.fmt(k, 2) : "-"}</b> -
         ${k != null && k < 0.3
           ? L("phần lớn lượng nước gây lũ sinh ra ở khu giữa và đồng bằng, <b>không đi qua hồ nào</b>. Vận hành cửa van không thể thay đổi đáng kể trận lũ này.",
               "most of the flood volume is generated in the intermediate and delta catchments and <b>passes through no reservoir</b>. Gate operation cannot materially change this flood.")
           : k != null && k < 0.6
             ? L("một phần đáng kể lượng nước không qua hồ; vận hành hồ chỉ thay đổi được một phần đỉnh lũ.",
                 "a substantial share bypasses the reservoirs; gate operation can change only part of the peak.")
-            : L("phần lớn lượng nước đi qua hồ — vận hành hồ ảnh hưởng lớn tới đỉnh lũ hạ du.",
-                "most of the volume passes through the reservoirs — gate operation materially affects the downstream peak.")}</p>
+            : L("phần lớn lượng nước đi qua hồ - vận hành hồ ảnh hưởng lớn tới đỉnh lũ hạ du.",
+                "most of the volume passes through the reservoirs - gate operation materially affects the downstream peak.")}</p>
       <p>${L("Diễn giải", "Interpretation")}: ${L(
         "phần lũ do mưa khu giữa/tại chỗ sinh ra không thể quy cho việc xả hồ. Hai nguồn này được tách trong bảng mưa theo tiểu lưu vực.",
         "the share generated by intermediate and local rainfall cannot be attributed to reservoir releases. The two sources are separated in the sub-catchment rainfall panel.")}</p>
@@ -160,8 +160,8 @@
     const audit = OPS ? OPS.audit.entries.slice(-40) : [];
     const notif = FT.notifyOps ? FT.notifyOps.sent : [];
     return header(L("Báo cáo sau lũ (tự động dựng lại)", "Post-event report (auto-reconstructed)"),
-      L("Dựng tự động từ dòng sự kiện tất định và nhật ký kiểm toán — đây là phần việc mà sau trận lũ thường không ai còn sức để viết.",
-        "Reconstructed automatically from the deterministic event stream and the audit trail — the work nobody has the energy to write after a flood.")) + `
+      L("Dựng tự động từ dòng sự kiện tất định và nhật ký kiểm toán - đây là phần việc mà sau trận lũ thường không ai còn sức để viết.",
+        "Reconstructed automatically from the deterministic event stream and the audit trail - the work nobody has the energy to write after a flood.")) + `
       <h2>${L("Dòng sự kiện", "Event timeline")} (${evs.length})</h2>
       <table><tr><th>${L("Giờ", "Time")}</th><th>${L("Sự kiện", "Event")}</th><th>${L("Diễn giải", "Detail")}</th></tr>
       ${evs.slice(0, 60).map((e) => `<tr><td>${hm(e.tH)} ${dm(e.tH)}</td><td>${esc(e.title)}</td><td>${esc(e.detail)}</td></tr>`).join("")}</table>
@@ -170,11 +170,11 @@
       <h2>${L("Quyết định và thông báo (nhật ký kiểm toán)", "Decisions and notifications (audit trail)")}</h2>
       <table><tr><th>#</th><th>${L("Thời điểm", "Time")}</th><th>${L("Hành động", "Action")}</th><th>${L("Người thực hiện", "Actor")}</th><th>${L("Lý do ghi nhận", "Reason of record")}</th></tr>
       ${audit.map((a) => `<tr><td>${a.seq}</td><td>${esc(a.tsUtc.slice(11, 19))} · T${esc(a.simT)}h</td>
-        <td>${esc(a.action)}</td><td>${esc(a.actor)}</td><td>${esc(a.reason || "—")}</td></tr>`).join("")}</table>
+        <td>${esc(a.action)}</td><td>${esc(a.actor)}</td><td>${esc(a.reason || "-")}</td></tr>`).join("")}</table>
 
       <h2>${L("Thông báo hạ du", "Downstream notifications")}</h2>
       ${notif.length ? notif.map((n) => `<p><b>${esc(n.record.headlineShort)}</b> — ${n.recipients.filter((r) => r.acked).length}/${n.recipients.length} ${L("nhóm đã xác nhận", "groups acknowledged")}.
-        ${L("Chưa xác nhận", "Unacknowledged")}: ${n.recipients.filter((r) => !r.acked).map((r) => esc(r.name)).join(", ") || "—"}</p>`).join("")
+        ${L("Chưa xác nhận", "Unacknowledged")}: ${n.recipients.filter((r) => !r.acked).map((r) => esc(r.name)).join(", ") || "-"}</p>`).join("")
         : `<p>${L("Chưa phát thông báo nào trong phiên này.", "No notifications were dispatched in this session.")}</p>`}
       ${footer()}`;
   };

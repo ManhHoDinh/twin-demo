@@ -28,7 +28,7 @@
       ],
       inflowGain: 1.0,
       surgeGain: 1.0,
-      stormName: "Linfa–Nangka (10/2020)",
+      stormName: "Linfa-Nangka (10/2020)",
     },
     yagi: {
       key: "scenario.yagi",
@@ -124,17 +124,17 @@
   for (const [id, ll] of Object.entries(NODE_LL)) { const p = LL(ll[0], ll[1]); ROAD_NODES[id] = { x: p[0], y: p[1] }; }
 
   const ROAD_EDGES = [
-    { a: "n_ql1_n", b: "dn_s", name: "QL1A · Hải Vân–ĐN", type: "hw", via: [[108.152, 16.098], [108.177, 16.062]] },
+    { a: "n_ql1_n", b: "dn_s", name: "QL1A · Hải Vân-ĐN", type: "hw", via: [[108.152, 16.098], [108.177, 16.062]] },
     { a: "dn_s", b: "hoaphuoc", name: "QL1A · Hòa Phước", type: "hw" },
     { a: "hoaphuoc", b: "vinhdien", name: "QL1A · Điện Bàn", type: "hw" },
     { a: "vinhdien", b: "caulau_b", name: "QL1A · cầu Câu Lâu", type: "hw", bridge: true },
     { a: "caulau_b", b: "namphuoc", name: "QL1A · Nam Phước", type: "hw" },
     { a: "namphuoc", b: "ql1_s1", name: "QL1A · Quế Sơn", type: "hw", via: [[108.236, 15.772]] },
     { a: "ql1_s1", b: "ql1_s", name: "QL1A · Nam", type: "hw" },
-    { a: "ct_n", b: "ct_1", name: "CT ĐN–QN · đoạn 1", type: "exp" },
-    { a: "ct_1", b: "ct_2", name: "CT ĐN–QN · đoạn 2", type: "exp" },
-    { a: "ct_2", b: "ct_3", name: "CT ĐN–QN · đoạn 3", type: "exp" },
-    { a: "ct_3", b: "ct_s", name: "CT ĐN–QN · đoạn 4", type: "exp" },
+    { a: "ct_n", b: "ct_1", name: "CT ĐN-QN · đoạn 1", type: "exp" },
+    { a: "ct_1", b: "ct_2", name: "CT ĐN-QN · đoạn 2", type: "exp" },
+    { a: "ct_2", b: "ct_3", name: "CT ĐN-QN · đoạn 3", type: "exp" },
+    { a: "ct_3", b: "ct_s", name: "CT ĐN-QN · đoạn 4", type: "exp" },
     { a: "dn_s", b: "ct_n", name: "Nhánh nối CT bắc", type: "prov" },
     { a: "ct_1", b: "hoaphuoc", name: "Nhánh nối Hòa Phước", type: "prov" },
     { a: "ct_2", b: "vinhdien", name: "Nhánh nối Điện Bàn", type: "prov" },
@@ -214,15 +214,15 @@
   /* ---------- monitored zones (REAL centres) ---------- */
   const ZONES = [
     { id: "z_ainghia", name: "TT Ái Nghĩa (Đại Lộc)", ll: LL(108.10, 15.885), r: 2.2, pop: 32000, node: "aiNghia", pois: [{ n: "BV Đại Lộc", t: "hosp", ll: LL(108.095, 15.892) }, { n: "Cầu Ái Nghĩa", t: "bridge", ll: LL(108.108, 15.88) }] },
-    { id: "z_vinhdien", name: "Vĩnh Điện (Điện Bàn)", ll: LL(108.248, 15.92), r: 2.4, pop: 45000, node: "vinhdien", pois: [{ n: "BV Điện Bàn", t: "hosp", ll: LL(108.252, 15.915) }, { n: "Nút QL1–ĐT609", t: "road", ll: LL(108.248, 15.923) }] },
-    { id: "z_hoian", name: "Hội An – phố cổ", ll: LL(108.328, 15.878), r: 2.0, pop: 60000, node: "hoian", pois: [{ n: "Chùa Cầu (di sản)", t: "herit", ll: LL(108.326, 15.877) }, { n: "Chợ Hội An", t: "market", ll: LL(108.332, 15.877) }] },
-    { id: "z_cuadai", name: "Cẩm Kim – Cửa Đại", ll: LL(108.37, 15.868), r: 2.2, pop: 25000, node: "cuadai", pois: [{ n: "Cầu Cửa Đại", t: "bridge", ll: LL(108.368, 15.87) }] },
+    { id: "z_vinhdien", name: "Vĩnh Điện (Điện Bàn)", ll: LL(108.248, 15.92), r: 2.4, pop: 45000, node: "vinhdien", pois: [{ n: "BV Điện Bàn", t: "hosp", ll: LL(108.252, 15.915) }, { n: "Nút QL1-ĐT609", t: "road", ll: LL(108.248, 15.923) }] },
+    { id: "z_hoian", name: "Hội An - phố cổ", ll: LL(108.328, 15.878), r: 2.0, pop: 60000, node: "hoian", pois: [{ n: "Chùa Cầu (di sản)", t: "herit", ll: LL(108.326, 15.877) }, { n: "Chợ Hội An", t: "market", ll: LL(108.332, 15.877) }] },
+    { id: "z_cuadai", name: "Cẩm Kim - Cửa Đại", ll: LL(108.37, 15.868), r: 2.2, pop: 25000, node: "cuadai", pois: [{ n: "Cầu Cửa Đại", t: "bridge", ll: LL(108.368, 15.87) }] },
     { id: "z_namphuoc", name: "Nam Phước (Duy Xuyên)", ll: LL(108.258, 15.838), r: 2.2, pop: 38000, node: "namphuoc", pois: [{ n: "Cầu Câu Lâu (QL1)", t: "bridge", ll: LL(108.262, 15.862) }] },
-    { id: "z_camle", name: "Cẩm Lệ – Hòa Xuân", ll: LL(108.205, 15.995), r: 2.6, pop: 110000, node: "hoaphuoc", pois: [{ n: "BV Cẩm Lệ", t: "hosp", ll: LL(108.21, 15.99) }, { n: "Trường THPT Hòa Xuân", t: "school", ll: LL(108.20, 16.0) }] },
-    { id: "z_danang", name: "Đà Nẵng – trung tâm", ll: LL(108.20, 16.055), r: 3.2, pop: 400000, node: "dn_s", pois: [{ n: "BV Đà Nẵng", t: "hosp", ll: LL(108.208, 16.052) }, { n: "EOC PCTT", t: "eoc", ll: LL(108.195, 16.06) }] },
-    { id: "z_hanha", name: "Đại Hồng – Hà Nha", ll: LL(107.95, 15.82), r: 2.2, pop: 15000, node: "hanha", pois: [{ n: "Cầu Hà Nha", t: "bridge", ll: LL(107.95, 15.817) }] },
-    { id: "z_giaothuy", name: "Giao Thủy – Đại An", ll: LL(108.14, 15.79), r: 2.2, pop: 14000, node: "giaothuy_b", pois: [{ n: "Cầu Giao Thủy", t: "bridge", ll: LL(108.14, 15.783) }] },
-    { id: "z_duyxuyen", name: "Duy Xuyên – Mỹ Sơn", ll: LL(108.21, 15.798), r: 2.2, pop: 26000, node: "duyxuyen", pois: [{ n: "Trường THCS Duy Xuyên", t: "school", ll: LL(108.215, 15.80) }] },
+    { id: "z_camle", name: "Cẩm Lệ - Hòa Xuân", ll: LL(108.205, 15.995), r: 2.6, pop: 110000, node: "hoaphuoc", pois: [{ n: "BV Cẩm Lệ", t: "hosp", ll: LL(108.21, 15.99) }, { n: "Trường THPT Hòa Xuân", t: "school", ll: LL(108.20, 16.0) }] },
+    { id: "z_danang", name: "Đà Nẵng - trung tâm", ll: LL(108.20, 16.055), r: 3.2, pop: 400000, node: "dn_s", pois: [{ n: "BV Đà Nẵng", t: "hosp", ll: LL(108.208, 16.052) }, { n: "EOC PCTT", t: "eoc", ll: LL(108.195, 16.06) }] },
+    { id: "z_hanha", name: "Đại Hồng - Hà Nha", ll: LL(107.95, 15.82), r: 2.2, pop: 15000, node: "hanha", pois: [{ n: "Cầu Hà Nha", t: "bridge", ll: LL(107.95, 15.817) }] },
+    { id: "z_giaothuy", name: "Giao Thủy - Đại An", ll: LL(108.14, 15.79), r: 2.2, pop: 14000, node: "giaothuy_b", pois: [{ n: "Cầu Giao Thủy", t: "bridge", ll: LL(108.14, 15.783) }] },
+    { id: "z_duyxuyen", name: "Duy Xuyên - Mỹ Sơn", ll: LL(108.21, 15.798), r: 2.2, pop: 26000, node: "duyxuyen", pois: [{ n: "Trường THCS Duy Xuyên", t: "school", ll: LL(108.215, 15.80) }] },
     { id: "z_thanhmy", name: "Thạnh Mỹ (Nam Giang)", ll: LL(107.83, 15.765), r: 2.0, pop: 12000, node: "thanhmy", pois: [{ n: "Trạm điều hành QL14B", t: "road", ll: LL(107.832, 15.767) }] },
     { id: "z_hiepduc", name: "Hiệp Đức", ll: LL(108.105, 15.58), r: 2.0, pop: 10000, node: "hiepduc", pois: [{ n: "BV Hiệp Đức", t: "hosp", ll: LL(108.108, 15.578) }] },
   ].map((z) => ({ ...z, x: z.ll[0], y: z.ll[1], pois: z.pois.map((p) => ({ ...p, x: p.ll[0], y: p.ll[1] })) }));
@@ -246,8 +246,8 @@
     { id: "sc_songtranh2", name: "Thượng Thu Bồn", kind: "upper", res: "songtranh2", oro: 0.844, lagH: 4.5, weight: 1.4 },
     { id: "sc_vugia_mid", name: "Trung lưu Vu Gia", kind: "local", gauge: "aiNghia", oro: 1.15, lagH: 1.2, weight: 1.0 },
     { id: "sc_thubon_mid", name: "Trung lưu Thu Bồn", kind: "local", gauge: "giaoThuy", oro: 1.10, lagH: 1.2, weight: 1.0 },
-    { id: "sc_delta", name: "Hạ lưu – đồng bằng", kind: "local", gauge: "cauLau", oro: 0.85, lagH: 1.0, weight: 1.0 },
-    { id: "sc_danang", name: "Đà Nẵng – Sông Hàn", kind: "local", gauge: "camLe", oro: 0.90, lagH: 0.8, weight: 1.0 },
+    { id: "sc_delta", name: "Hạ lưu - đồng bằng", kind: "local", gauge: "cauLau", oro: 0.85, lagH: 1.0, weight: 1.0 },
+    { id: "sc_danang", name: "Đà Nẵng - Sông Hàn", kind: "local", gauge: "camLe", oro: 0.90, lagH: 0.8, weight: 1.0 },
   ];
 
   /* ---------- evacuation destinations (docs E-30 · FR-23) ----------
@@ -281,10 +281,10 @@
     d1865_a7: { id: "QĐ 1865/QĐ-TTg · Điều 7", id_en: "Decision 1865/QĐ-TTg · Art. 7", text_vi: "Văn bản pháp lý thật. Trong mùa lũ, mực nước hồ không vượt mực nước trước lũ; khi dự báo lũ lớn, chủ hồ hạ dần mực nước để đón lũ theo lệnh Ban chỉ huy PCTT&TKCN tỉnh.", text_en: "Real legal text. During flood season reservoir stage shall not exceed the pre-flood ceiling; when a major flood is forecast the operator shall draw the reservoir down to receive it, under provincial flood-control command." },
     d1865_a8: { id: "QĐ 1865/QĐ-TTg · Điều 8", id_en: "Decision 1865/QĐ-TTg · Art. 8", text_vi: "Văn bản pháp lý thật. Vận hành giảm lũ cho hạ du phải giữ mực nước tại trạm Ái Nghĩa và Câu Lâu không vượt báo động 3 trong khả năng cắt lũ của hồ.", text_en: "Real legal text. Flood-mitigation operation shall keep Ái Nghĩa and Câu Lâu gauges below alert level 3 within the cascade's cut-flood capability." },
     nchmf: { id: "Bản tin thuỷ văn · mô phỏng", id_en: "Hydrological bulletin · simulated", text_vi: "Bản tin mô phỏng theo dạng bản tin NCHMF phát 18:00. Kịch bản demo, không phải bản tin đã phát hành.", text_en: "A bulletin simulated in the shape of an NCHMF 18:00 issue. Demo scenario, not a bulletin that was ever published." },
-    gencast: { id: "Ensemble mô phỏng · 50 thành viên", id_en: "Simulated ensemble · 50 members", text_vi: "Cưỡng bức mưa và dòng vào là hàm giải tích khớp hình dạng sự kiện 10/2020, lan rộng theo lead time. Đích thiết kế §4 là ensemble GenCast 06Z hiệu chỉnh IMERG với CRPS 24h ≤ 0,42 — chưa nối.", text_en: "Rainfall and inflow forcing are analytic functions shaped after the Oct-2020 event, with spread growing by lead time. The §4 design target is a GenCast 06Z ensemble with IMERG bias correction and 24-h CRPS ≤ 0.42, which is not yet connected." },
-    surrogate: { id: "Bộ giải trong trình duyệt", id_en: "In-browser solver", text_vi: "Số đọc được sinh tại chỗ: diễn toán hồ giải tích và trường nước nông 288² chạy trong trình duyệt bạn đang mở. Đích thiết kế §5 là bộ giải thay thế FNO đạt CSI ≥ 0,80 so với HEC-RAS-2D — chưa huấn luyện.", text_en: "The value was produced here: analytic reservoir routing plus a 288² shallow-water field running in the browser you have open. The §5 design target is an FNO surrogate reaching CSI ≥ 0.80 against HEC-RAS-2D, which is not yet trained." },
-    sensor: { id: "Trạng thái hồ · mô phỏng", id_en: "Reservoir state · simulated", text_vi: "Mực hồ, độ mở cửa van và lưu lượng xả do mô hình sinh ra. Đích thiết kế là đấu nối SCADA chủ hồ, chu kỳ 5 phút — cần thoả thuận chia sẻ dữ liệu.", text_en: "Reservoir stage, gate opening and discharge are produced by the model. The design target is a live SCADA link from the reservoir owner on a 5-minute cycle, which needs a data-sharing agreement." },
-    dem: { id: "Địa hình thật · AWS Terrain Tiles", id_en: "Real terrain · AWS Terrain Tiles", text_vi: "Dữ liệu thật. Địa hình lấy từ DEM toàn cầu (AWS Terrain Tiles) và ảnh Esri World Imagery cho đúng lưu vực Vu Gia – Thu Bồn.", text_en: "Real data. Terrain comes from a global DEM (AWS Terrain Tiles) with Esri World Imagery over the actual Vu Gia – Thu Bồn basin." },
+    gencast: { id: "Ensemble mô phỏng · 50 thành viên", id_en: "Simulated ensemble · 50 members", text_vi: "Cưỡng bức mưa và dòng vào là hàm giải tích khớp hình dạng sự kiện 10/2020, lan rộng theo lead time. Đích thiết kế §4 là ensemble GenCast 06Z hiệu chỉnh IMERG với CRPS 24h ≤ 0,42 - chưa nối.", text_en: "Rainfall and inflow forcing are analytic functions shaped after the Oct-2020 event, with spread growing by lead time. The §4 design target is a GenCast 06Z ensemble with IMERG bias correction and 24-h CRPS ≤ 0.42, which is not yet connected." },
+    surrogate: { id: "Bộ giải trong trình duyệt", id_en: "In-browser solver", text_vi: "Số đọc được sinh tại chỗ: diễn toán hồ giải tích và trường nước nông 288² chạy trong trình duyệt bạn đang mở. Đích thiết kế §5 là bộ giải thay thế FNO đạt CSI ≥ 0,80 so với HEC-RAS-2D - chưa huấn luyện.", text_en: "The value was produced here: analytic reservoir routing plus a 288² shallow-water field running in the browser you have open. The §5 design target is an FNO surrogate reaching CSI ≥ 0.80 against HEC-RAS-2D, which is not yet trained." },
+    sensor: { id: "Trạng thái hồ · mô phỏng", id_en: "Reservoir state · simulated", text_vi: "Mực hồ, độ mở cửa van và lưu lượng xả do mô hình sinh ra. Đích thiết kế là đấu nối SCADA chủ hồ, chu kỳ 5 phút - cần thoả thuận chia sẻ dữ liệu.", text_en: "Reservoir stage, gate opening and discharge are produced by the model. The design target is a live SCADA link from the reservoir owner on a 5-minute cycle, which needs a data-sharing agreement." },
+    dem: { id: "Địa hình thật · AWS Terrain Tiles", id_en: "Real terrain · AWS Terrain Tiles", text_vi: "Dữ liệu thật. Địa hình lấy từ DEM toàn cầu (AWS Terrain Tiles) và ảnh Esri World Imagery cho đúng lưu vực Vu Gia - Thu Bồn.", text_en: "Real data. Terrain comes from a global DEM (AWS Terrain Tiles) with Esri World Imagery over the actual Vu Gia - Thu Bồn basin." },
   };
 
   const TARGETS = { csi: 0.80, nse: 0.80, kge: 0.75, grounded: 0.95, dtPeakH: 3 };

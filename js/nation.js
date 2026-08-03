@@ -285,12 +285,12 @@
       bd = G.def.bd;
       y0 = G.def.base * 0.4; y1 = Math.max(G.def.bd[2] * 1.15, Math.max(...series) * 1.05);
       nowVal = HNref.samp(series, now);
-      title.textContent = `${G.def.name} — ${U.fmt(nowVal, 2)} m ${HNref.alertOfG(G.def, nowVal) ? "· BĐ" + HNref.alertOfG(G.def, nowVal) : ""}`;
+      title.textContent = `${G.def.name} - ${U.fmt(nowVal, 2)} m ${HNref.alertOfG(G.def, nowVal) ? "· BĐ" + HNref.alertOfG(G.def, nowVal) : ""}`;
     } else {
       const R = HNref.res[focus.id];
       series = R.Z; y0 = 0.3; y1 = 1.08; unit = "%";
       nowVal = HNref.samp(series, now);
-      title.textContent = `${R.def.name} — ${Math.round(nowVal * 100)}% · ${vi ? "xả" : "out"} ${U.fmtInt(HNref.samp(R.O, now))} m³/s`;
+      title.textContent = `${R.def.name} - ${Math.round(nowVal * 100)}% · ${vi ? "xả" : "out"} ${U.fmtInt(HNref.samp(R.O, now))} m³/s`;
     }
     const Yc = (v) => h - 12 * dpr2 - ((v - y0) / (y1 - y0)) * (h - 20 * dpr2);
     /* alert lines */
@@ -439,9 +439,9 @@
     panel.id = "nationPanel";
     panel.innerHTML = `
       <div class="npHead"><span>🇻🇳</span><strong data-np="title">Giám sát hồ đập toàn quốc</strong></div>
-      <div class="npStorm" id="npStorm">—</div>
+      <div class="npStorm" id="npStorm">-</div>
       <div id="npFocus" class="npFocus" hidden>
-        <div class="npFocusHead"><strong id="npFocusTitle">—</strong><button id="npFocusClose" type="button">×</button></div>
+        <div class="npFocusHead"><strong id="npFocusTitle">-</strong><button id="npFocusClose" type="button">×</button></div>
         <canvas id="npFocusCv"></canvas>
       </div>
       <div class="npSection" data-np="gauges">Trạm mực nước</div>
@@ -450,7 +450,7 @@
       <div id="npRegions"></div>
       <div class="npSection" data-np="res">Hồ căng thẳng nhất</div>
       <div id="npRes"></div>
-      <button id="npDrill" type="button">▸ Đi sâu lưu vực Vu Gia–Thu Bồn</button>`;
+      <button id="npDrill" type="button">▸ Đi sâu lưu vực Vu Gia-Thu Bồn</button>`;
     document.getElementById("stageWrap").appendChild(panel);
     panel.querySelector("#npDrill").addEventListener("click", () => FT.ui.forceView("3d"));
     focusCv = panel.querySelector("#npFocusCv");
@@ -460,9 +460,9 @@
     const vi = FT.state.lang === "vi";
     panel.querySelector('[data-np="title"]').textContent = vi ? "Giám sát hồ đập toàn quốc" : "National reservoir monitoring";
     panel.querySelector('[data-np="regions"]').textContent = vi ? "Vùng · cảnh báo · yếu tố" : "Regions · alerts · factors";
-    panel.querySelector('[data-np="gauges"]').textContent = vi ? "Trạm mực nước — nhấp để xem diễn biến" : "Water-level stations — click for time series";
+    panel.querySelector('[data-np="gauges"]').textContent = vi ? "Trạm mực nước - nhấp để xem diễn biến" : "Water-level stations - click for time series";
     panel.querySelector('[data-np="res"]').textContent = vi ? "Hồ căng thẳng nhất" : "Most stressed reservoirs";
-    panel.querySelector("#npDrill").textContent = vi ? "▸ Đi sâu lưu vực Vu Gia–Thu Bồn" : "▸ Drill into the Vu Gia–Thu Bồn basin";
+    panel.querySelector("#npDrill").textContent = vi ? "▸ Đi sâu lưu vực Vu Gia-Thu Bồn" : "▸ Drill into the Vu Gia-Thu Bồn basin";
     const st = snapN.storm;
     const S = V.NSTORMS[FT.state.scenario];
     document.getElementById("npStorm").innerHTML = st && st.on && st.inten > 0.05

@@ -171,8 +171,8 @@
     for (let i = 0; i < edges.length; i++) {
       const c = edges[i].cls, p = prevCls[i];
       if (c !== p) {
-        if (c >= 3 && p < 3) { FT.log(`${edges[i].name} — ${FT.i18n.t("ev.roadClosed")}`, "danger"); newlyClosed++; }
-        else if (p >= 3 && c < 3) FT.log(`${edges[i].name} — ${FT.i18n.t("ev.roadOpen")}`, "ok");
+        if (c >= 3 && p < 3) { FT.log(`${edges[i].name} - ${FT.i18n.t("ev.roadClosed")}`, "danger"); newlyClosed++; }
+        else if (p >= 3 && c < 3) FT.log(`${edges[i].name} - ${FT.i18n.t("ev.roadOpen")}`, "ok");
         prevCls[i] = c;
       }
     }

@@ -26,6 +26,17 @@
      modes: hidden · collapsed · expanded · fullscreen ; flags: floating(drag) · pinned
      ====================================================================== */
   const panels = {};
+  /* The right-context lane (inspector · decision · alerts) is ~384 px against the right
+     edge. The centred timeline is wider than the gap it leaves, so whenever one of those
+     panels is up the timeline yields — body.rightPanelOpen narrows and re-centres it.
+     Without this the decision package sits on top of the scrubber, which is exactly the
+     moment an operator needs both. */
+  function syncRightLane() {
+    const open = Object.values(panels).some(
+      (p) => p.opts && p.opts.rightLane && p.mode !== "hidden" && !p.node.classList.contains("hidden-chrome")
+    );
+    document.body.classList.toggle("rightPanelOpen", open);
+  }
   class FloatingPanel {
     constructor(id, opts = {}) {
       this.id = id; this.opts = opts;
@@ -44,9 +55,9 @@
       this.node = node; this.head = head; this.body = body; this.titleEl = title; this.btns = btns;
 
       // control buttons
-      if (opts.collapsible !== false) this._btn("–", "collapse", "Thu gọn / mở", () => this.toggleCollapse());
-      if (opts.pinnable) { this.pinBtn = this._btn("📌", "pin", "Ghim", () => this.togglePin()); }
-      if (opts.fullscreen !== false) this._btn("⛶", "full", "Toàn màn hình", () => this.toggleFullscreen());
+      if (opts.collapsible !== false) this._btn("-", "collapse", "Thu gọn / mở", () => this.toggleCollapse());
+      if (opts.pinnable) { this.pinBtn = this._btn(FT.icon("push-pin"), "pin", "Ghim", () => this.togglePin()); }
+      if (opts.fullscreen !== false) this._btn(FT.icon("arrows-out"), "full", "Toàn màn hình", () => this.toggleFullscreen());
       if (opts.closable !== false) this._btn("×", "close", "Đóng", () => this.hide());
 
       this._enableDrag(head);
@@ -122,7 +133,10 @@
       (saved[this.id] = saved[this.id] || {}).pinned = this.pinned; persist();
       return this;
     }
-    _emit() { FT.bus && FT.bus.emit("shellPanel", { id: this.id, mode: this.mode }); }
+    _emit() {
+      FT.bus && FT.bus.emit("shellPanel", { id: this.id, mode: this.mode });
+      syncRightLane();
+    }
     _enableDrag(handle) {
       let sx, sy, ox, oy, on = false;
       const down = (e) => {
@@ -164,6 +178,7 @@
       // compare/split need both canvases sized → nudge renderers
       window.dispatchEvent(new Event("resize"));
       document.querySelectorAll(".modeBtn").forEach((b) => b.classList.toggle("active", b.dataset.mode === this.current));
+      FT.syncMapCtl && FT.syncMapCtl();
       FT.notify && this.current && FT.notify("Chế độ: " + m, "info");
     },
   };
@@ -245,7 +260,7 @@
     // brand
     const brand = el("div", "cmdBrand", '<div class="brandMark"><span>FT</span></div><b>FloodTwin</b> <span class="cmdBasin">VGTB</span>');
     // search
-    const search = el("div", "cmdSearch", '<span class="cmdIco">⌕</span>');
+    const search = el("div", "cmdSearch", '<span class="cmdIco">' + FT.icon("magnifying-glass") + '</span>');
     const input = el("input"); input.type = "search"; input.placeholder = "Tìm trạm · hồ · khu vực · lệnh  (⌘K)";
     input.setAttribute("aria-label", "Tìm kiếm"); input.id = "cmdSearchInput";
     input.addEventListener("focus", () => Palette.open(input.value));
@@ -267,7 +282,7 @@
     bar.appendChild(esc);
 
     // alert pill
-    const al = el("div", "cmdChip alertPill quiet"); al.id = "cmdAlertPill"; al.innerHTML = '⚑ <b id="cmdAlertN">0</b>';
+    const al = el("div", "cmdChip alertPill quiet"); al.id = "cmdAlertPill"; al.innerHTML = FT.icon("flag") + ' <b id="cmdAlertN">0</b>';
     al.addEventListener("click", () => panels.alerts.toggle());
     bar.appendChild(al);
 
@@ -302,17 +317,57 @@
      Safety-critical dispatch + report actions must never be hidden behind a
      summon. We MOVE the real buttons here (ids + handlers preserved), so both
      operators and the e2e flows always reach them in one click. */
+  /* ---------- Persistent action toolbar ----------
+     Consolidated into a sleek Top Right Glassmorphic Dropdown Menu */
   function buildActions() {
-    const bar = el("div", "geoActions"); bar.setAttribute("role", "toolbar"); bar.setAttribute("aria-label", "Hành động nhanh");
-    const grp = (label, ids) => {
-      const g = el("div", "actGroup"); g.appendChild(el("span", "actLabel", label));
-      ids.forEach((id) => { const btn = $(id); if (btn) { btn.classList.add("actBtn"); g.appendChild(btn); } });
-      if (g.querySelectorAll(".actBtn").length) bar.appendChild(g);
+    const wrap = el("div", "topDropdownWrap");
+    wrap.style.position = "fixed";
+    wrap.style.top = "60px";
+    wrap.style.right = "12px";
+    wrap.style.zIndex = "85";
+
+    const btn = el("button", "topDropBtn", FT.icon("file-text") + ' Báo cáo &amp; tác vụ <span class="topDropCaret" aria-hidden="true">▾</span>');
+    btn.type = "button";
+    
+    const menu = el("div", "topDropMenu");
+    
+    const addItem = (icon, label, targetId) => {
+      const item = el("button", "topDropItem", `${FT.icon(icon)}<span>${label}</span>`);
+      item.type = "button";
+      item.addEventListener("click", () => {
+        menu.classList.remove("open");
+        btn.classList.remove("active");
+        const target = $(targetId);
+        if (target) target.click();
+      });
+      menu.appendChild(item);
     };
-    grp("Thông báo", ["nfThreshold", "nfRelease", "nfEvac"]);          // downstream notification composer (WF-09)
-    grp("Báo cáo", ["btnReport", "btnRepOperation", "btnRepEvent"]);    // operation record / post-event (WF-12)
-    document.body.appendChild(bar);
-    FT.dom.actions = bar;
+
+    addItem("printer", "Báo cáo tình huống lũ bão", "btnReport");
+    addItem("clipboard-text", "Báo cáo vận hành hồ chứa", "btnRepOperation");
+    addItem("note-pencil", "Báo cáo sự cố khẩn cấp", "btnRepEvent");
+    
+    const div1 = el("div", "topDropDivider"); menu.appendChild(div1);
+
+    addItem("megaphone", "Thông báo vượt ngưỡng", "nfThreshold");
+    addItem("waves", "Thông báo xả lũ hồ chứa", "nfRelease");
+    addItem("siren", "Thông báo sơ tán dân cư", "nfEvac");
+
+    btn.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      const isOpen = menu.classList.toggle("open");
+      btn.classList.toggle("active", isOpen);
+    });
+
+    document.addEventListener("click", () => {
+      menu.classList.remove("open");
+      btn.classList.remove("active");
+    });
+
+    wrap.appendChild(btn);
+    wrap.appendChild(menu);
+    document.body.appendChild(wrap);
+    FT.dom.actions = wrap;
   }
 
   /* ---------- Always-visible ops-signal strip ----------
@@ -377,18 +432,18 @@
       const cmds = [];
       // places / cameras
       [["Toàn cảnh", "overview", "O"], ["Hạ lưu", "delta", "D"], ["Bậc thang hồ", "dams", "A"], ["Hội An", "hoian", "H"]]
-        .forEach(([n, c, k]) => cmds.push({ g: "Camera", ico: "◎", label: n, key: k, run: () => camPreset(c) }));
+        .forEach(([n, c, k]) => cmds.push({ g: "Camera", ico: "binoculars", label: n, key: k, run: () => camPreset(c) }));
       // gauges
-      (FT.data && FT.data.GAUGES || []).forEach((g) => cmds.push({ g: "Trạm", ico: "◈", label: g.name || g.id, run: () => { FT.state.selectedGauge = g.id; FT.bus.emit("gaugeSelected", g.id); } }));
+      (FT.data && FT.data.GAUGES || []).forEach((g) => cmds.push({ g: "Trạm", ico: "map-pin", label: g.name || g.id, run: () => { FT.state.selectedGauge = g.id; FT.bus.emit("gaugeSelected", g.id); } }));
       // reservoirs
-      (FT.data && FT.data.RESERVOIRS || []).forEach((r) => cmds.push({ g: "Hồ chứa", ico: "▨", label: r.name || r.id, run: () => FT.bus.emit("reservoirFocus", r.id) }));
+      (FT.data && FT.data.RESERVOIRS || []).forEach((r) => cmds.push({ g: "Hồ chứa", ico: "waves", label: r.name || r.id, run: () => FT.bus.emit("reservoirFocus", r.id) }));
       // actions
-      cmds.push({ g: "Lệnh", ico: "▶", label: "Phát / Dừng mô phỏng", key: "Space", run: () => $("btnPlay") && $("btnPlay").click() });
-      cmds.push({ g: "Lệnh", ico: "🎬", label: "Trình diễn tự động", run: () => $("btnTour") && $("btnTour").click() });
-      cmds.push({ g: "Lệnh", ico: "◱", label: "Chế độ Focus", key: "⌥F", run: () => MapMode.set("focus") });
-      cmds.push({ g: "Lệnh", ico: "⛶", label: "Toàn màn hình", key: "F", run: () => MapMode.set("fullscreen") });
-      cmds.push({ g: "Lệnh", ico: "✦", label: "Trợ lý AI · bản tin", key: "⌘J", run: () => panels.ai.toggle() });
-      cmds.push({ g: "Lệnh", ico: "▤", label: "Ngăn nhật ký / kiểm toán", key: "⌘L", run: () => panels.drawer.toggle() });
+      cmds.push({ g: "Lệnh", ico: "film-slate", label: "Phát hoặc dừng mô phỏng", key: "Space", run: () => $("btnPlay") && $("btnPlay").click() });
+      cmds.push({ g: "Lệnh", ico: "film-slate", label: "Trình diễn tự động", run: () => $("btnTour") && $("btnTour").click() });
+      cmds.push({ g: "Lệnh", ico: "frame-corners", label: "Chế độ Focus", key: "⌥F", run: () => MapMode.set("focus") });
+      cmds.push({ g: "Lệnh", ico: "arrows-out", label: "Toàn màn hình", key: "F", run: () => MapMode.set("fullscreen") });
+      cmds.push({ g: "Lệnh", ico: "sparkle", label: "Trợ lý AI, bản tin", key: "⌘J", run: () => panels.ai.toggle() });
+      cmds.push({ g: "Lệnh", ico: "ruler", label: "Ngăn nhật ký, kiểm toán", key: "⌘L", run: () => panels.drawer.toggle() });
       return cmds;
     },
     open(q) { this.ensure(); this.node.classList.add("open"); this.render(q || ""); },
@@ -401,7 +456,7 @@
       let html = "", lastG = null;
       f.slice(0, 40).forEach((c, i) => {
         if (c.g !== lastG) { html += `<div class="cpGroup">${c.g}</div>`; lastG = c.g; }
-        html += `<div class="cpItem${i === 0 ? " sel" : ""}" role="option" data-i="${i}"><span class="cpIco">${c.ico}</span><span>${c.label}</span>${c.key ? `<span class="cpKey">${c.key}</span>` : ""}</div>`;
+        html += `<div class="cpItem${i === 0 ? " sel" : ""}" role="option" data-i="${i}"><span class="cpIco">${FT.icon(c.ico)}</span><span>${c.label}</span>${c.key ? `<span class="cpKey">${c.key}</span>` : ""}</div>`;
       });
       this.list.innerHTML = html || '<div class="cpGroup">Không có kết quả</div>';
       this.list.querySelectorAll(".cpItem").forEach((n) => n.addEventListener("click", () => { this.sel = +n.dataset.i; this.exec(); }));
@@ -426,21 +481,21 @@
   function buildDock() {
     const dock = el("nav", "geoDock"); dock.setAttribute("role", "tablist"); dock.setAttribute("aria-label", "Công cụ");
     const defs = [
-      { ico: "◱", id: "layers", src: "panelLayers", title: "Lớp hiển thị", key: "L" },
-      { ico: "☁", id: "forcing", src: "panelForcing", title: "Cưỡng bức khí tượng", key: "F" },
-      { ico: "▦", id: "zones", src: ".zonesPanel", title: "Khu vực giám sát", key: "Z" },
-      { ico: "⛑", id: "evac", src: ".evacPanel", title: "Sơ tán · điểm trú", key: "E" },
-      { ico: "☂", id: "subcatch", src: ".subcatchPanel", title: "Mưa tiểu lưu vực", key: "R" },
+      { ico: "stack", id: "layers", src: "panelLayers", title: "Lớp hiển thị", key: "L" },
+      { ico: "cloud", id: "forcing", src: "panelForcing", title: "Cưỡng bức khí tượng", key: "F" },
+      { ico: "squares-four", id: "zones", src: ".zonesPanel", title: "Khu vực giám sát", key: "Z" },
+      { ico: "first-aid-kit", id: "evac", src: ".evacPanel", title: "Sơ tán, điểm trú", key: "E" },
+      { ico: "umbrella", id: "subcatch", src: ".subcatchPanel", title: "Mưa tiểu lưu vực", key: "R" },
       { sep: true },
-      { ico: "▤", id: "metrics", src: ".metricsPanel", title: "Ngưỡng mục tiêu", key: "M" },
-      { ico: "◈", id: "legend", src: "panelLegend", title: "Chú giải", key: "G" },
+      { ico: "ruler", id: "metrics", src: ".metricsPanel", title: "Ngưỡng mục tiêu", key: "M" },
+      { ico: "list-bullets", id: "legend", src: "panelLegend", title: "Chú giải", key: "G" },
     ];
     defs.forEach((d) => {
       if (d.sep) { dock.appendChild(el("div", "dockSep")); return; }
       const src = d.src[0] === "." ? document.querySelector(d.src) : $(d.src);
       const fp = new FloatingPanel("fly_" + d.id, { cls: "geoFlyout", title: d.title, role: "tabpanel", label: d.title, pinnable: true });
       if (src) fp.adopt(src);
-      const b = el("button", "dockBtn", d.ico + `<span class="dockKey">${d.key}</span><span class="dockTip">${d.title}</span>`);
+      const b = el("button", "dockBtn", FT.icon(d.ico, "icLg") + `<span class="dockKey">${d.key}</span><span class="dockTip">${d.title}</span>`);
       b.type = "button"; b.dataset.fly = d.id; b.setAttribute("role", "tab"); b.setAttribute("aria-label", d.title); b.setAttribute("aria-keyshortcuts", d.key);
       b.addEventListener("click", () => toggleFlyout(d.id, b));
       dock.appendChild(b);
@@ -458,41 +513,228 @@
     fp.toggle();
   }
 
-  /* ---------- Floating view control (3D/2D + camera presets) ---------- */
+  /* ======================================================================
+     MAP CONTROL BAR — grouped, self-labelling menus
+     The bar used to be fifteen flat buttons (2 views + 4 cameras + 3 layouts +
+     perf + a 5-button mode rail) competing for the operator's attention across the
+     bottom and right edges of the map. They are now four named groups that open on
+     click, plus the view switch, which stays visible because it is the one control
+     that changes what the map IS.
+
+     Two rules keep this out of "hamburger" territory (banned by UX §12):
+       · every trigger shows its CURRENT VALUE on its face, so the state of the map is
+         readable without opening anything;
+       · nothing safety-critical lives here — dispatch, reports, alarms and the decision
+         package all stay on permanently-visible surfaces.
+     ====================================================================== */
+  const ctlGroups = [];
+  function closeCtlGroups(except) {
+    ctlGroups.forEach((g) => { if (g !== except) g.setOpen(false); });
+  }
+  /* Push, not poll. The trigger faces are refreshed from the events that actually change
+     the state they mirror; the interval in buildViewControl is only a backstop for state
+     changed by paths the shell does not observe. (Polling alone was not enough: a
+     backgrounded tab has its timers throttled to ~1 Hz or slower, so a face could sit
+     stale for a minute after the operator switched back.) */
+  const syncCtl = () => ctlGroups.forEach((g) => g.sync());
+  FT.syncMapCtl = syncCtl;
+  function makeCtlGroup(host, opts) {
+    const wrap = el("div", "ctlGroup");
+    const btn = el("button", "ctlGroupBtn");
+    btn.type = "button";
+    btn.setAttribute("aria-haspopup", "true");
+    btn.setAttribute("aria-expanded", "false");
+    btn.innerHTML = `<i class="ctlGroupLabel">${opts.label}</i><b class="ctlGroupValue">-</b><span class="ctlCaret" aria-hidden="true">▾</span>`;
+    const menu = el("div", "ctlGroupMenu");
+    menu.setAttribute("role", "group");
+    menu.setAttribute("aria-label", opts.label);
+    const valueEl = btn.querySelector(".ctlGroupValue");
+    const g = {
+      wrap, btn, menu, open: false,
+      setOpen(on) {
+        g.open = !!on;
+        wrap.classList.toggle("open", g.open);
+        btn.setAttribute("aria-expanded", String(g.open));
+        /* flip the menu to right-alignment when a left-aligned one would run off the
+           viewport — the bar spans most of the map width, so the last groups always would */
+        if (g.open) {
+          wrap.classList.remove("alignRight");
+          const r = menu.getBoundingClientRect();
+          if (r.right > window.innerWidth - 8) wrap.classList.add("alignRight");
+        }
+      },
+      /* the trigger face always mirrors the live state of the group */
+      sync() {
+        const t = opts.value();
+        if (valueEl.textContent !== t) valueEl.textContent = t;
+        if (opts.visible) {
+          const on = opts.visible();
+          wrap.style.display = on ? "" : "none";
+          if (!on && g.open) g.setOpen(false);
+        }
+      },
+    };
+    btn.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      const next = !g.open;
+      closeCtlGroups(g);
+      g.setOpen(next);
+    });
+    menu.addEventListener("click", (ev) => {
+      /* a viewpoint or layout is a one-shot choice → dismiss; the graphics menu is a
+         settings panel the operator tunes in place → keep it open */
+      if (opts.closeOnPick && ev.target.closest("button")) g.setOpen(false);
+      setTimeout(() => { ctlGroups.forEach((x) => x.sync()); }, 0);
+    });
+    wrap.appendChild(btn); wrap.appendChild(menu);
+    host.appendChild(wrap);
+    ctlGroups.push(g);
+    return g;
+  }
+  /* a labelled row inside a menu: caption + the controls that belong to it */
+  function ctlRow(menu, caption, node) {
+    const row = el("div", "ctlRow");
+    if (caption) row.appendChild(el("span", "ctlRowLabel", caption));
+    row.appendChild(node);
+    menu.appendChild(row);
+    return row;
+  }
+  function ctlChoice(items, isOn, onPick) {
+    const box = el("div", "ctlChoice");
+    items.forEach((it) => {
+      const b = el("button", "ctlOpt", it.label);
+      b.type = "button"; b.dataset.val = it.val;
+      if (it.hint) b.title = it.hint;
+      b.addEventListener("click", () => {
+        onPick(it.val);
+        box.querySelectorAll(".ctlOpt").forEach((x) => x.classList.toggle("on", x === b));
+      });
+      if (isOn && isOn(it.val)) b.classList.add("on");
+      box.appendChild(b);
+    });
+    return box;
+  }
+  const activeText = (sel, fallback) => {
+    const b = document.querySelector(sel);
+    return b ? b.textContent.replace(/[\u{1F300}-\u{1FAFF}←-➿️]/gu, "").trim() : fallback;
+  };
+
+  /* ---------- Floating map control bar (view switch + grouped menus) ---------- */
   function buildViewControl() {
     const v = el("div", "geoViewCtl"); v.setAttribute("role", "group"); v.setAttribute("aria-label", "Điều khiển bản đồ");
+    /* the view switch is never folded away — it decides what the operator is looking at */
     const tabs = $("viewTabs"); if (tabs) v.appendChild(tabs);
-    const cams = $("camPresets"); if (cams) v.appendChild(cams);
-    document.body.appendChild(v);
+
+    /* ---- group 1: camera viewpoints ---- */
+    const cams = $("camPresets");
+    const gCam = makeCtlGroup(v, {
+      label: "Góc nhìn", closeOnPick: true,
+      value: () => activeText("#camPresets button.isActive", "Toàn cảnh"),
+      visible: () => FT.state.view === "3d",          // camera presets are meaningless in 2D
+    });
+    if (cams) gCam.menu.appendChild(cams);
+    const north = el("button", "ctlOpt wide", "Xoay về hướng Bắc");
+    north.type = "button";
+    north.addEventListener("click", () => FT.scene3d && FT.scene3d.resetHeading && FT.scene3d.resetHeading());
+    ctlRow(gCam.menu, "Hướng", north);
+
+    /* ---- group 2: workspace layout ---- */
+    const layouts = $("layoutPresets");
+    const gLay = makeCtlGroup(v, { label: "Bố cục", closeOnPick: true, value: () => activeText("#layoutPresets button.isActive", "Tổng quan") });
+    if (layouts) gLay.menu.appendChild(layouts);
+
+    /* ---- group 3: map presentation modes (the old right-edge rail) ---- */
+    const gMode = makeCtlGroup(v, { label: "Chế độ", value: () => MODE_LABEL[MapMode.current] || "Chuẩn" });
+    const modeBox = el("div", "ctlChoice");
+    MODE_DEFS.forEach((d) => {
+      const b = el("button", "modeBtn ctlOpt", FT.icon(d.ico) + `<span>${d.t}</span>`);
+      b.type = "button"; b.dataset.mode = d.m; b.title = d.tip; b.setAttribute("aria-label", d.tip);
+      b.addEventListener("click", () => MapMode.set(d.m));
+      modeBox.appendChild(b);
+    });
+    ctlRow(gMode.menu, "Trình bày bản đồ", modeBox);
+    const pip = $("pipSwap");
+    const pipBtn = el("button", "ctlOpt wide", "Đổi cửa sổ phụ 2D ⇄ 3D");
+    pipBtn.type = "button";
+    pipBtn.addEventListener("click", () => pip && pip.click());
+    ctlRow(gMode.menu, "Cửa sổ phụ", pipBtn);
+
+    /* ---- group 4: rendering fidelity — the accuracy dials, stated out loud ---- */
+    const gGfx = makeCtlGroup(v, { label: "Đồ họa", value: () => gfxValue(), visible: () => FT.state.view === "3d" });
+    ctlRow(gGfx.menu, "Chất lượng dựng hình", ctlChoice(
+      [
+        { val: "auto", label: "Tự động", hint: "Tự hạ/nâng chi tiết để giữ khung hình mượt" },
+        { val: "ultra", label: "Cao nhất", hint: "Khoá ở mức chi tiết cao nhất" },
+        { val: "balanced", label: "Cân bằng", hint: "Mức trung gian, ổn định trên laptop" },
+        { val: "smooth", label: "Mượt", hint: "Ưu tiên tốc độ khung hình cho máy yếu" },
+      ],
+      (val) => val === "auto",
+      (val) => {
+        FT.scene3d && FT.scene3d.setQuality && FT.scene3d.setQuality(val);
+        const pb = $("btnPerfMode");
+        if (pb) { FT.state.perfMode = val === "smooth"; pb.classList.toggle("isActive", FT.state.perfMode); }
+        FT.notify && FT.notify("Chất lượng dựng hình: " + val, "info");
+      }
+    ));
+    ctlRow(gGfx.menu, "Phóng đại cao độ (địa hình)", ctlChoice(
+      [
+        { val: "1", label: "1:1 thật", hint: "Không phóng đại - đúng tỉ lệ đứng/ngang" },
+        { val: "1.5", label: "1,5×" },
+        { val: "2", label: "2×" },
+        { val: "3", label: "3×", hint: "Dễ đọc sườn dốc, nhưng cao độ bị cường điệu" },
+      ],
+      (val) => val === "1",
+      (val) => FT.scene3d && FT.scene3d.setVertEx && FT.scene3d.setVertEx(parseFloat(val))
+    ));
+    ctlRow(gGfx.menu, "Ánh sáng", ctlChoice(
+      [
+        { val: "sun", label: "Theo giờ thật", hint: "Vị trí mặt trời tính cho lưu vực tại đúng thời điểm mô phỏng" },
+        { val: "flat", label: "Cố định", hint: "Đèn cố định - ảnh chụp so sánh giữa các mốc giờ không đổi sáng" },
+      ],
+      (val) => val === "sun",
+      (val) => FT.scene3d && FT.scene3d.setSunLighting && FT.scene3d.setSunLighting(val === "sun")
+    ));
+    ctlRow(gGfx.menu, "Thể hiện mặt nước", ctlChoice(
+      [
+        { val: "0", label: "Phân cấp độ sâu", hint: "Đúng dải màu chú giải - dùng để ra quyết định" },
+        { val: "1", label: "Gần ảnh thật", hint: "Chỉ để trình bày; không đọc được độ sâu theo màu" },
+      ],
+      (val) => val === "0",
+      (val) => FT.scene3d && FT.scene3d.setWaterStyle && FT.scene3d.setWaterStyle(+val)
+    ));
+    /* the legacy perf button keeps its id + handler; parked here so ui.js stays wired */
+    const perf = $("btnPerfMode");
+    if (perf) { perf.classList.add("ctlOpt", "wide"); ctlRow(gGfx.menu, "Lối tắt", perf); }
+
+    /* The map-summary badge and the control bar share one bottom-left column instead of
+       being two independently-positioned fixed boxes. They used to sit side by side with a
+       hard-coded gutter, which collided the moment the exposure figures grew wide — and the
+       figures are live. Stacked in normal flow, an overlap is not expressible. */
+    const dock = el("div", "geoMapDock");
+    const badge = $("waterBadge");
+    if (badge) dock.appendChild(badge);
+    dock.appendChild(v);
+    document.body.appendChild(dock);
     FT.dom.viewCtl = v;
+    FT.dom.mapDock = dock;
+
+    syncCtl();
+    /* the view switch changes which groups are meaningful (cameras and rendering are 3D-only) */
+    if (tabs) tabs.addEventListener("click", () => setTimeout(syncCtl, 0));
+    document.addEventListener("keyup", (ev) => { if (/^[12oahfid\\]$/i.test(ev.key)) syncCtl(); });
+    setInterval(syncCtl, 700);                    // backstop for state changed elsewhere
+    /* click-away and Escape close the open group */
+    document.addEventListener("pointerdown", (ev) => {
+      if (ev.target.closest && ev.target.closest(".ctlGroup")) return;
+      closeCtlGroups(null);
+    });
+
     key("1", "Bản đồ 3D", () => setViewBtn("3d"), "Bản đồ");
     key("2", "Bản đồ 2D", () => setViewBtn("2d"), "Bản đồ");
     key("o", "Camera toàn cảnh", () => camPreset("overview"), "Bản đồ");
     key("shift+d", "Camera hạ lưu", () => camPreset("delta"), "Bản đồ");
     key("a", "Camera bậc thang hồ", () => camPreset("dams"), "Bản đồ");
     key("h", "Camera Hội An", () => camPreset("hoian"), "Bản đồ");
-  }
-  function setViewBtn(view) { const b = document.querySelector(`#viewTabs button[data-view="${view}"]`); b && b.click(); }
-
-  /* ---------- Mode rail ---------- */
-  function buildModeRail() {
-    const rail = el("div", "geoModeRail"); rail.setAttribute("role", "group"); rail.setAttribute("aria-label", "Chế độ bản đồ");
-    const modes = [
-      { m: "fullscreen", ico: "⛶", t: "Toàn màn hình (F)" },
-      { m: "focus", ico: "◱", t: "Focus (⌥F)" },
-      { m: "immersive", ico: "◉", t: "Immersive (I)" },
-      { m: "split", ico: "▥", t: "Chia đôi 2D|3D (\\)" },
-      { m: "present", ico: "⎋", t: "Trình chiếu (⇧P)" },
-    ];
-    modes.forEach((d) => {
-      const b = el("button", "modeBtn", d.ico); b.type = "button"; b.dataset.mode = d.m; b.title = d.t; b.setAttribute("aria-label", d.t);
-      b.addEventListener("click", () => MapMode.set(d.m));
-      rail.appendChild(b);
-    });
-    // reuse original focus button target if any is fine; add PIP swap here too
-    const pip = $("pipSwap");
-    document.body.appendChild(rail);
-    FT.dom.modeRail = rail;
     key("f", "Toàn màn hình", () => MapMode.set("fullscreen"), "Chế độ");
     key("alt+f", "Focus", () => MapMode.set("focus"), "Chế độ");
     key("i", "Immersive", () => MapMode.set("immersive"), "Chế độ");
@@ -500,6 +742,27 @@
     key("shift+p", "Trình chiếu", () => MapMode.set("present"), "Chế độ");
     key("alt+p", "Đổi PIP (2D⇄3D)", () => pip && pip.click(), "Chế độ");   // p=policy, ⇧P=present, so PIP swap = ⌥P
   }
+  const MODE_DEFS = [
+    { m: "fullscreen", ico: "arrows-out", t: "Toàn màn hình", tip: "Toàn màn hình (F)" },
+    { m: "focus", ico: "frame-corners", t: "Tập trung bản đồ", tip: "Focus (Alt F)" },
+    { m: "immersive", ico: "circle", t: "Nhập vai", tip: "Nhập vai (I)" },
+    { m: "split", ico: "columns", t: "Chia đôi 2D | 3D", tip: "Chia đôi 2D | 3D (\\)" },
+    { m: "present", ico: "projector-screen", t: "Trình chiếu", tip: "Trình chiếu (Shift P)" },
+  ];
+  const MODE_LABEL = MODE_DEFS.reduce((a, d) => (a[d.m] = d.t, a), {});
+  function gfxValue() {
+    const q = (FT.scene3d && FT.scene3d.quality) || null;
+    const ex = (FT.scene3d && FT.scene3d.vertEx) || 1;
+    const qn = !q ? "-" : q.mode === "auto" ? "Tự động" : q.mode === "ultra" ? "Cao nhất" : q.mode === "balanced" ? "Cân bằng" : "Mượt";
+    /* 1:1 is the default and the honest case — only call out a NON-default exaggeration,
+       which is exactly when the operator needs reminding that relief is stretched */
+    return ex === 1 ? qn : `${qn} · cao độ ${String(ex).replace(".", ",")}×`;
+  }
+  function setViewBtn(view) { const b = document.querySelector(`#viewTabs button[data-view="${view}"]`); b && b.click(); }
+
+  /* The old right-edge mode rail is gone — its five modes now live in the "Chế độ"
+     group above, so the right edge of the map is clear for context panels. */
+  function buildModeRail() {}
 
   /* ---------- Floating timeline ---------- */
   function buildTimeline() {
@@ -507,6 +770,22 @@
     fp.adopt("timelinePanel");
     const tp = $("timelinePanel"); if (tp) tp.style.display = "";
     fp.show("expanded");
+
+    /* Fix timeline slide toggle with '-' (close/slide down) and '+' (open/slide up) */
+    const toggleBtn = el("button", "timelineSlideBtn", "− Thu gọn");
+    toggleBtn.type = "button";
+    let isCollapsed = false;
+    toggleBtn.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      isCollapsed = !isCollapsed;
+      fp.node.classList.toggle("slide-collapsed", isCollapsed);
+      toggleBtn.textContent = isCollapsed ? "+ Mở dòng thời gian" : "− Thu gọn";
+      toggleBtn.classList.toggle("is-collapsed", isCollapsed);
+    });
+
+    const head = fp.node.querySelector(".gfHead");
+    if (head) head.appendChild(toggleBtn);
+
     const syncHeight = () => {
       const height = Math.ceil(fp.node.getBoundingClientRect().height);
       if (height) document.documentElement.style.setProperty("--geoTimelineH", height + "px");
@@ -564,7 +843,7 @@
     panels.decision = fp;
 
     // minimised pill so a pending decision is never lost
-    const pill = el("button", "decisionPill", "⚑ Quyết định chờ duyệt"); pill.type = "button";
+    const pill = el("button", "decisionPill", FT.icon("flag") + " Quyết định chờ duyệt"); pill.type = "button";
     pill.addEventListener("click", () => { minimizePill(false); fp.show("expanded"); });
     document.body.appendChild(pill);
     function minimizePill(on) { pill.classList.toggle("show", on); }
@@ -579,7 +858,7 @@
         fp.show("expanded");
         fp.node.classList.add("raise"); setTimeout(() => fp.node.classList.remove("raise"), 220);
         if (!reduceMotion()) { fp.node.classList.add("pulse"); setTimeout(() => fp.node.classList.remove("pulse"), 2800); }
-        FT.notify && FT.notify("Đề xuất xả trước mới — cần phê duyệt", "warn");
+        FT.notify && FT.notify("Đề xuất xả trước mới - cần phê duyệt", "warn");
       }
       lastHidden = !has;
       if (!pending()) minimizePill(false);
@@ -610,7 +889,7 @@
     const fp = new FloatingPanel("ai", { cls: "geoAI", title: "Trợ lý AI · RAG · trích nguồn", label: "Trợ lý AI", role: "dialog", pinnable: true });
     fp.adopt(document.querySelector(".llmPanel"));
     panels.ai = fp;
-    const launch = el("button", "aiLauncher", "✦"); launch.type = "button"; launch.title = "Trợ lý AI (⌘J)"; launch.setAttribute("aria-label", "Trợ lý AI");
+    const launch = el("button", "aiLauncher", FT.icon("sparkle", "icLg")); launch.type = "button"; launch.title = "Trợ lý AI (⌘J)"; launch.setAttribute("aria-label", "Trợ lý AI");
     launch.addEventListener("click", () => fp.toggle());
     // launcher hides whenever the panel is open, by ANY path (click, ⌘J, palette) — no overlap
     fp.opts.onShow = () => { launch.style.display = "none"; };
@@ -657,7 +936,7 @@
       '<span>·</span><span>Decision 1865/QĐ-TTg · 740/QĐ-TTg</span>' +
       '<span>·</span><span><a href="https://skylabs.vn/" target="_blank" rel="noopener" class="footLink">SkyLabs</a></span>' +
       '</span>' +
-      '<span class="ribbonFps" id="ribbonFps">— fps · H✓</span>';
+      '<span class="ribbonFps" id="ribbonFps">- fps · H✓</span>';
     document.body.appendChild(r);
     // mirror fps + selftest from existing meters
     setInterval(() => {
@@ -689,6 +968,7 @@
     key("shift+/", "Phím tắt", () => { rebuild(); overlay.classList.toggle("open"); }, "Chung");
     key("escape", "Đóng lớp trên cùng", () => {
       if (overlay.classList.contains("open")) { overlay.classList.remove("open"); return; }
+      if (ctlGroups.some((g) => g.open)) { closeCtlGroups(null); return; }
       if (Palette.node && Palette.node.classList.contains("open")) { Palette.close(); return; }
       // close top-most non-pinned float
       const open = Object.values(panels).filter((p) => p.mode !== "hidden" && !p.pinned && p.id !== "timeline");
@@ -710,7 +990,7 @@
     if (window.__NO_SHELL || /[?&]classic/.test(location.search)) return; // kill-switch for A/B + tests
     if (!ready()) { if (tries < 60) return void setTimeout(() => boot(tries + 1), 100); return; }
     try { build(); }
-    catch (e) { console.error("[shell] build failed — keeping classic dashboard:", e); document.body.classList.remove("geoshell"); }
+    catch (e) { console.error("[shell] build failed - keeping classic dashboard:", e); document.body.classList.remove("geoshell"); }
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", () => setTimeout(() => boot(0), 300));
   else setTimeout(() => boot(0), 300);

@@ -384,7 +384,7 @@
       schema_version: SCHEMA_VERSION,
       demo: true,
       signed: false,
-      notice: "DEMO — synthetic inputs, unsigned. Not a record of any real operation.",
+      notice: "DEMO - synthetic inputs, unsigned. Not a record of any real operation.",
       hash_algorithm: "sha256 over the canonical serialisation of input_snapshot",
       canonicalisation: "sorted keys, no whitespace, numbers rounded to 6 decimals",
       records: records,

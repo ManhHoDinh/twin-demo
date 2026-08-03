@@ -32,6 +32,10 @@
     /* fetch the REAL basin (DEM + satellite imagery); falls back silently offline */
     const fpsEl = document.getElementById("fpsMeter");
     if (fpsEl) fpsEl.textContent = "tải DEM…";
+    /* icon sprite first: it is 15 KB from our own origin and every button built
+       below references it. If it fails the UI still reads, because no control
+       relies on its icon alone for meaning. */
+    await FT.loadIcons();
     await FT.geo.load(9000);
     if (fpsEl) fpsEl.textContent = "60 fps";
 

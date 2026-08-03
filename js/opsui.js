@@ -48,9 +48,9 @@
     el.opsKappa.title = k > 0.6
       ? L("Vận hành hồ tác động lớn tới đỉnh lũ hạ du.", "Reservoir operation materially changes the downstream peak.")
       : k >= 0.3
-        ? L("Tác động một phần — cần làm song song cảnh báo và sơ tán.", "Partial control — run warning and evacuation in parallel.")
-        : L("Lũ CHỦ YẾU do mưa khu giữa/tại chỗ — vận hành hồ không đổi được nhiều. Ưu tiên cảnh báo và sơ tán.",
-            "This flood is driven by lateral/local rainfall — reservoir operation cannot change it much. Prioritise warning and evacuation.");
+        ? L("Tác động một phần - cần làm song song cảnh báo và sơ tán.", "Partial control - run warning and evacuation in parallel.")
+        : L("Lũ CHỦ YẾU do mưa khu giữa/tại chỗ - vận hành hồ không đổi được nhiều. Ưu tiên cảnh báo và sơ tán.",
+            "This flood is driven by lateral/local rainfall - reservoir operation cannot change it much. Prioritise warning and evacuation.");
     el.opsKappa.classList.toggle("lvl2", k < 0.3);
 
     /* P(exceed BĐ3) over the next 12 h — the primary decision quantity (docs FR-28) */
@@ -97,7 +97,7 @@
           + `<b>${U.fmtInt(alloc.totalExposed)}</b> ${L("người phơi nhiễm", "exposed")} · `
           + `<b>${U.fmtInt(alloc.reachableCapacity)}</b> ${L("chỗ tới được", "reachable places")} · `
           + `<b class="${cls}">${short > 0 ? L("thiếu ", "short ") + U.fmtInt(short) : L("đủ chỗ", "all covered")}</b>`
-          + (short > 0 ? ` <span class="scNote">${L("— cần trú tại chỗ trên cao / điều thêm điểm trú", "— vertical refuge / open more shelters")}</span>` : "");
+          + (short > 0 ? ` <span class="scNote">${L("- cần trú tại chỗ trên cao / điều thêm điểm trú", "- vertical refuge / open more shelters")}</span>` : "");
         el.shelterCapacity.classList.toggle("scShort", short > 0);
       } else {
         el.shelterCapacity.innerHTML = "";
@@ -117,7 +117,7 @@
     for (const z of single) if (!zs.includes(z)) zs.push(z);
     const rows = zs.map((z) => {
       const only = FT.forecast.isSingleAccess(z.def.node)
-        ? `<span class="onlyRoute" title="${L("Chỉ có một tuyến đường duy nhất — sẽ cô lập ngay khi tuyến này ngập", "Single access route — isolates as soon as this road floods")}">${L("1 tuyến", "1 route")}</span>` : "";
+        ? `<span class="onlyRoute" title="${L("Chỉ có một tuyến đường duy nhất - sẽ cô lập ngay khi tuyến này ngập", "Single access route - isolates as soon as this road floods")}">${L("1 tuyến", "1 route")}</span>` : "";
       const iso = z.isolated
         ? `<b class="bad">${L("ĐÃ CÔ LẬP", "ISOLATED")}</b>`
         : z.isolatesAt != null
@@ -129,7 +129,7 @@
         ? `<span class="bad">${L("Trú tại chỗ trên tầng cao · tiếp cận bằng xuồng/trực thăng", "Shelter in place on upper floors · access by boat/air")}</span>`
         : z.shelter
           ? `${z.shelter.name} · ${z.shelterRoute.timeH * 60 < 2 ? L("tại chỗ", "on site") : `${Math.round(z.shelterRoute.timeH * 60)}′`}${z.shelterRoute.lastDeparture != null && z.shelterRoute.timeH * 60 >= 2 ? ` · ${L("đi trước", "depart by")} ${hm(z.shelterRoute.lastDeparture)}` : ""}`
-          : `<span class="bad">${L("không có điểm trú hợp lệ tới được — trú tại chỗ trên cao", "no reachable valid shelter — shelter in place on upper floors")}</span>`;
+          : `<span class="bad">${L("không có điểm trú hợp lệ tới được - trú tại chỗ trên cao", "no reachable valid shelter - shelter in place on upper floors")}</span>`;
       return `<div class="evacRow"><span class="evacName">${z.def.name}${only}</span>${iso}
         <em>${sh}</em></div>`;
     }).join("");
@@ -168,7 +168,7 @@
 
   function updateDeadline(pkg) {
     const b = el.opsDeadlineVal, wrap = el.opsDeadline;
-    if (!pkg || pkg.kind !== "PROPOSAL") { b.textContent = "—"; wrap.className = "opsItem opsDeadline"; wrap.title = ""; return; }
+    if (!pkg || pkg.kind !== "PROPOSAL") { b.textContent = "-"; wrap.className = "opsItem opsDeadline"; wrap.title = ""; return; }
     const inH = pkg.deadlineIn;
     b.textContent = inH >= 0 ? OPS.fmtHours(inH) : L("ĐÃ QUÁ HẠN", "EXPIRED");
     wrap.className = `opsItem opsDeadline${inH < 0 ? " expired" : inH < 2 ? " urgent" : ""}`;
@@ -200,13 +200,13 @@
       const stDef = stKey && FT.domain.RES_STATES[stKey];
       s.row.innerHTML =
         (stDef ? `<span class="resState sev${stDef.sev}">${vi() ? stDef.vi : stDef.en}</span>` : "") +
-        `<span class="${fbCls}">${L("an toàn", "freeboard")} <b>${m.freeboard != null ? U.fmt(m.freeboard, 1) + " m" : "—"}</b></span>` +
+        `<span class="${fbCls}">${L("an toàn", "freeboard")} <b>${m.freeboard != null ? U.fmt(m.freeboard, 1) + " m" : "-"}</b></span>` +
         `<span>dZ/dt <b>${(m.dZdt >= 0 ? "+" : "−") + U.fmt(Math.abs(m.dZdt), 2)} m/h</b></span>` +
         `<span>${L("còn trống", "free")} <b>${U.fmt(m.freeMm3, 0)} Mm³</b></span>` +
-        `<span class="${ttCls}">${L("đầy sau", "time to ceiling")} <b>${m.tToCeil != null ? OPS.fmtHours(m.tToCeil) : "—"}</b></span>`;
+        `<span class="${ttCls}">${L("đầy sau", "time to ceiling")} <b>${m.tToCeil != null ? OPS.fmtHours(m.tToCeil) : "-"}</b></span>`;
       s.row.title = m.exhaustT != null
-        ? L(`Từ khoảng T${U.fmt(m.exhaustT, 1)}h hồ không còn cắt được lũ — lượng xả ≈ lượng về.`,
-            `From about T${U.fmt(m.exhaustT, 1)}h this reservoir can no longer reduce the flood — outflow ≈ inflow.`)
+        ? L(`Từ khoảng T${U.fmt(m.exhaustT, 1)}h hồ không còn cắt được lũ - lượng xả ≈ lượng về.`,
+            `From about T${U.fmt(m.exhaustT, 1)}h this reservoir can no longer reduce the flood - outflow ≈ inflow.`)
         : "";
     }
   }
@@ -229,7 +229,7 @@
       box.innerHTML = `<div class="dpSec"><span class="dpKind bad">${L("KHÔNG SO SÁNH ĐƯỢC", "NOT COMPARABLE")}</span>
         <p class="dpWhy">${L(
           `Cả hai chính sách đều đẩy ${pkg.gauge.name} tới trần biểu diễn của mô hình (${U.fmt(pkg.gauge.max, 1)} m). Chênh lệch đỉnh KHÔNG có ý nghĩa — không kết luận “không cần hành động”.`,
-          `Both policies drive ${pkg.gauge.name} to the model's representable maximum (${U.fmt(pkg.gauge.max, 1)} m). The peak difference is meaningless — this is NOT a "no action needed" result.`)}</p>
+          `Both policies drive ${pkg.gauge.name} to the model's representable maximum (${U.fmt(pkg.gauge.max, 1)} m). The peak difference is meaningless - this is NOT a "no action needed" result.`)}</p>
         <p class="dpWhy">${L("Đây là giới hạn của mô hình giải tích trong bản demo, không phải kết luận thủy văn. Xem docs/06-critique/02-open-risk-register.md R-01.",
                              "This is a limitation of the demo's analytic model, not a hydrological conclusion. See docs/06-critique/02-open-risk-register.md R-01.")}</p></div>`;
       return;
@@ -275,8 +275,8 @@
             ${cons.length ? ` · ${L("tham vấn", "consulted")}: ${cons.join(", ")}` : ""}<br>
             ${mine
               ? L("Vai trò của bạn ĐƯỢC phê duyệt quyết định này.", "Your role MAY approve this decision.")
-              : L(`Vai trò của bạn không được phê duyệt — chỉ đề xuất và thực hiện. Chuyển hồ sơ cho ${who}.`,
-                  `Your role may not approve this — propose and execute only. Refer the package to ${who}.`)}</p>
+              : L(`Vai trò của bạn không được phê duyệt - chỉ đề xuất và thực hiện. Chuyển hồ sơ cho ${who}.`,
+                  `Your role may not approve this - propose and execute only. Refer the package to ${who}.`)}</p>
         </div>`;
       }
     }
@@ -299,16 +299,16 @@
       <div class="dpSec">
         <h5>${L("Kiểm tra ràng buộc — bằng chứng khả thi", "Constraint check — feasibility proof")}</h5>
         <div class="dpConstraints">${cons}</div>
-        ${pkg.binding ? `<p class="dpWhy dpBinding">${L("Ràng buộc quyết định", "Binding constraint")}: <b>${pkg.binding.id} ${pkg.binding.label}</b> — ${L("cần cấp thẩm quyền chấp thuận ngoại lệ hoặc chọn phương án khác.", "requires an authorised exception or a different option.")}</p>` : ""}
+        ${pkg.binding ? `<p class="dpWhy dpBinding">${L("Ràng buộc quyết định", "Binding constraint")}: <b>${pkg.binding.id} ${pkg.binding.label}</b> - ${L("cần cấp thẩm quyền chấp thuận ngoại lệ hoặc chọn phương án khác.", "requires an authorised exception or a different option.")}</p>` : ""}
       </div>
 
       <div class="dpSec">
-        <h5>${L("Kết quả tại", "Outcome at")} ${g.name} — ${L("so với KHÔNG hành động", "vs DOING NOTHING")}</h5>
+        <h5>${L("Kết quả tại", "Outcome at")} ${g.name} - ${L("so với KHÔNG hành động", "vs DOING NOTHING")}</h5>
         <div class="dpCompareRow">
           <span>${L("Đề xuất (liên hồ)", "Proposal (cascade)")}</span><b>${U.fmt(pkg.outcome.peak, 2)} m</b><b>${U.fmt(pkg.outcome.hoursBD3, 1)} h &gt; BĐ3</b>
           <span class="cf">${L("Không hành động", "No action")}</span><b class="cf">${U.fmt(pkg.counterfactual.peak, 2)} m</b><b class="cf">${U.fmt(pkg.counterfactual.hoursBD3, 1)} h</b>
         </div>
-        <p class="dpWhy">BĐ3 = ${g.bd[2]} m · ${L("chênh lệch đỉnh", "peak difference")} <b>${U.fmt(pkg.cut, 2)} m</b>${pkg.kind === "NULL" ? ` — ${L("nhỏ hơn sai số dự báo, không khuyến nghị xả trước.", "smaller than the forecast error — pre-release not recommended.")}` : ""}</p>
+        <p class="dpWhy">BĐ3 = ${g.bd[2]} m · ${L("chênh lệch đỉnh", "peak difference")} <b>${U.fmt(pkg.cut, 2)} m</b>${pkg.kind === "NULL" ? ` - ${L("nhỏ hơn sai số dự báo, không khuyến nghị xả trước.", "smaller than the forecast error — pre-release not recommended.")}` : ""}</p>
       </div>
 
       <div class="dpSec">
@@ -345,7 +345,7 @@
     if (!el.eventRibbon || !FT.domain) return;
     const t = FT.state.timeH;
     const needs = (!FT.domain.ready || FT.domain.stale) && FT.world.ready && FT.hydro.ready;
-    /* throttle: re-deriving costs ~15–30 ms and a scrub drag fires continuously */
+    /* throttle: re-deriving costs ~15-30 ms and a scrub drag fires continuously */
     if (needs && performance.now() - lastTimelineAt > 1500) {
       lastTimelineAt = performance.now();
       const t0 = performance.now();
@@ -409,7 +409,7 @@
 
     /* Honesty: the demo's synthetic pulses run hotter than the plausibility band in
        docs/00-foundations/09-typical-values.md §1. Say so on the screen rather than let a
-       hydrologist find it — an unflagged implausible number costs more than the flag. */
+       hydrologist find it - an unflagged implausible number costs more than the flag. */
     if (el.rainCaveat && !el.rainCaveat.dataset.done) {
       let total = 0;
       for (let i = 0; i < H.NT; i++) total += H.rain[i] * H.DT;
@@ -436,11 +436,11 @@
       <em>${a.means}${a.doWhat ? ` → <b>${a.doWhat}</b>` : ""}${a.byWhen != null ? ` · ${L("trước", "by")} ${U.clock(a.byWhen).hm}` : ""}${a.acked ? ` · ${L("đã xác nhận", "acked by")} ${a.ackBy}` : ""}</em></div>`;
 
     el.alarmList.innerHTML =
-      (dam.length ? `<h6 class="alarmDam">${L("AN TOÀN ĐẬP — không gộp, không tự xoá", "DAM SAFETY — never grouped, never auto-cleared")}</h6>${dam.map(row).join("")}` : "") +
+      (dam.length ? `<h6 class="alarmDam">${L("AN TOÀN ĐẬP - không gộp, không tự xoá", "DAM SAFETY - never grouped, never auto-cleared")}</h6>${dam.map(row).join("")}` : "") +
       singles.map(row).join("") +
       (grouped.length ? `<div class="alarmRow sev2"><span class="alarmWhat">${L(`${grouped.length} cảnh báo khác cùng đợt`, `${grouped.length} further alarms in this burst`)}</span>
          <button type="button" class="alarmAck" data-ackall="1">${L("Xác nhận cả nhóm", "Ack group")}</button>
-         <em>${L("Gộp để tránh nhiễu cảnh báo — mở nhật ký để xem từng mục.", "Grouped to prevent alarm fatigue — open the audit log for each item.")}</em></div>` : "") ||
+         <em>${L("Gộp để tránh nhiễu cảnh báo - mở nhật ký để xem từng mục.", "Grouped to prevent alarm fatigue - open the audit log for each item.")}</em></div>` : "") ||
       `<div class="alarmRow sev1"><span class="alarmWhat">${L("Không có cảnh báo cần xử lý", "No actionable alarms")}</span><em></em></div>`;
   }
 
@@ -461,7 +461,7 @@
        ${["call", "sms", "loudspeaker", "public", "cap"].map((k) => {
         const title = { call: L("Kịch bản gọi điện (≤20 giây)", "Phone script (≤20 s)"), sms: L("SMS / cell broadcast (không dấu)", "SMS / cell broadcast (unaccented)"), loudspeaker: L("Loa xã/phường", "Commune loudspeaker"), public: L("Thẻ thông tin cho người dân", "Public information card"), cap: "CAP (machine)" }[k];
         const meta = k === "sms"
-          ? ` <i style="color:var(--ink-2);font-weight:400">— ${ch.smsParts.length} ${L("tin", "part(s)")}, ${ch.smsParts.map((p) => p.length).join("+")} ${L("ký tự", "chars")}</i>` : "";
+          ? ` <i style="color:var(--ink-2);font-weight:400">- ${ch.smsParts.length} ${L("tin", "part(s)")}, ${ch.smsParts.map((p) => p.length).join("+")} ${L("ký tự", "chars")}</i>` : "";
         return `<h5 style="margin:12px 0 4px">${title}${meta}</h5>
          <pre style="white-space:pre-wrap;font-size:11px;line-height:1.55;background:rgba(9,20,32,.6);border:1px solid var(--line);border-radius:6px;padding:8px">${esc(ch[k])}</pre>`;
       }).join("")}
@@ -507,7 +507,7 @@
         <div class="nfHead"><b>${e.record.headlineShort}</b><span>${ack}/${e.recipients.length} ${L("đã xác nhận", "acked")}</span></div>
         <div class="nfRecips">${e.recipients.map((r) =>
           `<button type="button" class="nfChip${r.acked ? " on" : ""}" data-nfack="${e.id}|${r.key}"${r.acked ? " disabled" : ""}>${r.name.split(" ")[0]} ${r.acked ? "✓" : "○"}</button>`).join("")}</div>
-        ${pend.length ? `<em>${L("Chưa xác nhận", "Unacknowledged")}: ${pend.map((r) => r.name).join(", ")} — ${L("leo thang bằng điện thoại", "escalate by phone")}</em>` : ""}
+        ${pend.length ? `<em>${L("Chưa xác nhận", "Unacknowledged")}: ${pend.map((r) => r.name).join(", ")} - ${L("leo thang bằng điện thoại", "escalate by phone")}</em>` : ""}
       </div>`;
     }).join("");
   }
@@ -522,7 +522,7 @@
     list.innerHTML = entries.slice(-40).reverse().map((e) => {
       const t = e.tsUtc.slice(11, 19);
       return `<li><i>#${e.seq}</i><span><b>${e.action}</b> · ${t} · T${e.simT}h
-        <em>${e.actor}${e.reason ? ` — “${e.reason}”` : ""} · snap ${e.snapshot}</em></span></li>`;
+        <em>${e.actor}${e.reason ? ` - “${e.reason}”` : ""} · snap ${e.snapshot}</em></span></li>`;
     }).join("");
   }
 
@@ -542,8 +542,8 @@
     FT.ui.openModal(L("Sức khỏe dữ liệu", "Data health"),
       `<p><b>${L("Mức vận hành", "Operating level")} L${hl.level}</b> — ${hl.reason}</p>
        <p>${affected}</p>
-       <p class="dpWhy">${L("Toàn bộ nguồn trong bản demo là TỔNG HỢP: không có telemetry thật. Điều khiển suy giảm trên thanh trạng thái để kiểm chứng hành vi L0–L4.",
-                            "Every feed in this demo is SYNTHETIC — there is no real telemetry. Use the degradation control in the status bar to exercise the L0–L4 behaviour.")}</p>
+       <p class="dpWhy">${L("Toàn bộ nguồn trong bản demo là TỔNG HỢP: không có telemetry thật. Điều khiển suy giảm trên thanh trạng thái để kiểm chứng hành vi L0-L4.",
+                            "Every feed in this demo is SYNTHETIC - there is no real telemetry. Use the degradation control in the status bar to exercise the L0-L4 behaviour.")}</p>
        <table class="feedTable"><tr><th>${L("Nguồn", "Feed")}</th><th></th><th>${L("Trạng thái", "State")}</th><th>${L("Tuổi", "Age")}</th></tr>${rows}</table>`);
   }
 
@@ -552,8 +552,8 @@
     if (!OPS.audit.actor.name) {
       ev.stopImmediatePropagation(); ev.preventDefault();
       el.opsActorWrap.classList.add("unset");
-      FT.notify(L("Chọn người trực trước khi phê duyệt — không chấp nhận quyết định vô danh.",
-                  "Select the duty operator first — anonymous decisions are not accepted."), "warn");
+      FT.notify(L("Chọn người trực trước khi phê duyệt - không chấp nhận quyết định vô danh.",
+                  "Select the duty operator first - anonymous decisions are not accepted."), "warn");
       return false;
     }
     const reason = (el.dpReasonInput.value || "").trim();
@@ -561,8 +561,8 @@
       ev.stopImmediatePropagation(); ev.preventDefault();
       el.dpReasonWrap.classList.add("needed");
       el.dpReasonInput.focus();
-      FT.notify(L("Nhập lý do ghi nhận — bắt buộc cho hồ sơ kiểm toán.",
-                  "Enter a reason of record — required for the audit trail."), "warn");
+      FT.notify(L("Nhập lý do ghi nhận - bắt buộc cho hồ sơ kiểm toán.",
+                  "Enter a reason of record - required for the audit trail."), "warn");
       return false;
     }
     el.dpReasonWrap.classList.remove("needed");
@@ -570,7 +570,7 @@
 
     /* Decision rights (RACI). Being identified is not the same as being entitled: a
        reservoir engineer proposes a pre-release, the authority approves it. A refusal here
-       names the accountable role and is itself logged — an attempted approval by the wrong
+       names the accountable role and is itself logged - an attempted approval by the wrong
        office is exactly the kind of thing an inquiry asks about. */
     if (FT.roles && action === "decision.approve") {
       const snap = FT.hydro.at(FT.state.timeH);
@@ -681,7 +681,7 @@
     el.auditExport.addEventListener("click", () => {
       FT.ui.openModal(L("Xuất nhật ký kiểm toán", "Audit trail export"),
         `<p class="dpWhy">${OPS.modeLabel()}</p><pre style="white-space:pre-wrap;font-size:11px;line-height:1.6">${
-          (OPS.audit.exportText() || "—").replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c]))}</pre>`);
+          (OPS.audit.exportText() || "-").replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c]))}</pre>`);
     });
 
     /* capture phase so the gate runs before ui.js's own approve/reject handlers */
@@ -695,7 +695,7 @@
       renderAudit();
     });
 
-    /* wrap the existing tick — additive, never replacing */
+    /* wrap the existing tick - additive, never replacing */
     const baseTick = FT.ui.tick;
     FT.ui.tick = function (snap) {
       baseTick(snap);

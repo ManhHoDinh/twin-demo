@@ -168,8 +168,8 @@
           if (H.satOf(S.api[i - 1]) < 0.9 && H.satOf(S.api[i]) >= 0.9) {
             push(list, H.T0 + i * H.DT, "WETNESS_SATURATED", sc.id,
               L(`${sc.name}: đất bão hòa`, `${sc.name}: soil saturated`),
-              L("Từ đây gần như toàn bộ lượng mưa thành dòng chảy — phản ứng lũ nhanh hơn nhiều.",
-                "From here almost all rainfall becomes runoff — the flood response is far faster."));
+              L("Từ đây gần như toàn bộ lượng mưa thành dòng chảy - phản ứng lũ nhanh hơn nhiều.",
+                "From here almost all rainfall becomes runoff - the flood response is far faster."));
             break;
           }
         }
@@ -223,7 +223,7 @@
           if (prev && st !== prev) {
             if (st === "CLOSED") {
               push(list, t, "ROAD_CLOSED", e.name, L(`${e.name} đóng`, `${e.name} closed`),
-                L("Ngập ≥30 cm — xe không qua được", "Water ≥30 cm — impassable to vehicles"),
+                L("Ngập ≥30 cm - xe không qua được", "Water ≥30 cm - impassable to vehicles"),
                 { lifeline: e.type === "hw" });
             } else if (prev === "CLOSED") {
               push(list, t, "ROAD_REOPENED", e.name, L(`${e.name} thông trở lại`, `${e.name} reopened`),
@@ -242,8 +242,8 @@
           if (prev !== null && iso !== prev) {
             if (iso) {
               push(list, t, "ZONE_ISOLATED", z.id, L(`${z.name} bị cô lập`, `${z.name} isolated`),
-                L("Mất toàn bộ tuyến đường bộ — cần phương tiện thuỷ/trực thăng",
-                  "All road access lost — boat or air access required"));
+                L("Mất toàn bộ tuyến đường bộ - cần phương tiện thuỷ/trực thăng",
+                  "All road access lost - boat or air access required"));
             } else {
               push(list, t, "ZONE_RECONNECTED", z.id, L(`${z.name} thông tuyến trở lại`, `${z.name} reconnected`),
                 L("Đã có tuyến đường bộ tiếp cận", "A road route is available again"));
@@ -261,7 +261,7 @@
           const bad = !st.valid;
           if (prev === false && bad) {
             push(list, t, "SHELTER_LOST", sh.id, L(`${sh.name} không còn dùng được`, `${sh.name} no longer usable`),
-              L("Ngập quá tầng trú — phải phân bổ lại người sơ tán", "Refuge level submerged — evacuees must be reallocated"));
+              L("Ngập quá tầng trú - phải phân bổ lại người sơ tán", "Refuge level submerged - evacuees must be reallocated"));
           }
           prev = bad;
         }

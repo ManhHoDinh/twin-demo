@@ -370,7 +370,7 @@
   H.emitEventsBetween = function (t0, t1) {
     if (!H.events || t1 <= t0) return;
     for (const ev of H.events) {
-      if (ev.tH > t0 && ev.tH <= t1) FT.bus.emit("logEvent", { msg: `${ev.name} — ${FT.i18n.t(ev.key)}`, kind: ev.kind, tH: ev.tH });
+      if (ev.tH > t0 && ev.tH <= t1) FT.bus.emit("logEvent", { msg: `${ev.name} - ${FT.i18n.t(ev.key)}`, kind: ev.kind, tH: ev.tH });
     }
   };
 })();

@@ -396,7 +396,8 @@ async function degradation(browser) {
       box: document.getElementById('dpBox').innerText,
     }));
     d({ kind: r.kind, deadline: r.deadline });
-    return r.kind === 'REFUSAL' && r.deadline === '—' && /TỪ CHỐI|NO ADVICE/i.test(r.box);
+    /* '-' is the empty-value placeholder (the em-dash was removed from visible copy) */
+    return r.kind === 'REFUSAL' && r.deadline === '-' && /TỪ CHỐI|NO ADVICE/i.test(r.box);
   });
 
   await setDegradation(page, null);

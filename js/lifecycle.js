@@ -70,8 +70,8 @@
   /* The assurance sentence shown beside a recommendation so it can never read as in-force. */
   Lc.reviewNotice = function (cls) {
     if (cls === CLASS.RECOMMENDATION)
-      return L("Đề xuất của AI — cần người trực có thẩm quyền phê duyệt, CHƯA có hiệu lực.",
-               "AI recommendation — requires review by an entitled operator, NOT in force.");
+      return L("Đề xuất của AI - cần người trực có thẩm quyền phê duyệt, CHƯA có hiệu lực.",
+               "AI recommendation - requires review by an entitled operator, NOT in force.");
     if (cls === CLASS.APPROVED_PLAN)
       return L("Phương án đã được phê duyệt và đang có hiệu lực.",
                "Approved by an operator and now in force.");

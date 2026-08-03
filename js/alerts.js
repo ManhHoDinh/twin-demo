@@ -87,7 +87,7 @@
       if (gs.alert >= 2) {
         A.raise("gauge", g.id, {
           severity: gs.alert >= 3 ? 3 : 2,
-          what: L(`${g.name} ${U.fmt(gs.stage, 2)} m — trên BĐ${gs.alert}`, `${g.name} ${U.fmt(gs.stage, 2)} m — above AL${gs.alert}`),
+          what: L(`${g.name} ${U.fmt(gs.stage, 2)} m - trên BĐ${gs.alert}`, `${g.name} ${U.fmt(gs.stage, 2)} m - above AL${gs.alert}`),
           means: L("Ngập nghiêm trọng vùng trũng ven sông", "Serious flooding of low-lying riverside areas"),
           doWhat: gs.alert >= 3 ? L("Phát lệnh sơ tán vùng trũng", "Order evacuation of low-lying areas")
                                 : L("Rà soát hộ ven sông, chuẩn bị sơ tán", "Check riverside households, prepare to evacuate"),
@@ -103,7 +103,7 @@
         A.raise("dam", r.id, {
           severity: 4, damSafety: true,
           what: L(`${r.name}: Z ${U.fmt(rs.Z, 2)} m trên MNDBT ${r.fsl} m`, `${r.name}: Z ${U.fmt(rs.Z, 2)} m above FSL ${r.fsl} m`),
-          means: L("Vượt mực nước dâng bình thường — vùng lũ thiết kế", "Above normal max level — into the design flood range"),
+          means: L("Vượt mực nước dâng bình thường - vùng lũ thiết kế", "Above normal max level - into the design flood range"),
           doWhat: L("Báo cơ quan an toàn đập; xả theo phương án khẩn cấp", "Notify the dam safety authority; operate to the emergency plan"),
         });
       } else if (rs.overCeil) {
@@ -120,7 +120,7 @@
         A.raise("buffer", r.id, {
           severity: 3,
           what: L(`${r.name}: hết dung tích cắt lũ ~${hm(m.exhaustT)}`, `${r.name}: flood buffer exhausted ~${hm(m.exhaustT)}`),
-          means: L("Từ thời điểm đó lượng xả ≈ lượng về — hồ không còn cắt lũ", "From then outflow ≈ inflow — the reservoir no longer reduces the flood"),
+          means: L("Từ thời điểm đó lượng xả ≈ lượng về - hồ không còn cắt lũ", "From then outflow ≈ inflow - the reservoir no longer reduces the flood"),
           doWhat: L("Thông báo hạ du TRƯỚC thời điểm này", "Notify downstream BEFORE this time"),
           byWhen: m.exhaustT,
         });
@@ -161,8 +161,8 @@
         severity: hl.level >= 4 ? 3 : 2,
         what: L(`Dữ liệu mức L${hl.level}`, `Data at level L${hl.level}`),
         means: hl.reason,
-        doWhat: hl.level >= 4 ? L("Hệ thống KHÔNG đưa đề xuất — dùng phương án ứng phó và danh bạ", "System will NOT advise — use the emergency plan and contact tree")
-                              : L("Bộ tối ưu vô hiệu — vận hành theo biểu đồ điều phối", "Optimiser disabled — operate to the rule curve"),
+        doWhat: hl.level >= 4 ? L("Hệ thống KHÔNG đưa đề xuất - dùng phương án ứng phó và danh bạ", "System will NOT advise - use the emergency plan and contact tree")
+                              : L("Bộ tối ưu vô hiệu - vận hành theo biểu đồ điều phối", "Optimiser disabled - operate to the rule curve"),
       });
     } else A.resolve("data", "level");
   };
@@ -222,7 +222,7 @@
   /* ---------- render every channel variant from ONE record ---------- */
   NF.render = function (rec) {
     const g = rec.gauge, out = {};
-    const stage = rec.stage != null ? U.fmt(rec.stage, 2) : "—";
+    const stage = rec.stage != null ? U.fmt(rec.stage, 2) : "-";
     const bdTxt = rec.bdLevel ? `${L("trên BĐ", "above AL")}${rec.bdLevel} ${rec.overBy != null ? `${U.fmt(rec.overBy, 2)} m` : ""}` : "";
 
     /* Capacity-honest shelter guidance for the HEADLINE zone (the area the message speaks to).
@@ -292,13 +292,13 @@ ${rec.roadWarn ? `${rec.roadWarn}.` : ""}
 Xin nhắc lại…`;
 
     out.public =
-`${L("Khu vực của bạn", "Your area")}: ${rec.areaShort || "—"}
+`${L("Khu vực của bạn", "Your area")}: ${rec.areaShort || "-"}
 ${rec.publicWhen || rec.headline}
 ${rec.publicDepth ? `${L("Độ sâu dự kiến", "Expected depth")}: ${rec.publicDepth}` : ""}
-${L("Việc cần làm", "What to do")}: ${rec.action || "—"}
+${L("Việc cần làm", "What to do")}: ${rec.action || "-"}
 ${L("Nơi đến", "Where to go")}: ${shelterLine(false)}
 ${L("Nguồn tin", "Issued by")}: ${rec.issuer} · ${L("cập nhật tiếp", "next update")} ${hm(rec.t + 1)}
-${L("Mức chắc chắn", "Confidence")}: ${rec.likelihood || "—"}`;
+${L("Mức chắc chắn", "Confidence")}: ${rec.likelihood || "-"}`;
 
     out.cap = JSON.stringify({
       identifier: rec.id, sender: rec.issuerShort, sent: new Date().toISOString(),
@@ -307,7 +307,7 @@ ${L("Mức chắc chắn", "Confidence")}: ${rec.likelihood || "—"}`;
       severity: rec.severity || "Severe", certainty: rec.certainty || "Likely",
       headline: rec.headlineShort, description: rec.headline, instruction: rec.action,
       area: rec.areas || [], parameter: { gauge: g ? g.name : null, stage: rec.stage, alertLevel: rec.bdLevel },
-      note: "SYNTHETIC — exercise only, not an operational alert",
+      note: "SYNTHETIC - exercise only, not an operational alert",
     }, null, 1);
 
     return out;
@@ -364,7 +364,7 @@ ${L("Mức chắc chắn", "Confidence")}: ${rec.likelihood || "—"}`;
       shelterPlan,                        // per-zone capacity-aware guidance (name + fit + shortfall)
       roadWarn: firstClose ? L(`Tuyến ${firstClose.name} dự kiến đóng lúc ${hm(firstClose.at)}`, `${firstClose.name} expected to close at ${hm(firstClose.at)}`) : null,
       likelihood,
-      publicDepth: worst.length ? `${U.fmt(worst[0].meanD, 1)}–${U.fmt(worst[0].maxD, 1)} m` : null,
+      publicDepth: worst.length ? `${U.fmt(worst[0].meanD, 1)}-${U.fmt(worst[0].maxD, 1)} m` : null,
       severity: gs.alert >= 3 ? "Severe" : gs.alert >= 2 ? "Moderate" : "Minor",
       certainty: pEx > 0.6 ? "Likely" : "Possible",
     };
@@ -384,8 +384,8 @@ ${L("Mức chắc chắn", "Confidence")}: ${rec.likelihood || "—"}`;
     } else if (type === "passthrough") {
       Object.assign(base, {
         event: "Reservoir buffer exhausted",
-        headline: L("Hồ chứa đã hết dung tích cắt lũ — lượng xả xấp xỉ lượng nước về. Từ thời điểm này hồ KHÔNG còn làm giảm lũ.",
-                    "The reservoir's flood buffer is exhausted — outflow now approximately equals inflow. From now the reservoir does NOT reduce the flood."),
+        headline: L("Hồ chứa đã hết dung tích cắt lũ - lượng xả xấp xỉ lượng nước về. Từ thời điểm này hồ KHÔNG còn làm giảm lũ.",
+                    "The reservoir's flood buffer is exhausted - outflow now approximately equals inflow. From now the reservoir does NOT reduce the flood."),
         headlineShort: L("Hồ hết dung tích cắt lũ", "Reservoir buffer exhausted"),
         action: L("Sơ tán theo phương án đã duyệt", "Evacuate per the approved plan"),
         urgency: "Immediate",

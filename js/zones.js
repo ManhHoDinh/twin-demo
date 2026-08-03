@@ -54,32 +54,32 @@
     /* Isolation outranks depth severity: an isolated community needs assets moved BEFORE
        the last road shuts, and that deadline is a computed time, not a judgement call. */
     if (zs.isolated)
-      a.push(vi ? "ĐÃ CÔ LẬP — điều xuồng/trực thăng, tiếp tế tại chỗ, không điều xe bánh lốp vào"
-                : "ISOLATED — deploy boats/air, resupply in place, do not send wheeled vehicles in");
+      a.push(vi ? "ĐÃ CÔ LẬP - điều xuồng/trực thăng, tiếp tế tại chỗ, không điều xe bánh lốp vào"
+                : "ISOLATED - deploy boats/air, resupply in place, do not send wheeled vehicles in");
     else if (zs.isolatesAt != null)
-      a.push(vi ? `Mất tuyến tiếp cận cuối lúc ~${clockAt(zs.isolatesAt)} — tiền trạm lực lượng/vật tư TRƯỚC giờ đó`
-                : `Last access route closes ~${clockAt(zs.isolatesAt)} — pre-position teams and supplies BEFORE then`);
+      a.push(vi ? `Mất tuyến tiếp cận cuối lúc ~${clockAt(zs.isolatesAt)} - tiền trạm lực lượng/vật tư TRƯỚC giờ đó`
+                : `Last access route closes ~${clockAt(zs.isolatesAt)} - pre-position teams and supplies BEFORE then`);
     if (zs.status >= 2 && zs.trend > 0.03 && zs.def.pop > 20000) {
       if (zs.shelter && zs.shelterRoute)
         a.push(vi ? `Sơ tán ưu tiên người già/trẻ em về ${zs.shelter.name} (~${Math.round(zs.shelterRoute.timeH * 60)} phút${zs.shelterRoute.lastDeparture != null ? `, xuất phát trước ${clockAt(zs.shelterRoute.lastDeparture)}` : ""})`
                   : `Evacuate elderly/children first to ${zs.shelter.name} (~${Math.round(zs.shelterRoute.timeH * 60)} min${zs.shelterRoute.lastDeparture != null ? `, depart before ${clockAt(zs.shelterRoute.lastDeparture)}` : ""})`);
       else
-        a.push(vi ? "KHÔNG có điểm sơ tán hợp lệ còn tuyến tới được — trú tại chỗ trên cao, xin chi viện phương tiện thuỷ"
-                  : "NO valid reachable shelter — shelter in place on upper floors, request water transport");
+        a.push(vi ? "KHÔNG có điểm sơ tán hợp lệ còn tuyến tới được - trú tại chỗ trên cao, xin chi viện phương tiện thuỷ"
+                  : "NO valid reachable shelter - shelter in place on upper floors, request water transport");
     }
     if (zs.shelterShortfall > 0)
-      a.push(vi ? `Thiếu ~${U.fmtInt(zs.shelterShortfall)} chỗ tại điểm sơ tán — mở thêm điểm phụ`
-                : `Shelter capacity short by ~${U.fmtInt(zs.shelterShortfall)} — open an overflow site`);
+      a.push(vi ? `Thiếu ~${U.fmtInt(zs.shelterShortfall)} chỗ tại điểm sơ tán - mở thêm điểm phụ`
+                : `Shelter capacity short by ~${U.fmtInt(zs.shelterShortfall)} - open an overflow site`);
     if (zs.status >= 2 && !zs.accessOk)
-      a.push(vi ? "Mất tuyến tiếp cận EOC — điều phối xuồng/phương tiện cao, lập điểm tập kết tạm" : "EOC access lost — deploy boats/high-clearance vehicles, set temporary muster point");
+      a.push(vi ? "Mất tuyến tiếp cận EOC - điều phối xuồng/phương tiện cao, lập điểm tập kết tạm" : "EOC access lost - deploy boats/high-clearance vehicles, set temporary muster point");
     for (const p of zs.pois) {
       if (!p.ok && p.t === "bridge") a.push(vi ? `Đóng ${p.n}, phân luồng từ xa` : `Close ${p.n}, divert traffic upstream`);
-      if (!p.ok && p.t === "hosp") a.push(vi ? `${p.n} ngập tiếp cận — kích hoạt chuyển tuyến bệnh nhân` : `${p.n} access flooded — activate patient transfer`);
+      if (!p.ok && p.t === "hosp") a.push(vi ? `${p.n} ngập tiếp cận - kích hoạt chuyển tuyến bệnh nhân` : `${p.n} access flooded - activate patient transfer`);
       if (!p.ok && p.t === "school") a.push(vi ? `Cho học sinh nghỉ, trưng dụng ${p.n} tầng cao làm điểm trú` : `Close school; use upper floors of ${p.n} as refuge`);
       if (!p.ok && p.t === "herit") a.push(vi ? `Kích hoạt phương án bảo vệ di sản tại ${p.n}` : `Activate heritage-protection plan at ${p.n}`);
     }
     if (zs.status >= 1 && zs.trend < -0.03)
-      a.push(vi ? "Nước rút — kiểm tra kết cấu/vệ sinh trước khi cho dân quay lại" : "Receding — inspect structures/sanitation before return");
+      a.push(vi ? "Nước rút - kiểm tra kết cấu/vệ sinh trước khi cho dân quay lại" : "Receding - inspect structures/sanitation before return");
     if (zs.status >= 3)
       a.push(vi ? "Báo cáo Ban chỉ huy PCTT tỉnh, đề nghị chi viện" : "Report to provincial flood command, request reinforcement");
     return a.slice(0, 4);
@@ -153,10 +153,10 @@
         if ((lastLogT[key] === undefined || Math.abs(t - lastLogT[key]) > 0.5)) {
           lastLogT[key] = t;
           if (zs.status > zs.prevStatus && zs.status >= 2) {
-            FT.log(`${zs.def.name} — ${FT.i18n.t(zs.status >= 3 ? "zone.toRed" : "zone.toOrange")} (${U.fmt(maxD, 1)} m)`, zs.status >= 3 ? "danger" : "warn");
+            FT.log(`${zs.def.name} - ${FT.i18n.t(zs.status >= 3 ? "zone.toRed" : "zone.toOrange")} (${U.fmt(maxD, 1)} m)`, zs.status >= 3 ? "danger" : "warn");
             if (zs.status >= 3) FT.notify(`${zs.def.name}: ${FT.i18n.t("zone.toRed")}`, "danger");
           } else if (zs.status < zs.prevStatus && zs.status <= 1) {
-            FT.log(`${zs.def.name} — ${FT.i18n.t("zone.improved")}`, "ok");
+            FT.log(`${zs.def.name} - ${FT.i18n.t("zone.improved")}`, "ok");
           }
         }
       }

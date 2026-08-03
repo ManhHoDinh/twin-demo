@@ -476,7 +476,7 @@
     if (hit.kind === "gauge") {
       const gs = snap.gauges[hit.obj.id];
       const lv = gs.alert;
-      html = `<b>${hit.obj.name}</b> · ${hit.obj.river}<br>${U.fmt(gs.stage, 2)} m — ${lv ? FT.i18n.t("alert.bd") + lv : FT.i18n.t("alert.normal")}<br><small>${gs.trend >= 0 ? "▲" : "▼"} ${U.fmt(Math.abs(gs.trend), 2)} m/3h</small>`;
+      html = `<b>${hit.obj.name}</b> · ${hit.obj.river}<br>${U.fmt(gs.stage, 2)} m - ${lv ? FT.i18n.t("alert.bd") + lv : FT.i18n.t("alert.normal")}<br><small>${gs.trend >= 0 ? "▲" : "▼"} ${U.fmt(Math.abs(gs.trend), 2)} m/3h</small>`;
     } else if (hit.kind === "res") {
       const rs = snap.reservoirs[hit.obj.id];
       html = `<b>${hit.obj.name}</b><br>Z ${U.fmt(rs.Z, 1)} m / ${FT.i18n.t("res.ceil")} ${hit.obj.ceil} m<br><small>${FT.i18n.t("res.inflow")} ${U.fmtInt(rs.I)} · ${FT.i18n.t("res.outflow")} ${U.fmtInt(rs.O)} m³/s</small>`;
@@ -1056,5 +1056,13 @@
       pipCtx.fillStyle = U.alertColor(gs.alert);
       pipCtx.fill();
     }
+  };
+
+  M.getCam = function () { return { x: cam.x, y: cam.y, scale: cam.scale }; };
+  M.syncFrom3D = function (xKm, yKm, dist3d) {
+    cam.x = U.clamp(xKm, 0, SZ);
+    cam.y = U.clamp(yKm, 0, SZ);
+    if (dist3d) cam.scale = U.clamp(2800 / dist3d, 10, 5000);
+    clampCam();
   };
 })();

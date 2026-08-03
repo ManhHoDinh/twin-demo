@@ -124,7 +124,7 @@
   };
 
   function localPair(pair, fallback) { return pair ? pair[FT.state.lang === "vi" ? 0 : 1] : fallback; }
-  function enumLabel(value) { return value == null ? "—" : localPair(ENUM_LABELS[value], value); }
+  function enumLabel(value) { return value == null ? "-" : localPair(ENUM_LABELS[value], value); }
   function contractText(value) { return localPair(CONTRACT_TEXT[value], value); }
   function sourceLabel(value) {
     const match = SOURCE_LABELS.find(([pattern]) => pattern.test(value));
@@ -135,11 +135,11 @@
     if (!value) return FT.i18n.t("explain.unavailable");
     if (value.startsWith("H:")) {
       const gauge = D.GAUGES.find((item) => item.id === value.slice(2));
-      return gauge ? `${gauge.name} — ${localPair(["mực nước sông", "river stage"], value)}` : value;
+      return gauge ? `${gauge.name} - ${localPair(["mực nước sông", "river stage"], value)}` : value;
     }
     if (value.startsWith("Z:")) {
       const reservoir = D.RESERVOIRS.find((item) => item.id === value.slice(2));
-      return reservoir ? `${reservoir.name} — ${localPair(["mực nước hồ", "reservoir level"], value)}` : value;
+      return reservoir ? `${reservoir.name} - ${localPair(["mực nước hồ", "reservoir level"], value)}` : value;
     }
     return localPair({
       rain: ["Mưa lưu vực", "Basin rainfall"],
@@ -224,7 +224,7 @@
         `${t("explain.quality")}: ${enumLabel(q.quality)}`,
         `${t("explain.status")}: ${enumLabel(q.status)}`,
         `${t("explain.reason")}: ${enumLabel(q.reason)}`,
-        `${t("explain.flags")}: ${(q.quality_flags || []).map(enumLabel).join(", ") || "—"}`,
+        `${t("explain.flags")}: ${(q.quality_flags || []).map(enumLabel).join(", ") || "-"}`,
       ].join(" · ");
       row.append(main, meta);
       el.explainQuantities.appendChild(row);
@@ -263,7 +263,7 @@
   /* ---------- MPC text ---------- */
   function mpcText() {
     const p = H.proposal;
-    if (!p) return FT.state.lang === "vi" ? "Không có đề xuất — dòng vào dự báo trong năng lực điều tiết." : "No proposal — forecast inflow within regulation capacity.";
+    if (!p) return FT.state.lang === "vi" ? "Không có đề xuất - dòng vào dự báo trong năng lực điều tiết." : "No proposal - forecast inflow within regulation capacity.";
     /* Lead with the effect the release achieves; the probability of clearing BĐ3
        is residual risk, not the headline — it reads as a failure rate up front. */
     const cut = Math.max(0, p.ruleStage - p.mpcStage);
@@ -287,12 +287,12 @@
     const inN = Math.max(1, Math.round(p.pBelow * 100));     // "~inN in 100 members"
     const overAL3 = p.medPeak >= p.bd3;
     if (vi) {
-      return `Bao ensemble tại ${p.gaugeName} khi đỉnh: <b>${U.fmt(p.p05Peak, 1)} – ${U.fmt(p.medPeak, 1)} – ${U.fmt(p.p95Peak, 1)} m</b> (P05·trung vị·P95), so với BĐ3 ${p.bd3} m. `
+      return `Bao ensemble tại ${p.gaugeName} khi đỉnh: <b>${U.fmt(p.p05Peak, 1)} - ${U.fmt(p.medPeak, 1)} - ${U.fmt(p.p95Peak, 1)} m</b> (P05·trung vị·P95), so với BĐ3 ${p.bd3} m. `
         + (overAL3
             ? `Trung vị vẫn trên BĐ3, nên đề xuất này <b>hạ đỉnh chứ chưa đưa trạm về dưới báo động</b>: khoảng <b>${inN} trong 100</b> thành viên giữ được dưới BĐ3 (${pct}%). Cân nhắc hạ mực nước sớm hơn nếu cần chắc chắn hơn.`
             : `Trung vị đã dưới BĐ3; khoảng <b>${inN} trong 100</b> thành viên vẫn vượt do đuôi trên của bao.`);
     }
-    return `Ensemble envelope at ${p.gaugeName} at the peak: <b>${U.fmt(p.p05Peak, 1)} – ${U.fmt(p.medPeak, 1)} – ${U.fmt(p.p95Peak, 1)} m</b> (P05·median·P95), against AL3 ${p.bd3} m. `
+    return `Ensemble envelope at ${p.gaugeName} at the peak: <b>${U.fmt(p.p05Peak, 1)} - ${U.fmt(p.medPeak, 1)} - ${U.fmt(p.p95Peak, 1)} m</b> (P05·median·P95), against AL3 ${p.bd3} m. `
       + (overAL3
           ? `The median is still above AL3, so this proposal <b>lowers the peak without bringing the gauge back under the alert</b>: about <b>${inN} in 100</b> members hold below AL3 (${pct}%). Consider earlier drawdown if more certainty is needed.`
           : `The median is below AL3; about <b>${inN} in 100</b> members still exceed it on the upper tail.`);
@@ -300,7 +300,7 @@
 
   function decisionPackageHTML() {
     const p = H.proposal;
-    if (!p) return "<p>—</p>";
+    if (!p) return "<p>-</p>";
     const vi = FT.state.lang === "vi";
     /* Lifecycle marker (js/lifecycle.js): this package is an AI RECOMMENDATION until an
        entitled operator approves it, at which point it becomes the APPROVED PLAN in force.
@@ -346,10 +346,10 @@
     switch (key) {
       case "what":
         return sched
-          ? `${outcomeWord(rec.outcome)} — ${vi
+          ? `${outcomeWord(rec.outcome)} - ${vi
               ? `tăng lưu lượng xả tại <b>${snap.reservoirs[sched.reservoir_id].name}</b> từ ${U.fmtInt(sched.from_m3s)} lên <b>${U.fmtInt(sched.to_m3s)} m³/s</b>, bắt đầu ${U.rel(sched.start_sim_h)}, tăng dần trong không quá ${sched.ramp_limit_h} giờ.`
               : `raise the release at <b>${snap.reservoirs[sched.reservoir_id].name}</b> from ${U.fmtInt(sched.from_m3s)} to <b>${U.fmtInt(sched.to_m3s)} m³/s</b>, starting ${U.rel(sched.start_sim_h)}, ramped over no more than ${sched.ramp_limit_h} hours.`}`
-          : `${outcomeWord(rec.outcome)} — ${vi ? "không có lệnh xả nào kèm theo." : "no release order attached."}`;
+          : `${outcomeWord(rec.outcome)} - ${vi ? "không có lệnh xả nào kèm theo." : "no release order attached."}`;
       /* Câu này chỉ nói phần nhất quán: đỉnh hạ bao nhiêu. Bao ensemble và mối
          mâu thuẫn giữa nó với xác suất tồn dư nằm ở phụ lục, nơi có chỗ để nói
          rõ hai con số ra từ hai bộ ước lượng khác nhau. */
@@ -363,8 +363,8 @@
       case "risk":
         return rec.proposal
           ? (vi
-              ? `Xác suất giữ trạm dưới <b>báo động 3</b>, mức cao nhất trong ba mức, là <b>${Math.round(rec.proposal.residual_risk.p_below_al3 * 100)}%</b> — tích phân của bao ensemble ở phụ lục phía dưới BĐ3. Lệnh xả này hạ đỉnh lũ; trung vị vẫn trên báo động, nên nó không đưa trạm về dưới mức báo động.`
-              : `Probability of holding the gauge below <b>alert level 3</b>, the highest of the three, is <b>${Math.round(rec.proposal.residual_risk.p_below_al3 * 100)}%</b> — the integral of the ensemble band in the appendix below AL3. This release lowers the peak; the median is still above the alert, so it does not bring the gauge back under it.`)
+              ? `Xác suất giữ trạm dưới <b>báo động 3</b>, mức cao nhất trong ba mức, là <b>${Math.round(rec.proposal.residual_risk.p_below_al3 * 100)}%</b> - tích phân của bao ensemble ở phụ lục phía dưới BĐ3. Lệnh xả này hạ đỉnh lũ; trung vị vẫn trên báo động, nên nó không đưa trạm về dưới mức báo động.`
+              : `Probability of holding the gauge below <b>alert level 3</b>, the highest of the three, is <b>${Math.round(rec.proposal.residual_risk.p_below_al3 * 100)}%</b> - the integral of the ensemble band in the appendix below AL3. This release lowers the peak; the median is still above the alert, so it does not bring the gauge back under it.`)
           : (vi ? "Không áp dụng." : "Not applicable.");
       case "clause":
         return rec.citations.length
@@ -398,7 +398,7 @@
   function recBandHTML(rec, snap) {
     const vi = FT.state.lang === "vi";
     const b = snap.proposal && snap.proposal.peak_band;
-    if (!b) return `<p>—</p>`;
+    if (!b) return `<p>-</p>`;
     const p = rec.proposal ? Math.round(rec.proposal.residual_risk.p_below_al3 * 100) : null;
     return `<table class="recTbl">
       <tr><th scope="col">P05</th><th scope="col">${vi ? "Trung vị" : "Median"}</th><th scope="col">P95</th><th scope="col">${vi ? "Nguồn" : "Source"}</th></tr>
@@ -425,7 +425,7 @@
   }
 
   /* Bản in là một tài liệu riêng nên tiêu đề của nó là h1. Bản xem trước lại
-     nằm trong trang đang có h1 của ứng dụng, nên phải lùi một bậc — hai h1 trong
+     nằm trong trang đang có h1 của ứng dụng, nên phải lùi một bậc - hai h1 trong
      cùng một tài liệu làm hỏng dàn ý mà trình đọc màn hình dựng ra. */
   function recordDocHTML(rec, lvl) {
     const t = FT.i18n.t;
@@ -454,7 +454,7 @@
       <h1>${t("rec.apx")}</h1>
       <h2>${t("rec.apxSeq")}</h2>
       <table class="recTbl"><tr><th scope="col">#</th><th scope="col">${vi ? "Mã" : "Id"}</th><th scope="col">${vi ? "Kết cục" : "Outcome"}</th><th scope="col">${vi ? "Giờ mô phỏng" : "Sim time"}</th><th scope="col">${vi ? "Thay thế" : "Supersedes"}</th></tr>
-      ${all.map((r) => `<tr><td>${r.seq}</td><td>${r.id}</td><td>${outcomeWord(r.outcome)}</td><td>${U.rel(r.created_at_sim)}</td><td>${r.prior_id || "—"}</td></tr>`).join("")}</table>
+      ${all.map((r) => `<tr><td>${r.seq}</td><td>${r.id}</td><td>${outcomeWord(r.outcome)}</td><td>${U.rel(r.created_at_sim)}</td><td>${r.prior_id || "-"}</td></tr>`).join("")}</table>
       <h2>${t("rec.apxGauge")}</h2>
       <table class="recTbl"><tr><th scope="col">${vi ? "Trạm" : "Gauge"}</th><th scope="col">${vi ? "Mực nước (m)" : "Stage (m)"}</th><th scope="col">${AL()}1/2/3</th><th scope="col">${vi ? "Xu thế 3h" : "3h trend"}</th></tr>
       ${Object.keys(snap.gauges).map((k) => { const g = snap.gauges[k];
@@ -505,7 +505,7 @@
 
   /* ---------- briefs ----------
      The brief is not published as written. Each claim is built as structured data (text,
-     the sources it cites, and — where it states a number — the snapshot field that number
+     the sources it cites, and - where it states a number - the snapshot field that number
      must match), then FT.grounding.verify strikes any claim that is unsourced or whose
      number has drifted from the live value. This makes the info/ai.html §4.3 groundedness
      contract executable and visible instead of merely asserted. */
@@ -553,15 +553,15 @@
       const names = worst.map((z) => `${z.def.name} (${U.fmt(z.maxD, 1)} m${z.accessOk ? "" : vi ? ", mất tuyến EOC" : ", EOC cut"})`).join("; ");
       claims.push({
         text: vi
-          ? `Khu vực trọng điểm: ${names} — tổng ${U.fmtInt(worst.reduce((s, z) => s + z.exposed, 0))} người phơi nhiễm.`
-          : `Priority areas: ${names} — total ${U.fmtInt(worst.reduce((s, z) => s + z.exposed, 0))} people exposed.`,
+          ? `Khu vực trọng điểm: ${names} - tổng ${U.fmtInt(worst.reduce((s, z) => s + z.exposed, 0))} người phơi nhiễm.`
+          : `Priority areas: ${names} - total ${U.fmtInt(worst.reduce((s, z) => s + z.exposed, 0))} people exposed.`,
         cites: ["surrogate", "sensor"],
       });
     }
     claims.push({
       text: vi
-        ? `Triển vọng 12h: nhánh P95 tại ${g0.name} đạt <b>${U.fmt(q95in12, 1)} m</b> ${q95in12 >= g0.bd[2] ? "— <b>có rủi ro vượt BĐ3</b>" : "(dưới BĐ3)"}.`
-        : `12-h outlook: the P95 member at ${g0.name} reaches <b>${U.fmt(q95in12, 1)} m</b> ${q95in12 >= g0.bd[2] ? "— <b>AL3 exceedance risk</b>" : "(below AL3)"}.`,
+        ? `Triển vọng 12h: nhánh P95 tại ${g0.name} đạt <b>${U.fmt(q95in12, 1)} m</b> ${q95in12 >= g0.bd[2] ? "- <b>có rủi ro vượt BĐ3</b>" : "(dưới BĐ3)"}.`
+        : `12-h outlook: the P95 member at ${g0.name} reaches <b>${U.fmt(q95in12, 1)} m</b> ${q95in12 >= g0.bd[2] ? "- <b>AL3 exceedance risk</b>" : "(below AL3)"}.`,
       cites: ["gencast"],
       num: { value: Math.round(q95in12 * 10) / 10, field: { kind: "q95in12", gauge: g0.id }, tol: 0.1 },
     });
@@ -607,7 +607,7 @@
 
   function citizenHTML(snap) {
     const vi = FT.state.lang === "vi";
-    if (!H.ready) return `<p class="abstain">${vi ? "Thiếu bản tin hợp lệ — vui lòng theo kênh chính thức." : "No valid bulletin — please follow official channels."}</p>`;
+    if (!H.ready) return `<p class="abstain">${vi ? "Thiếu bản tin hợp lệ - vui lòng theo kênh chính thức." : "No valid bulletin - please follow official channels."}</p>`;
     const g = D.GAUGES.find((x) => x.id === "cauLau");
     const S = H.series(g.id)[H._activeKey()];
     const t12 = Math.min(H.T1, FT.state.timeH + 12);
@@ -618,14 +618,14 @@
     let a;
     if (q50 < g.bd[0] && q95 < g.bd[1]) {
       a = vi
-        ? `Theo bản tin hiện hành, mực nước Thu Bồn tại Câu Lâu dự báo <b>dưới BĐ1</b> trong 12 giờ tới — khả năng ngập đường khu trung tâm là thấp. Đây là ước lượng xác suất; hãy theo dõi thông báo chính thức.`
-        : `Per the current bulletin, the Thu Bồn at Câu Lâu is forecast to stay <b>below AL1</b> over the next 12 h — street flooding downtown is unlikely. This is a probabilistic estimate; follow official notices.`;
+        ? `Theo bản tin hiện hành, mực nước Thu Bồn tại Câu Lâu dự báo <b>dưới BĐ1</b> trong 12 giờ tới - khả năng ngập đường khu trung tâm là thấp. Đây là ước lượng xác suất; hãy theo dõi thông báo chính thức.`
+        : `Per the current bulletin, the Thu Bồn at Câu Lâu is forecast to stay <b>below AL1</b> over the next 12 h - street flooding downtown is unlikely. This is a probabilistic estimate; follow official notices.`;
     } else {
       a = vi
-        ? `Dựa trên bản tin NCHMF và dự báo mới nhất, có khoảng <b>${prob}%</b> khả năng nước đạt <b>0,3–0,6 m</b> tại các tuyến thấp ven sông Hội An trong đêm nay (Câu Lâu dự báo ${U.fmt(q50, 1)} m, P95 ${U.fmt(q95, 1)} m so với BĐ2 = ${g.bd[1]} m). Đây là ước lượng xác suất; hãy tuân theo thông báo sơ tán chính thức.`
-        : `Based on the NCHMF bulletin and the latest forecast, there is about a <b>${prob}%</b> chance of <b>0.3–0.6 m</b> of water on low riverside streets of Hội An tonight (Câu Lâu forecast ${U.fmt(q50, 1)} m, P95 ${U.fmt(q95, 1)} m vs AL2 = ${g.bd[1]} m). This is a probabilistic estimate; follow official evacuation notices.`;
+        ? `Dựa trên bản tin NCHMF và dự báo mới nhất, có khoảng <b>${prob}%</b> khả năng nước đạt <b>0,3-0,6 m</b> tại các tuyến thấp ven sông Hội An trong đêm nay (Câu Lâu dự báo ${U.fmt(q50, 1)} m, P95 ${U.fmt(q95, 1)} m so với BĐ2 = ${g.bd[1]} m). Đây là ước lượng xác suất; hãy tuân theo thông báo sơ tán chính thức.`
+        : `Based on the NCHMF bulletin and the latest forecast, there is about a <b>${prob}%</b> chance of <b>0.3-0.6 m</b> of water on low riverside streets of Hội An tonight (Câu Lâu forecast ${U.fmt(q50, 1)} m, P95 ${U.fmt(q95, 1)} m vs AL2 = ${g.bd[1]} m). This is a probabilistic estimate; follow official evacuation notices.`;
     }
-    return `<p><i>${q}</i></p><p>${a}${cite("nchmf")}${cite("gencast")}${cite("surrogate")}</p><p style="color:var(--ink-2);font-size:11px">${vi ? "LLM chỉ tổng hợp — độ sâu lấy từ surrogate đã kiểm định, không do mô hình ngôn ngữ tự bịa." : "The LLM only assembles — depths come from the validated surrogate, never invented by the language model."}</p>`;
+    return `<p><i>${q}</i></p><p>${a}${cite("nchmf")}${cite("gencast")}${cite("surrogate")}</p><p style="color:var(--ink-2);font-size:11px">${vi ? "LLM chỉ tổng hợp - độ sâu lấy từ surrogate đã kiểm định, không do mô hình ngôn ngữ tự bịa." : "The LLM only assembles - depths come from the validated surrogate, never invented by the language model."}</p>`;
   }
 
   /* ---------- controls wiring ---------- */
@@ -716,6 +716,55 @@
         el.camPresets.querySelectorAll("button").forEach((x) => x.classList.toggle("isActive", x === b));
       })
     );
+
+    /* Workspace Layout Presets */
+    const layoutGroup = document.getElementById("layoutPresets");
+    if (layoutGroup) {
+      layoutGroup.querySelectorAll("button").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const mode = btn.dataset.layout;
+          layoutGroup.querySelectorAll("button").forEach((b) => b.classList.toggle("isActive", b === btn));
+          document.body.classList.remove("mode-focus", "mode-analytics");
+          if (mode === "focus") {
+            document.body.classList.add("mode-focus");
+          } else if (mode === "analytics") {
+            document.body.classList.add("mode-analytics");
+          }
+          window.dispatchEvent(new Event("resize"));
+          FT.notify && FT.notify(`Giao diện: ${btn.textContent}`, "info");
+        });
+      });
+    }
+
+    /* Accordion Panels toggle */
+    document.querySelectorAll(".panelTitle").forEach((title) => {
+      title.addEventListener("click", (ev) => {
+        if (ev.target.closest("button") || ev.target.closest("a")) return;
+        const panel = title.closest(".panel");
+        if (panel) panel.classList.toggle("isCollapsed");
+      });
+    });
+
+    // Default collapse secondary panels for clean UI space
+    const collapseSecondary = ["subcatchPanel", "evacPanel", "metricsPanel", "panelForcing"];
+    collapseSecondary.forEach((cls) => {
+      const p = document.querySelector(`.${cls}`);
+      if (p) p.classList.add("isCollapsed");
+    });
+
+    /* Performance Mode (Low-GPU Mode) */
+    const btnPerf = document.getElementById("btnPerfMode");
+    if (btnPerf) {
+      btnPerf.addEventListener("click", () => {
+        FT.state.perfMode = !FT.state.perfMode;
+        btnPerf.classList.toggle("isActive", FT.state.perfMode);
+        btnPerf.innerHTML = FT.icon("lightning") + (FT.state.perfMode ? "Chế độ Mượt (đang bật)" : "Chế độ Mượt");
+        if (FT.scene3d && FT.scene3d.setPerfMode) {
+          FT.scene3d.setPerfMode(FT.state.perfMode);
+        }
+        FT.notify(FT.state.perfMode ? "Chế độ Mượt: ĐÃ BẬT. Giảm tải để giữ khung hình trên máy yếu." : "Chế độ Mượt: TẮT. Chất lượng đồ hoạ tối đa.", "info");
+      });
+    }
 
     /* scenario & policy */
     el.scenarioSelect.value = FT.state.scenario;
@@ -830,29 +879,29 @@
       const vi = FT.state.lang === "vi";
       openModal("modal.method", (vi ? `
         <h4>Thật (chạy trong trình duyệt)</h4>
-        <p>· Mô phỏng nước mặt: <b>shallow-water height-field</b> (virtual pipes, Mei 2007) lưới 288², chỉ chạy động lực trên đồng bằng &lt;28 m — thượng lưu là đoạn chẩn đoán (tương ứng cấu trúc 1D/2D của paper §5).<br>
+        <p>· Mô phỏng nước mặt: <b>shallow-water height-field</b> (virtual pipes, Mei 2007) lưới 288², chỉ chạy động lực trên đồng bằng &lt;28 m - thượng lưu là đoạn chẩn đoán (tương ứng cấu trúc 1D/2D của paper §5).<br>
         · <b>Đồng hóa mực trạm</b> dọc hành lang sông (vòng lặp DA của twin, §6).<br>
         · <b>Routing hồ chứa</b> tích phân cân bằng khối cho cả hai chính sách (rule curve §3 · MPC §6), ensemble lan rộng theo lead time.<br>
         · <b>Giao thông</b>: Dijkstra thời gian thực trên mạng đường, đóng ở ≥30 cm (He 2026).<br>
         · Ngưỡng báo động BĐ1/2/3, tên hồ/trạm/sông, khung pháp lý QĐ 1865/QĐ-TTg là <b>thật</b>.</p>
         <h4>Bản đồ thật</h4>
-        <p>· Địa hình: <b>DEM thật</b> (AWS Terrarium z12 ≈ 37 m/px toàn lưu vực + lớp phủ z14 ≈ 9 m/px trên đồng bằng Hội An–Vĩnh Điện–Ái Nghĩa–Cẩm Lệ) cho bbox 107,55–108,45°E / 15,30–16,16°N (96 km). <b>Giới hạn thật:</b> đây là DEM vệ tinh miễn phí — sai số đứng ±vài mét; độ chính xác 0,1 m cần LiDAR đo đạc (không có nguồn stream web). Ảnh <b>Esri World Imagery z12</b> + tile động tới <b>z19 (~0,3 m/px)</b> khi zoom; <b>đường thật</b> Esri World Transportation; tọa độ đập/trạm/khu là vị trí thật.</p>
+        <p>· Địa hình: <b>DEM thật</b> (AWS Terrarium z12 ≈ 37 m/px toàn lưu vực + lớp phủ z14 ≈ 9 m/px trên đồng bằng Hội An-Vĩnh Điện-Ái Nghĩa-Cẩm Lệ) cho bbox 107,55-108,45°E / 15,30-16,16°N (96 km). <b>Giới hạn thật:</b> đây là DEM vệ tinh miễn phí - sai số đứng ±vài mét; độ chính xác 0,1 m cần LiDAR đo đạc (không có nguồn stream web). Ảnh <b>Esri World Imagery z12</b> + tile động tới <b>z19 (~0,3 m/px)</b> khi zoom; <b>đường thật</b> Esri World Transportation; tọa độ đập/trạm/khu là vị trí thật.</p>
         <h4>Tổng hợp (minh hoạ)</h4>
         <p>· Mưa/dòng vào là hàm giải tích khớp hình dạng sự kiện 10/2020 & Yagi; tòa nhà suy ra từ pixel ảnh (không phải footprint từng căn); chỉ số CSI/NSE/KGE là <b>mục tiêu thiết kế §8</b>, không phải đo đạc.<br>
-        · Bản tin LLM là khuôn mẫu có trích dẫn — minh hoạ ràng buộc groundedness ≥ 0,95 (§7), không gọi mô hình thật.</p>
+        · Bản tin LLM là khuôn mẫu có trích dẫn - minh hoạ ràng buộc groundedness ≥ 0,95 (§7), không gọi mô hình thật.</p>
         <h4>Ánh xạ paper</h4>
         <p>Forcing §4 → thanh cưỡng bức · Surrogate §5 → SWE + chip 68× · Tối ưu §6 → Rule⇄MPC + gói quyết định · LLM §7 → bản tin/hỏi đáp · Benchmark §8 → thẻ chỉ số.</p>` : `
         <h4>Real (runs in your browser)</h4>
-        <p>· Surface water: <b>shallow-water height-field</b> (virtual pipes, Mei 2007), 288² grid, dynamics on the &lt;28 m floodplain only — upstream reaches are diagnostic (mirroring the paper's 1D/2D split, §5).<br>
+        <p>· Surface water: <b>shallow-water height-field</b> (virtual pipes, Mei 2007), 288² grid, dynamics on the &lt;28 m floodplain only - upstream reaches are diagnostic (mirroring the paper's 1D/2D split, §5).<br>
         · <b>Gauge-stage assimilation</b> along river corridors (the twin's DA loop, §6).<br>
         · <b>Reservoir routing</b> with mass balance for both policies (rule curve §3 · MPC §6); ensemble spread grows with lead time.<br>
         · <b>Traffic</b>: live Dijkstra over the road graph, closures at ≥30 cm (He 2026).<br>
         · Alert stages AL1/2/3, reservoir/gauge/river names and the 1865/QD-TTg legal frame are <b>real</b>.</p>
         <h4>Real map</h4>
-        <p>· Terrain: <b>real DEM</b> (AWS Terrarium z12 ≈ 37 m/px basin-wide + a z14 ≈ 9 m/px overlay across the Hội An–Vĩnh Điện–Ái Nghĩa–Cẩm Lệ delta) over 107.55–108.45°E / 15.30–16.16°N (96 km). <b>Honest limit:</b> this is free satellite DEM — vertical error ±several metres; 0.1 m accuracy needs surveyed LiDAR (no web-streamable source exists). <b>Esri World Imagery z12</b> + viewport tiles up to <b>z19 (~0.3 m/px)</b> on zoom; <b>real roads</b> via Esri World Transportation; dam/gauge/zone coordinates are real.</p>
+        <p>· Terrain: <b>real DEM</b> (AWS Terrarium z12 ≈ 37 m/px basin-wide + a z14 ≈ 9 m/px overlay across the Hội An-Vĩnh Điện-Ái Nghĩa-Cẩm Lệ delta) over 107.55-108.45°E / 15.30-16.16°N (96 km). <b>Honest limit:</b> this is free satellite DEM - vertical error ±several metres; 0.1 m accuracy needs surveyed LiDAR (no web-streamable source exists). <b>Esri World Imagery z12</b> + viewport tiles up to <b>z19 (~0.3 m/px)</b> on zoom; <b>real roads</b> via Esri World Transportation; dam/gauge/zone coordinates are real.</p>
         <h4>Synthetic (illustrative)</h4>
         <p>· Rainfall/inflows are analytic functions shaped after Oct-2020 & Yagi; buildings are inferred from imagery pixels (not per-building footprints); the CSI/NSE/KGE shown are the paper's <b>§8 design targets</b>, not measurements.<br>
-        · The LLM brief is a cited template — illustrating the ≥0.95 groundedness bound (§7), no live model call.</p>
+        · The LLM brief is a cited template - illustrating the ≥0.95 groundedness bound (§7), no live model call.</p>
         <h4>Paper mapping</h4>
         <p>Forcing §4 → forcing panel · Surrogate §5 → SWE + 68× chip · Optimisation §6 → Rule⇄MPC + decision package · LLM §7 → briefs · Benchmarks §8 → metric card.</p>`) +
         `<button id="methodExplainState" class="btnPrimary" type="button">${FT.i18n.t("explain.methodGateway")}</button>`);
@@ -964,7 +1013,7 @@
       ${D.GAUGES.map((g) => {
         const gs = snap.gauges[g.id];
         const q95 = H.sample(H.series(g.id)[H._activeKey()].q95, Math.min(H.T1, FT.state.timeH + 12));
-        return `<tr><td>${g.name} (${g.river})</td><td>${U.fmt(gs.stage, 2)}</td><td>${g.bd.join(" / ")}</td><td>${gs.alert ? AL() + gs.alert : "—"}</td><td>${U.fmt(q95, 1)}</td></tr>`;
+        return `<tr><td>${g.name} (${g.river})</td><td>${U.fmt(gs.stage, 2)}</td><td>${g.bd.join(" / ")}</td><td>${gs.alert ? AL() + gs.alert : "-"}</td><td>${U.fmt(q95, 1)}</td></tr>`;
       }).join("")}</table>
       <h2>${t("report.res")}</h2>
       <table><tr><th></th><th>${t("report.level")}</th><th>${t("report.ceil")}</th><th>${t("report.io")}</th></tr>
@@ -976,7 +1025,7 @@
       <table><tr><th></th><th>${t("report.depth")}</th><th>${t("report.exposed")}</th><th>${t("report.access")}</th></tr>
       ${zsorted.map((z) => `<tr><td>${z.def.name}</td><td>${U.fmt(z.maxD, 2)}</td><td>${U.fmtInt(z.exposed)}</td><td>${z.accessOk ? z.accessMin + "′" : t("zone.accessCut")}</td></tr>`).join("")}</table>
       <h2>${t("report.traffic")}</h2>
-      <p>${t("tr.open")}: ${ts.openPct}% · ${t("tr.closed")}: ${ts.closed} · ${t("tr.eta")}: ${ts.etaMin > 0 ? ts.etaMin + "′" : "—"}</p>
+      <p>${t("tr.open")}: ${ts.openPct}% · ${t("tr.closed")}: ${ts.closed} · ${t("tr.eta")}: ${ts.etaMin > 0 ? ts.etaMin + "′" : "-"}</p>
       <h2>${t("report.brief")}</h2>
       <div class="prBrief">${situationBriefHTML(snap)}</div>
       <p style="margin-top:3mm">${$("mpcCompare") ? $("mpcCompare").textContent : ""}</p>
@@ -1009,6 +1058,12 @@
     tourActive = true;
     $("btnTour").classList.add("running");
     closeModal();
+    if (FT.state.view !== "3d") setView("3d");
+    if (FT.scene3d && FT.scene3d.runCinematicDemo) {
+      FT.scene3d.runCinematicDemo(() => {
+        stopTour(true);
+      });
+    }
     /* reset to a clean rule-curve run */
     if (FT.state.scenario !== "oct2020") { el.scenarioSelect.value = "oct2020"; el.scenarioSelect.dispatchEvent(new Event("change")); }
     setPolicyBtn("rule");
@@ -1081,7 +1136,7 @@
        live in the decision package's residual-risk section. R-33. */
     el.mpcConfidence.textContent = H.proposal
       ? `−${U.fmt(Math.max(0, H.proposal.ruleStage - H.proposal.mpcStage), 1)} m`
-      : "—";
+      : "-";
     /* head-to-head peak comparison at the governing gauge */
     const cmp = $("mpcCompare");
     if (cmp) {
@@ -1094,7 +1149,19 @@
   }
 
   function setView(v) {
+    const prevView = FT.state.view;
     if (v === "3d" && !FT.state.threeReady) v = "2d";
+
+    if (prevView !== v) {
+      if (v === "3d" && prevView === "2d" && FT.map2d && FT.map2d.getCam && FT.scene3d && FT.scene3d.syncFrom2D) {
+        const c2 = FT.map2d.getCam();
+        FT.scene3d.syncFrom2D(c2.x, c2.y, c2.scale);
+      } else if (v === "2d" && prevView === "3d" && FT.scene3d && FT.scene3d.getCam && FT.map2d && FT.map2d.syncFrom3D) {
+        const c3 = FT.scene3d.getCam();
+        if (c3) FT.map2d.syncFrom3D(c3.x, c3.z, c3.dist);
+      }
+    }
+
     FT.state.view = v;
     el.viewTabs.querySelectorAll("button").forEach((b) => {
       const on = b.dataset.view === v;
@@ -1177,22 +1244,22 @@
         <div><span>${FT.i18n.t("zone.access")}</span><strong style="${zs.accessOk ? "" : "color:var(--al-3)"}">${zs.accessOk ? zs.accessMin + " " + FT.i18n.t("unit.min") : FT.i18n.t("zone.accessCut")}</strong></div>
         <div><span>${FT.i18n.t("zone.gauge")}</span><strong>${g.name} ${U.fmt(gs.stage, 1)} m${gs.alert ? " · " + AL() + gs.alert : ""}</strong></div>
       </div>
-      ${FT.state.threeReady ? `<p style="margin:2px 0 6px;font-size:12px">🏠 <b>~${U.fmtInt(FT.scene3d.homesInRadius(zs.def.x, zs.def.y, zs.def.r))}</b> ${FT.i18n.t("impact.homes").toLowerCase()} (≥15 cm)</p>` : ""}
+      ${FT.state.threeReady ? `<p style="margin:2px 0 6px;font-size:12px">${FT.icon("house")} <b>~${U.fmtInt(FT.scene3d.homesInRadius(zs.def.x, zs.def.y, zs.def.r))}</b> ${FT.i18n.t("impact.homes").toLowerCase()} (≥15 cm)</p>` : ""}
       <h4>${FT.i18n.t("zone.history")}</h4>
       <canvas class="zoneSpark" id="zoneSparkCanvas"></canvas>
       <h4>${FT.i18n.t("zone.pois")}</h4>
-      ${zs.pois.map((p) => `<div class="poiRow"><span>${p.t === "hosp" ? "🏥" : p.t === "bridge" ? "🌉" : p.t === "school" ? "🏫" : p.t === "herit" ? "🏮" : p.t === "eoc" ? "🚨" : "🛣️"}</span>${p.n}<b class="${p.ok ? "ok" : "bad"}">${p.ok ? FT.i18n.t("zone.ok") : FT.i18n.t("zone.flooded") + " " + Math.round(p.depth * 100) + " cm"}</b></div>`).join("")}
+      ${zs.pois.map((p) => `<div class="poiRow"><span class="poiIco">${FT.icon(p.t === "hosp" ? "first-aid" : p.t === "bridge" ? "bridge" : p.t === "school" ? "student" : p.t === "herit" ? "bank" : p.t === "eoc" ? "siren" : "road-horizon")}</span>${p.n}<b class="${p.ok ? "ok" : "bad"}">${p.ok ? FT.i18n.t("zone.ok") : FT.i18n.t("zone.flooded") + " " + Math.round(p.depth * 100) + " cm"}</b></div>`).join("")}
       <h4>${FT.i18n.t("zone.actions")}</h4>
-      ${zs.actions.length ? `<ul class="zoneActions">${zs.actions.map((a) => `<li>${a}</li>`).join("")}</ul>` : `<p style="color:var(--ink-2)">${vi ? "Chưa cần hành động — tiếp tục theo dõi." : "No action needed — keep monitoring."}</p>`}
+      ${zs.actions.length ? `<ul class="zoneActions">${zs.actions.map((a) => `<li>${a}</li>`).join("")}</ul>` : `<p style="color:var(--ink-2)">${vi ? "Chưa cần hành động - tiếp tục theo dõi." : "No action needed - keep monitoring."}</p>`}
       <div class="mpcActions" style="margin-top:12px">
-        <button id="zoneFly" class="btnPrimary" type="button">🎯 ${FT.i18n.t("zone.flyto")}</button>
+        <button id="zoneFly" class="btnPrimary" type="button">${FT.icon("crosshair")} ${FT.i18n.t("zone.flyto")}</button>
       </div>`;
   }
 
   function openZoneDetail(id) {
     const zs = FT.zones.byId(id);
     if (!zs) return;
-    el.modalTitle.textContent = `${FT.i18n.t("modal.zone")} — ${zs.def.name} · ${FT.i18n.t("zone.st" + zs.status)}`;
+    el.modalTitle.textContent = `${FT.i18n.t("modal.zone")} - ${zs.def.name} · ${FT.i18n.t("zone.st" + zs.status)}`;
     el.modalBody.innerHTML = zoneDetailHTML(zs);
     el.modalScrim.hidden = false;
     const fly = $("zoneFly");
@@ -1227,7 +1294,7 @@
       ref.dot.style.background = U.alertColor(zs.status);
       ref.dot.style.boxShadow = `0 0 8px ${U.alertColor(zs.status)}`;
       ref.name.textContent = zs.def.name;
-      ref.depth.textContent = zs.maxD > 0.02 ? `${U.fmt(zs.maxD, 2)} m` : "—";
+      ref.depth.textContent = zs.maxD > 0.02 ? `${U.fmt(zs.maxD, 2)} m` : "-";
       ref.m1.textContent = `${U.fmtInt(zs.exposed)} ${FT.i18n.t("unit.people")}`;
       ref.m2.className = `m2 ${zs.trend > 0.01 ? "up" : zs.trend < -0.01 ? "down" : ""}`;
       ref.m2.textContent = zs.trend > 0.01 ? "▲" : zs.trend < -0.01 ? "▼" : "•";
@@ -1239,7 +1306,7 @@
       el.zoneList.appendChild(ref.root);            // re-append = reorder by severity
     }
     const c = FT.zones.counts();
-    el.zonesSummary.textContent = `${c.red} 🔴 · ${c.orange} 🟠`;
+    el.zonesSummary.innerHTML = `<i class="zDot" style="background:var(--al-3)"></i>${c.red} <i class="zDot" style="background:var(--al-2)"></i>${c.orange}`;
     el.kpiZonesValue.textContent = `${c.orange} / ${c.red}`;
     el.kpiZonesValue.style.color = c.red > 0 ? U.css("--al-3") : c.orange > 0 ? U.css("--al-2") : "";
   }
@@ -1249,7 +1316,7 @@
     for (const g of D.GAUGES) {
       const o = document.createElement("option");
       o.value = g.id;
-      o.textContent = `${g.name} — ${g.river}`;
+      o.textContent = `${g.name} - ${g.river}`;
       el.gaugeSelect.appendChild(o);
     }
     el.gaugeSelect.value = FT.state.selectedGauge;
@@ -1370,7 +1437,7 @@
     el.trClosed.textContent = ts.closed;
     el.trClosed.className = ts.closed > 0 ? "bad" : "";
     el.trReroute.textContent = ts.rerouted;
-    el.trEta.textContent = ts.etaMin > 0 ? `${ts.etaMin} ${FT.i18n.t("unit.min")}` : "—";
+    el.trEta.textContent = ts.etaMin > 0 ? `${ts.etaMin} ${FT.i18n.t("unit.min")}` : "-";
 
     const sig = ts.closures.map((x) => x.name + x.cls).join("|");
     if (sig !== closureSig) {

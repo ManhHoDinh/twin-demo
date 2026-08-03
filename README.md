@@ -42,21 +42,21 @@ for f in js/*.js; do node --check "$f"; done
 
 ## Cấu trúc
 
-| File | Vai trò |
-|---|---|
-| `js/core.js` | namespace, state, event bus, i18n VI/EN, utils |
-| `js/data.js` | địa lý VGTB, kịch bản (10/2020, Yagi, gió mùa), mạng đường, corpus trích dẫn |
-| `js/hydro.js` | engine thủy văn giải tích: hồ chứa 2 chính sách, ensemble, sự kiện |
-| `js/world.js` | địa hình, sông, SWE virtual-pipes, đồng hóa, lưới giao thông |
-| `js/traffic.js` | agent xe, Dijkstra, re-route theo độ sâu |
-| `js/map2d.js` | bản đồ 2D + hạt dòng chảy + tương tác |
-| `js/scene3d.js` | Three.js: địa hình, nước shader, đập, xe, mưa |
-| `js/charts.js` | hydrograph fan + timeline scrubber |
-| `js/zones.js` | 12 khu vực giám sát: ngập, phơi nhiễm, tuyến EOC, hành động |
-| `js/vndata.js` | hình học Việt Nam + 26 hồ thủy điện + bão theo kịch bản |
-| `js/hydronat.js` | engine quốc gia đa yếu tố (bão·mưa·đất·routing·triều) |
-| `js/nation.js` | scene 3D toàn quốc + panel vận hành + drill-down |
-| `js/ui.js` | panels, KPI, modal, brief LLM, toasts |
-| `js/main.js` | bootstrap + vòng lặp mô phỏng/render |
+| File               | Vai trò                                                                                  |
+| ------------------ | ----------------------------------------------------------------------------------------- |
+| `js/core.js`     | namespace, state, event bus, i18n VI/EN, utils                                            |
+| `js/data.js`     | địa lý VGTB, kịch bản (10/2020, Yagi, gió mùa), mạng đường, corpus trích dẫn |
+| `js/hydro.js`    | engine thủy văn giải tích: hồ chứa 2 chính sách, ensemble, sự kiện              |
+| `js/world.js`    | địa hình, sông, SWE virtual-pipes, đồng hóa, lưới giao thông                    |
+| `js/traffic.js`  | agent xe, Dijkstra, re-route theo độ sâu                                               |
+| `js/map2d.js`    | bản đồ 2D + hạt dòng chảy + tương tác                                            |
+| `js/scene3d.js`  | Three.js: địa hình, nước shader, đập, xe, mưa                                     |
+| `js/charts.js`   | hydrograph fan + timeline scrubber                                                        |
+| `js/zones.js`    | 12 khu vực giám sát: ngập, phơi nhiễm, tuyến EOC, hành động                     |
+| `js/vndata.js`   | hình học Việt Nam + 26 hồ thủy điện + bão theo kịch bản                         |
+| `js/hydronat.js` | engine quốc gia đa yếu tố (bão·mưa·đất·routing·triều)                        |
+| `js/nation.js`   | scene 3D toàn quốc + panel vận hành + drill-down                                      |
+| `js/ui.js`       | panels, KPI, modal, brief LLM, toasts                                                     |
+| `js/main.js`     | bootstrap + vòng lặp mô phỏng/render                                                  |
 
 **Dữ liệu tổng hợp minh hoạ phương pháp — không dùng cho vận hành thật.**

@@ -369,10 +369,10 @@
       if (segs.length < 20) return false;
       G.osmRoads = segs;
       G.hasOSM = true;
-      console.info(`[geo] OSM roads OK — ${segs.length} segments`);
+      console.info(`[geo] OSM roads OK - ${segs.length} segments`);
       return true;
     } catch (e) {
-      console.warn("[geo] OSM roads unavailable — keeping skeleton", e && e.message);
+      console.warn("[geo] OSM roads unavailable - keeping skeleton", e && e.message);
       return false;
     }
   };
@@ -416,7 +416,7 @@
       if (fps.length < 50) return false;
       G.osmBuildings = fps;
       G.hasOSMBldg = true;
-      console.info(`[geo] OSM buildings OK — ${fps.length} footprints`);
+      console.info(`[geo] OSM buildings OK - ${fps.length} footprints`);
       return true;
     } catch (e) {
       console.warn("[geo] OSM buildings unavailable", e && e.message);
@@ -464,7 +464,7 @@
       if (segs.length < 50) return false;
       G.osmMinor = segs;
       G.hasOSMMinor = true;
-      console.info(`[geo] OSM minor roads OK — ${segs.length} đoạn (đường nhỏ + hẻm)`);
+      console.info(`[geo] OSM minor roads OK - ${segs.length} đoạn (đường nhỏ + hẻm)`);
       return true;
     } catch (e) {
       console.warn("[geo] OSM minor roads unavailable", e && e.message);
@@ -509,7 +509,7 @@
       ]);
       console.info(`[geo] DEM ${dem ? "OK" : "fallback"} · imagery ${img ? "OK" : "fallback"}`);
     } catch (e) {
-      console.warn("[geo] real-map load failed — procedural fallback", e);
+      console.warn("[geo] real-map load failed - procedural fallback", e);
     }
     return { dem: G.hasDEM, imagery: G.hasImagery };
   };

@@ -111,9 +111,9 @@
     const roleName = role ? (vi() ? ROLES[role].vi : ROLES[role].en) : L("chưa định danh", "unidentified");
     const mayPropose = R.canPropose(id, role);
     return L(
-      `${id} — ${d ? d.vi : ""}: thẩm quyền quyết định thuộc **${who}**. Vai trò hiện tại (${roleName}) ` +
+      `${id} - ${d ? d.vi : ""}: thẩm quyền quyết định thuộc **${who}**. Vai trò hiện tại (${roleName}) ` +
         (mayPropose ? "được ĐỀ XUẤT và thực hiện, không được phê duyệt." : "không có vai trò trong quyết định này."),
-      `${id} — ${d ? d.en : ""}: this decision is accountable to **${who}**. The current role (${roleName}) ` +
+      `${id} - ${d ? d.en : ""}: this decision is accountable to **${who}**. The current role (${roleName}) ` +
         (mayPropose ? "may PROPOSE and execute it, but not approve it." : "has no role in this decision.")
     );
   };
