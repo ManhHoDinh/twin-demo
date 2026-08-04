@@ -151,9 +151,11 @@
     fpsAcc += dtReal; fpsN++;
     if (fpsAcc > 0.5) {
       const el = document.getElementById("fpsMeter");
-      if (el) el.textContent = `${Math.round(fpsN / fpsAcc)} fps`;
+      const fps = Math.round(fpsN / fpsAcc);
+      if (el) el.textContent = `${fps} fps`;
       fpsAcc = 0; fpsN = 0;
       updateMeasuredMetrics();
+      adaptChrome(fps);
     }
 
     const st = FT.state;
@@ -215,6 +217,24 @@
       FT.charts.render(snap);
     }
     prevT = st.timeH;
+  }
+
+  /* Chrome quality follows the measured frame rate.
+     Every translucent surface floating over the map costs the compositor a backdrop
+     re-blur EVERY frame, because the canvas underneath is never the same twice. On a
+     machine that is already missing frames that spend buys nothing an operator wants, so
+     the glass is shed first. Hysteresis (drop below 40, restore above 52) keeps it from
+     flickering around the threshold; `hold` requires the condition to persist for four
+     half-second samples, so one slow frame from a scenario rebuild does not trip it. */
+  let chromeLite = false, liteHold = 0;
+  function adaptChrome(fps) {
+    if (document.hidden || !fps) return;
+    const want = chromeLite ? fps < 52 : fps < 40;
+    liteHold = want === chromeLite ? 0 : liteHold + 1;
+    if (liteHold < 4) return;
+    liteHold = 0;
+    chromeLite = want;
+    document.body.classList.toggle("perfLite", chromeLite);
   }
 
   /* Live, MEASURED accuracy readouts (no aspirational numbers): real DEM ground

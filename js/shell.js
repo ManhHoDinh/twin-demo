@@ -566,7 +566,7 @@
      Auto-hide chrome while manipulating the map
      ====================================================================== */
   let hideTimer = null;
-  const chromeEls = () => document.querySelectorAll(".cmdBar, .geoDock, .geoViewCtl, .geoModeRail");
+  const chromeEls = () => document.querySelectorAll(".geoTopBar, .geoDock, .geoViewCtl, .geoModeRail");
   function chromeHide() { chromeEls().forEach((n) => n.classList.add("hidden-chrome")); }
   function chromeShow() { chromeEls().forEach((n) => n.classList.remove("hidden-chrome")); }
   function armAutoHide() {
@@ -611,6 +611,24 @@
   }
 
   /* ======================================================================
+     SHELL HEARTBEAT
+     The shell mirrors engine state it does not own (escalation, alarm count, a pending
+     decision, the fps readout). That was four separate setIntervals at 800/900/1000/1000 ms,
+     so the main thread woke ~4x/s and each wake read the DOM while the map was drawing.
+     They now share ONE timer, and it stands down entirely while the tab is hidden, where
+     the numbers cannot be seen and the timer is throttled anyway.
+     ====================================================================== */
+  const beats = [];
+  const everyTick = (fn) => beats.push(fn);
+  function startHeartbeat() {
+    setInterval(() => {
+      if (document.hidden) return;
+      for (const b of beats) { try { b(); } catch (e) { /* one stale mirror must not stop the rest */ } }
+    }, 600);
+  }
+  let syncEsc = () => {}, syncAlert = () => {};
+
+  /* ======================================================================
      BUILD — runs after the original UI has initialised
      ====================================================================== */
   function build() {
@@ -634,6 +652,8 @@
     buildCheatsheet();
     armAutoHide();
     initKeys();
+    everyTick(syncEsc); everyTick(syncAlert);
+    startHeartbeat();
     document.body.classList.add("geoshell");  // ← flips the whole layout on, last
     syncWorkspaceYield(FT.workspaces && FT.workspaces.current ? FT.workspaces.current() : null);
     // initial hint
@@ -774,21 +794,27 @@
     const tour = $("btnTour"); if (tour) bar.appendChild(tour);
     const lang = $("langToggle"); if (lang) bar.appendChild(lang);
 
-    document.body.appendChild(bar);
-    FT.dom = FT.dom || {}; FT.dom.cmdBar = bar;
+    /* One header block instead of three free-floating boxes. The command bar, the action
+       toolbar and the ops-signal strip were each `position: fixed` at their own y-offset
+       (8, 60, 106) and their own centring, so they shared no edge with one another and the
+       stagger read as three unrelated overlays. Docked in one header they align to two
+       baselines, and the panels below can hang off a measured bottom instead of a guess. */
+    const top = el("header", "geoTopBar");
+    top.appendChild(bar);
+    document.body.appendChild(top);
+    FT.dom = FT.dom || {}; FT.dom.cmdBar = bar; FT.dom.topBar = top;
 
     // keep escalation/alert pills in sync with existing values
-    const syncEsc = () => {
+    syncEsc = () => {
       const v = ($("opsEscVal") && $("opsEscVal").textContent || "L0").trim();
-      const cev = $("cmdEscVal"); if (cev) cev.textContent = v;
-      const n = (v.match(/\d/) || ["0"])[0]; esc.dataset.esc = n;
+      const cev = $("cmdEscVal"); if (cev && cev.textContent !== v) cev.textContent = v;
+      const n = (v.match(/\d/) || ["0"])[0]; if (esc.dataset.esc !== n) esc.dataset.esc = n;
     };
-    const syncAlert = () => {
+    syncAlert = () => {
       const c = ($("alarmCount") && $("alarmCount").textContent || "0").trim();
-      const cn = $("cmdAlertN"); if (cn) cn.textContent = c;
+      const cn = $("cmdAlertN"); if (cn && cn.textContent !== c) cn.textContent = c;
       const active = +c > 0; al.classList.toggle("active", active); al.classList.toggle("quiet", !active);
     };
-    setInterval(() => { syncEsc(); syncAlert(); }, 900);
     syncEsc(); syncAlert();
 
     key("cmd+k", "Bảng lệnh", () => Palette.toggle(), "Chung");
@@ -803,14 +829,34 @@
      operators and the e2e flows always reach them in one click. */
   function buildActions() {
     const bar = el("div", "geoActions"); bar.setAttribute("role", "toolbar"); bar.setAttribute("aria-label", "Hành động nhanh");
+    /* The button faces are short so the toolbar shares one header row with the signal
+       strip; the full purpose has to survive that, so it becomes the accessible name. */
+    const TIPS = {
+      nfThreshold: "Soạn bản tin mực nước vượt ngưỡng",
+      nfRelease: "Thông báo xả lũ hồ chứa",
+      nfEvac: "Lệnh sơ tán dân cư",
+      btnReport: "Xuất báo cáo tình huống lũ bão",
+    };
+    /* The group caption is an aria-label, not visible text: two captions cost ~150 px of
+       the row, which is the difference between the signal strip fitting beside this
+       toolbar and the decision deadline being pushed off the right edge. The separator
+       and the amber dispatch styling carry the grouping; every button states its own
+       purpose on hover and to a screen reader. */
     const grp = (label, ids) => {
-      const g = el("div", "actGroup"); g.appendChild(el("span", "actLabel", label));
-      ids.forEach((id) => { const btn = $(id); if (btn) { btn.classList.add("actBtn"); g.appendChild(btn); } });
+      const g = el("div", "actGroup");
+      g.setAttribute("role", "group"); g.setAttribute("aria-label", label);
+      ids.forEach((id) => {
+        const btn = $(id); if (!btn) return;
+        btn.classList.add("actBtn");
+        if (!btn.title && TIPS[id]) btn.title = TIPS[id];   // keep the richer titles index.html sets
+        if (btn.title) btn.setAttribute("aria-label", btn.title);
+        g.appendChild(btn);
+      });
       if (g.querySelectorAll(".actBtn").length) bar.appendChild(g);
     };
     grp("Thông báo", ["nfThreshold", "nfRelease", "nfEvac"]);          // downstream notification composer (WF-09)
     grp("Báo cáo", ["btnReport", "btnRepOperation", "btnRepEvent"]);    // operation record / post-event (WF-12)
-    document.body.appendChild(bar);
+    (FT.dom.topBar || document.body).appendChild(bar);
     FT.dom.actions = bar;
   }
 
@@ -826,8 +872,21 @@
     ["opsEsc", "opsHealth", "opsKappa", "opsPex", "opsDeadline"].forEach((id) => {
       const n = $(id); if (n) { n.classList.add("opsStripItem"); strip.appendChild(n); }
     });
-    document.body.appendChild(strip);
+    (FT.dom.topBar || document.body).appendChild(strip);
     FT.dom.opsStrip = strip;
+
+    /* Every summoned panel hangs off the bottom of the header. Measure it rather than
+       hard-coding an offset: the rows reflow at narrow widths and under browser text zoom,
+       and a fixed offset put the inspector underneath the header there. */
+    const top = FT.dom.topBar;
+    if (top) {
+      const syncTopY = () => {
+        document.documentElement.style.setProperty(
+          "--geoTopY", (Math.ceil(top.getBoundingClientRect().bottom) + 8) + "px");
+      };
+      requestAnimationFrame(syncTopY);
+      if (window.ResizeObserver) new ResizeObserver(syncTopY).observe(top);
+    }
   }
 
   function cycleScenario() {
@@ -1238,10 +1297,17 @@
       });
       wrap.appendChild(b);
     });
-    document.body.appendChild(wrap);
-    document.body.appendChild(status);
-    document.body.appendChild(layer);
+    /* One fixed column, three children in flow — not three independently-positioned fixed
+       boxes each with its own hand-computed `bottom`. Those offsets (+88, +360, +414 above
+       the timeline) only held at one viewport height: on a short screen they drifted into
+       each other and into the header. Stacked in flow an overlap is not expressible. */
+    const col = el("div", "earthColumn");
+    col.appendChild(layer);
+    col.appendChild(status);
+    col.appendChild(wrap);
+    document.body.appendChild(col);
     FT.dom.earthNav = wrap;
+    FT.dom.earthColumn = col;
     FT.dom.earthCameraStatus = status;
     FT.dom.earthLayerLabel = layer;
     FT.bus.on("camera.fly.start", (ev) => say(`Đang bay tới ${cameraIntentName(ev && ev.intent)}`));
@@ -1368,7 +1434,7 @@
       lastHidden = !has;
       if (!pending()) minimizePill(false);
     };
-    setInterval(check, 800);
+    everyTick(check);
     FT.bus.on("scrubbed", check);
 
     key("d", "Bảng quyết định", () => fp.toggle(), "Quyết định");
@@ -1382,11 +1448,11 @@
     key("n", "Cảnh báo", () => fp.toggle(), "Cảnh báo");
     // auto-surface when count rises
     let last = 0;
-    setInterval(() => {
+    everyTick(() => {
       const c = +(($("alarmCount") && $("alarmCount").textContent) || 0);
       if (c > last && fp.mode === "hidden") { fp.show("expanded"); }
       last = c;
-    }, 1000);
+    });
   }
 
   /* ---------- AI assistant ---------- */
@@ -1444,10 +1510,10 @@
       '<span class="ribbonFps" id="ribbonFps">— fps · H✓</span>';
     document.body.appendChild(r);
     // mirror fps + selftest from existing meters
-    setInterval(() => {
-      const fps = ($("fpsMeter") && $("fpsMeter").textContent) || "";
-      const rf = $("ribbonFps"); if (rf) rf.textContent = fps + " · H✓";
-    }, 1000);
+    everyTick(() => {
+      const fps = (($("fpsMeter") && $("fpsMeter").textContent) || "") + " · H✓";
+      const rf = $("ribbonFps"); if (rf && rf.textContent !== fps) rf.textContent = fps;
+    });
   }
 
   /* ---------- Keyboard cheatsheet ---------- */

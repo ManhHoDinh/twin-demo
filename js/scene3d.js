@@ -22,6 +22,7 @@
   const tmpV = { v: null };
   let clock = 0;
   let pointerDownX = 0, pointerDownY = 0, pointerMoved = 0, selectionPointerId = null;
+  let canvasRect = null;                    // invalidated on resize/scroll — see S3.resize
 
   const S3 = (FT.scene3d = {});
   const WATER_STYLE = {
@@ -1390,6 +1391,9 @@
         el.dataset.explainId = selection.id;
         el.dataset.selected = "false";
         el.setAttribute("aria-pressed", "false");
+        /* the accessible name is a function of (kind, name, language) — none of which change
+           between frames — so it is written once here instead of once per label per frame */
+        el.setAttribute("aria-label", `${FT.i18n.t(`explain.label.${selection.kind}`)}: ${txt}`);
         el.addEventListener("click", (ev) => {
           ev.stopPropagation();
           FT.bus.emit("explainOrigin", { element: el, moveFocus: false });
@@ -1431,28 +1435,36 @@
     if (!labels.length) return;
     const show = FT.state.layers.labels;
     const v = tmpV.v || (tmpV.v = new THREE.Vector3());
-    const rect = renderer.domElement.getBoundingClientRect();
+    /* cached: getBoundingClientRect() forces a synchronous layout, and this ran once per
+       frame purely to read a size that only changes on resize. See S3.resize. */
+    const rect = canvasRect || (canvasRect = renderer.domElement.getBoundingClientRect());
     const camDist = camera.position.distanceTo(controls.target);
+    const sy2 = scene.scale.y;
     for (const L of labels) {
-      if (!show || (L.nearDist && camDist > L.nearDist)) { L.el.style.display = "none"; continue; }
-      const sy2 = scene.scale.y;
+      const off = !show || (L.nearDist && camDist > L.nearDist);
+      if (off) { if (!L.off) { L.off = true; L.el.style.display = "none"; } continue; }
       v.set(L.x, groundY(L.x, L.z, 1) * sy2 + L.elevOff * Math.max(sy2, 0.35), L.z);
       v.project(camera);
-      if (v.z > 1 || v.x < -1.05 || v.x > 1.05 || v.y < -1.05 || v.y > 1.05) { L.el.style.display = "none"; continue; }
-      L.el.style.display = "";
-      L.el.style.left = `${((v.x + 1) / 2) * rect.width}px`;
-      L.el.style.top = `${((1 - v.y) / 2) * rect.height}px`;
-      if (L.selection) {
-        const kind = FT.i18n.t(`explain.label.${L.selection.kind}`);
-        L.el.setAttribute("aria-label", `${kind}: ${L.name}`);
+      if (v.z > 1 || v.x < -1.05 || v.x > 1.05 || v.y < -1.05 || v.y > 1.05) {
+        if (!L.off) { L.off = true; L.el.style.display = "none"; }
+        continue;
       }
+      if (L.off) { L.off = false; L.el.style.display = ""; }
+      /* transform, not left/top: a compositor-only property. Writing left/top put every
+         visible label into the layout tree on every frame, so a camera nudge with ~80
+         labels up cost 80 layout invalidations per frame for a purely visual move. The
+         -50%/-110% anchor that used to live in the stylesheet is folded in here, because
+         an inline transform outranks a stylesheet one. */
+      const emphasis = L.el.dataset.selected === "true" ? " scale(1.06)" : "";
+      L.el.style.transform =
+        `translate3d(${(((v.x + 1) / 2) * rect.width).toFixed(1)}px, ${(((1 - v.y) / 2) * rect.height).toFixed(1)}px, 0) translate(-50%, -110%)${emphasis}`;
       /* gauges: live stage + alert colour on the label itself */
       if (L.gaugeId) {
         const gs = snap.gauges[L.gaugeId];
         const txt = `${L.name} ${U.fmt(gs.stage, 1)} m`;
-        if (L.el.textContent !== txt) L.el.textContent = txt;
+        if (L.txt !== txt) { L.txt = txt; L.el.textContent = txt; }
         const cls = `label3d gauge${gs.alert ? ` gauge-${gs.alert}` : ""}`;
-        if (L.el.className !== cls) L.el.className = cls;
+        if (L.cls !== cls) { L.cls = cls; L.el.className = cls; }
       }
     }
   }
@@ -1942,6 +1954,7 @@
   S3.resize = function () {
     if (!renderer) return;
     const r = canvas.getBoundingClientRect();
+    canvasRect = null;                      // the cached rect the label pass reads is now stale
     if (r.width < 4 || r.height < 4) return;
     renderer.setSize(r.width, r.height, false);
     camera.aspect = r.width / r.height;

@@ -1162,8 +1162,12 @@ body[data-workspace="plant"] .roleWorkspaceHost {
    A dark pill over satellite imagery hides the very ground the label describes, and at
    street zoom a dozen of them tile over the city. The halo is doubled and near-opaque
    because these sit on anything from white sand to dark water. */
+/* Positioned by scene3d through the inline transform it writes each frame; that transform
+   carries the -50%/-110% anchor too, so left/top stay at the origin and nothing here may
+   set transform (an inline one always wins). */
 .label3d {
-  position: absolute; transform: translate(-50%, -110%);
+  position: absolute; left: 0; top: 0; transform: translate(-50%, -110%);
+  will-change: transform;
   font-size: 12px; font-weight: 650; letter-spacing: .01em;
   color: #fff; white-space: nowrap;
   background: none; border: 0; padding: 0 2px; border-radius: 0;
@@ -1177,9 +1181,12 @@ body[data-workspace="plant"] .roleWorkspaceHost {
 .label3d.pl-dist { font-size: 12.5px; }
 .label3d.pl-bridge { font-size: 11px; font-weight: 600; color: #eaf3ff; }
 /* interactive ones keep a light chip so they still read as clickable */
+/* No backdrop blur here: there can be dozens of these on screen at once, each one a
+   separate backdrop the compositor would have to re-blur every frame over a canvas that
+   never repeats. A more opaque chip reads the same and costs nothing per frame. */
 .labels3d button.label3d {
-  background: rgba(7, 19, 32, .58); border: 1px solid var(--line);
-  padding: 2px 7px; border-radius: 7px; backdrop-filter: blur(3px);
+  background: rgba(7, 19, 32, .86); border: 1px solid var(--line);
+  padding: 2px 7px; border-radius: 7px;
   text-shadow: 0 1px 2px rgba(0, 0, 0, .8);
 }
 .labels3d button.label3d { font: inherit; cursor: pointer; pointer-events: auto; }
@@ -1188,7 +1195,8 @@ body[data-workspace="plant"] .roleWorkspaceHost {
   background: rgba(4, 48, 61, .94);
   box-shadow: 0 0 0 2px #42e6da, 0 7px 22px rgba(0, 12, 19, .7);
   text-shadow: 0 1px 2px rgba(0, 0, 0, .75);
-  transform: translate(-50%, -110%) scale(1.06);
+  /* the 1.06 emphasis lives in the inline transform scene3d writes (see updateLabels) —
+     a transform declared here could never win against an inline one */
   z-index: 3;
 }
 .label3d.city { color: #fff; font-weight: 600; }
@@ -1233,7 +1241,6 @@ body[data-workspace="plant"] .roleWorkspaceHost {
   display: grid; grid-template-columns: auto auto; gap: 1px 12px;
   background: rgba(7, 19, 32, 0.72); border: 1px solid var(--line);
   border-radius: 11px; padding: 8px 12px;
-  backdrop-filter: blur(6px);
 }
 .waterBadge span { font-size: 11px; text-transform: uppercase; letter-spacing: .6px; color: var(--ink-2); align-self: end; }
 .waterBadge strong { font-size: 14px; font-family: var(--mono); color: #7fd4ff; }
@@ -1701,7 +1708,7 @@ body[data-workspace="plant"] .roleWorkspaceHost {
 
 /* ---- Scenario Comparison: one map, shared clock/gauge, option rail ---- */
 .geoCompare {
-  left: 62px; top: 150px; width: min(390px, calc(100vw - 86px)); z-index: 53;
+  left: 62px; top: var(--geoTopY, 104px); width: min(390px, calc(100vw - 86px)); z-index: 53;
   max-height: calc(100vh - 150px - 26px - var(--geoTimelineH, 191px) - 10px);
 }
 .geoCompare .gfBody {
@@ -1723,7 +1730,7 @@ body[data-workspace="plant"] .roleWorkspaceHost {
 .compareExport { width: 100%; min-height: 40px; margin-top: 10px; }
 .compareExport:disabled { opacity: .5; cursor: not-allowed; }
 .compareDelta {
-  position: fixed; left: 464px; top: 150px; z-index: 44; display: grid; gap: 3px; width: min(330px, calc(100vw - 92px));
+  position: fixed; left: 464px; top: var(--geoTopY, 104px); z-index: 44; display: grid; gap: 3px; width: min(330px, calc(100vw - 92px));
   padding: 10px 12px; border: 1px solid var(--line-strong); border-radius: 11px;
   background: rgba(7,19,32,.9); box-shadow: var(--shadow); backdrop-filter: blur(12px);
 }
@@ -2157,7 +2164,7 @@ canvas:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .explainConfidenceRow + .explainConfidenceRow { margin-top: 5px; }
 .explainDegradationRow { margin: 0; color: var(--ink-1); font-family: var(--mono); font-size: 10px; line-height: 1.55; }
 .explainDocsLink { display: inline-block; margin-top: 8px; color: var(--cyan); font-weight: 700; }
-body.geoshell .explainInspector { top: 62px; right: 8px; bottom: 30px; }
+body.geoshell .explainInspector { top: var(--geoTopY, 104px); right: 8px; bottom: 30px; }
 body.geoshell.explain-open .geoDecision,
 body.geoshell.explain-open .geoInspector,
 body.geoshell.explain-open .geoAlerts,
@@ -2208,14 +2215,27 @@ body.geoshell #timelinePanel { display: none; }
 body.geoshell .geoFloat #timelinePanel { display: block; }
 
 /* ---- shared floating surface chrome ---- */
+/* BACKDROP-FILTER BUDGET.
+   Every blurred surface here sits over a WebGL canvas that repaints every frame, so the
+   compositor cannot cache the blur — it re-blurs each surface's backdrop on every single
+   frame. Eleven always-on surfaces came to ~433 000 px² of continuous per-frame blur,
+   which is real GPU time on the integrated graphics an operations laptop has, and the
+   panels are already ~90 % opaque so it was paying for an effect almost nothing showed
+   through. Opaque surfaces now carry no blur; it survives only on genuinely translucent,
+   transient overlays — palette, cheatsheet, modal scrim — which are on screen for seconds
+   rather than for the whole session. `body.perfLite` (set by main.js when sustained frame
+   rate drops) removes the rest: on a machine already short of frames, glass is the first
+   thing that should go and the last anyone will miss.
+
+   `contain` keeps a panel's repaint from invalidating layout for the rest of the page —
+   these are independent fixed surfaces whose boxes cannot affect each other. */
 .geoFloat {
   position: fixed; z-index: 40;
-  background: linear-gradient(180deg, rgba(16,38,58,.82), rgba(9,22,36,.86));
+  background: linear-gradient(180deg, rgba(16,38,58,.94), rgba(9,22,36,.96));
   border: 1px solid var(--line-strong);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  contain: layout style paint;
   transition: transform .16s cubic-bezier(.2,.8,.2,1), opacity .16s cubic-bezier(.2,.8,.2,1);
 }
 .geoFloat.dragging { transition: none; user-select: none; }
@@ -2249,16 +2269,39 @@ body.geoshell .geoFloat #timelinePanel { display: block; }
 .geoFloat .panel { background: transparent; border: 0; border-radius: 0; padding: 10px 12px; backdrop-filter: none; }
 
 /* ---- COMMAND BAR (top, 44px) ---- */
-.cmdBar {
-  position: fixed; top: 8px; left: 50%; transform: translateX(-50%);
-  z-index: 55; height: 44px; display: flex; align-items: center; gap: 10px;
-  padding: 0 8px 0 10px; max-width: min(1160px, calc(100vw - 92px));
-  background: linear-gradient(180deg, rgba(16,38,58,.9), rgba(9,22,36,.92));
-  border: 1px solid var(--line-strong); border-radius: 13px;
-  box-shadow: var(--shadow); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+/* ---- TOP HEADER (command row + action/signal row, one block) ----
+   The three bars used to be independently fixed at y = 8, 60 and 106, each centred on its
+   own width, so no two shared an edge and ~140 px of map went to the stagger. Docked in one
+   header they align to the same left and right edges, and --geoTopY (measured from the real
+   header in shell.js) is what every summoned panel hangs from. */
+.geoTopBar {
+  position: fixed; top: 8px; left: 8px; right: 8px; z-index: 55;
+  display: flex; flex-wrap: wrap; align-items: stretch; gap: 6px;
+  pointer-events: none;                       /* the gap between rows stays map surface */
   transition: transform .18s cubic-bezier(.2,.8,.2,1), opacity .18s;
 }
-.cmdBar.hidden-chrome { transform: translate(-50%, -140%); opacity: 0; pointer-events: none; }
+.geoTopBar > * { pointer-events: auto; }
+/* the command row owns a full line; the action toolbar and the signal strip share the next */
+.geoTopBar > .cmdBar { flex: 1 0 100%; }
+.geoTopBar.hidden-chrome { transform: translateY(-140%); opacity: 0; pointer-events: none; }
+
+.cmdBar {
+  position: relative; z-index: 2; min-height: 46px;
+  display: flex; align-items: center; gap: 10px 8px; flex-wrap: wrap;
+  padding: 5px 8px 5px 10px;
+  background: linear-gradient(180deg, rgba(16,38,58,.94), rgba(9,22,36,.97));
+  border: 1px solid var(--line-strong); border-radius: 13px;
+  box-shadow: var(--shadow);
+}
+/* controls must never wrap inside a 46 px row — the bar distributes width to the search
+   field, which is the only elastic element in it */
+.cmdBar #policyToggle button,
+.cmdBar .tourBtn,
+.cmdBar #langToggle,
+.cmdBar .cmdChip { white-space: nowrap; }
+.cmdBar #policyToggle button,
+.cmdBar .tourBtn,
+.cmdBar #langToggle { padding: 6px 10px; line-height: 1.2; }
 .cmdBrand { display: flex; align-items: center; gap: 7px; padding-right: 4px; }
 .cmdBrand .brandMark { width: 30px; height: 30px; border-radius: 9px; font-size: 12px; }
 .cmdBrand b { font-size: 13px; letter-spacing: .3px; }
@@ -2314,9 +2357,9 @@ body.geoshell .geoFloat #timelinePanel { display: block; }
 .geoDock {
   position: fixed; left: 8px; top: 50%; transform: translateY(-50%);
   z-index: 50; display: flex; flex-direction: column; gap: 4px; padding: 6px;
-  background: linear-gradient(180deg, rgba(16,38,58,.82), rgba(9,22,36,.86));
+  background: linear-gradient(180deg, rgba(16,38,58,.93), rgba(9,22,36,.96));
   border: 1px solid var(--line-strong); border-radius: 15px;
-  box-shadow: var(--shadow); backdrop-filter: blur(14px);
+  box-shadow: var(--shadow);
   transition: transform .18s, opacity .18s;
 }
 .geoDock.hidden-chrome { transform: translate(-140%, -50%); opacity: 0; pointer-events: none; }
@@ -2339,15 +2382,15 @@ body.geoshell .geoFloat #timelinePanel { display: block; }
 .dockBtn:hover .dockTip { opacity: 1; }
 
 /* flyout host anchored to the dock */
-.geoFlyout { left: 62px; top: 76px; width: 316px; z-index: 45; }
+.geoFlyout { left: 62px; top: var(--geoTopY, 104px); width: 316px; z-index: 45; }
 
 /* ---- INSPECTOR (right, summoned) ---- */
-.geoInspector { right: 8px; top: 62px; width: 360px; z-index: 46; }
+.geoInspector { right: 8px; top: var(--geoTopY, 104px); width: 360px; z-index: 46; }
 .geoInspector.hidden-chrome { transform: translateX(120%); opacity: 0; pointer-events: none; }
 .geoInspector .insType { font-size: 10px; text-transform: uppercase; letter-spacing: .8px; color: var(--accent); }
 
 /* ---- DECISION PANEL (priority) ---- */
-.geoDecision { right: 8px; top: 62px; width: 384px; z-index: 47; }
+.geoDecision { right: 8px; top: var(--geoTopY, 104px); width: 384px; z-index: 47; }
 .geoDecision.raise { animation: decisionRaise .18s cubic-bezier(.2,.8,.2,1); }
 .geoDecision.pulse { animation: decisionPulse 1.3s ease-in-out 2; }
 @keyframes decisionRaise { from { transform: scale(.97); } to { transform: scale(1); } }
@@ -2355,7 +2398,7 @@ body.geoshell .geoFloat #timelinePanel { display: block; }
 @media (prefers-reduced-motion: reduce) { .geoDecision.raise, .geoDecision.pulse { animation: none; } }
 .geoDecision.minimized .gfBody { display: none; }
 .decisionPill {
-  position: fixed; right: 8px; top: 62px; z-index: 47; display: none;
+  position: fixed; right: 8px; top: var(--geoTopY, 104px); z-index: 47; display: none;
   padding: 9px 14px; border-radius: 11px; cursor: pointer;
   background: linear-gradient(135deg, rgba(255,193,77,.22), rgba(255,109,94,.18));
   border: 1px solid rgba(255,193,77,.55); color: var(--warn); font-weight: 700; font-size: 12px;
@@ -2364,7 +2407,7 @@ body.geoshell .geoFloat #timelinePanel { display: block; }
 .decisionPill.show { display: block; animation: decisionPulse 1.3s ease-in-out infinite; }
 
 /* ---- ALERT STACK ---- */
-.geoAlerts { right: 8px; top: 62px; width: 320px; z-index: 48; }
+.geoAlerts { right: 8px; top: var(--geoTopY, 104px); width: 320px; z-index: 48; }
 .geoAlerts.hidden-chrome { transform: translateX(120%); opacity: 0; pointer-events: none; }
 
 /* ---- AI ASSISTANT launcher + panel ---- */
@@ -2418,9 +2461,9 @@ body.geoshell .geoFloat #timelinePanel { display: block; }
 .geoViewCtl {
   position: fixed; left: 74px; bottom: calc(26px + var(--geoTimelineH, 236px) + 10px); z-index: 44;
   display: flex; align-items: center; gap: 8px; padding: 6px 8px;
-  background: linear-gradient(180deg, rgba(16,38,58,.82), rgba(9,22,36,.86));
+  background: linear-gradient(180deg, rgba(16,38,58,.93), rgba(9,22,36,.96));
   border: 1px solid var(--line-strong); border-radius: 12px;
-  box-shadow: var(--shadow); backdrop-filter: blur(14px);
+  box-shadow: var(--shadow);
   transition: opacity .18s;
 }
 .geoViewCtl.hidden-chrome { opacity: 0; pointer-events: none; }
@@ -2429,26 +2472,22 @@ body.geoshell .geoFloat #timelinePanel { display: block; }
 .geoModeRail {
   position: fixed; right: 8px; bottom: 120px; z-index: 42;
   display: flex; flex-direction: column; gap: 4px; padding: 5px;
-  background: linear-gradient(180deg, rgba(16,38,58,.82), rgba(9,22,36,.86));
+  background: linear-gradient(180deg, rgba(16,38,58,.93), rgba(9,22,36,.96));
   border: 1px solid var(--line-strong); border-radius: 13px;
-  box-shadow: var(--shadow); backdrop-filter: blur(14px);
+  box-shadow: var(--shadow);
 }
 .modeBtn { width: 38px; height: 38px; display: grid; place-items: center; border: 1px solid transparent; background: transparent; color: var(--ink-1); border-radius: 10px; font-size: 16px; }
 .modeBtn:hover { background: rgba(89,227,216,.1); color: var(--cyan); }
 .modeBtn.active { background: var(--accent-soft); color: var(--accent); }
 .earthNav {
-  position: fixed;
-  right: 58px;
-  bottom: calc(26px + var(--geoTimelineH, 191px) + 88px);
-  z-index: 44;
+  position: relative;
   display: grid;
   gap: 6px;
   padding: 6px;
-  background: linear-gradient(180deg, rgba(16,38,58,.82), rgba(9,22,36,.86));
+  background: linear-gradient(180deg, rgba(16,38,58,.93), rgba(9,22,36,.96));
   border: 1px solid var(--line-strong);
   border-radius: 12px;
   box-shadow: var(--shadow);
-  backdrop-filter: blur(14px);
   transition: opacity .18s, transform .18s;
 }
 .earthNavBtn {
@@ -2470,25 +2509,18 @@ body.geoshell .geoFloat #timelinePanel { display: block; }
   outline-offset: 2px;
 }
 .earthCameraStatus {
-  position: fixed;
-  right: 58px;
-  bottom: calc(26px + var(--geoTimelineH, 191px) + 360px);
-  z-index: 44;
+  position: relative;
   max-width: 220px;
   padding: 6px 9px;
   border: 1px solid var(--line);
   border-radius: 9px;
-  background: rgba(7,19,32,.76);
+  background: rgba(7,19,32,.92);
   color: var(--ink-1);
   font-size: 11px;
   box-shadow: var(--shadow);
-  backdrop-filter: blur(12px);
 }
 .earthLayerLabel {
-  position: fixed;
-  right: 58px;
-  bottom: calc(26px + var(--geoTimelineH, 191px) + 414px);
-  z-index: 44;
+  position: relative;
   display: grid;
   grid-template-columns: 1fr;
   grid-template-areas: "flag" "time" "note";
@@ -2504,7 +2536,6 @@ body.geoshell .geoFloat #timelinePanel { display: block; }
     rgba(5,16,28,.86);
   color: var(--ink-0);
   box-shadow: var(--shadow);
-  backdrop-filter: blur(12px);
   text-shadow: 0 1px 2px rgba(0,0,0,.75);
 }
 .earthLayerLabel b {
@@ -2710,20 +2741,27 @@ body.geoshell .geoFloat #timelinePanel { display: block; }
 }
 
 /* ---- STATUS RIBBON (2px → hover) ---- */
+/* It used to be a 4 px sliver that only revealed itself on hover, so the provenance line
+   and the frame-rate readout were, in practice, invisible. Now a permanent 22 px footer —
+   and the whole bottom cluster measures from --geoRibbonH, so nothing else has to guess
+   where it ends. */
+:root { --geoRibbonH: 22px; }
 .geoRibbon {
-  position: fixed; left: 0; right: 0; bottom: 0; z-index: 41; height: 4px;
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 41; height: var(--geoRibbonH);
   display: flex; align-items: center; gap: 12px; padding: 0 12px; overflow: hidden;
-  background: rgba(6,18,29,.9); border-top: 1px solid var(--line);
-  font-size: 11px; color: var(--ink-2); transition: height .16s;
+  background: rgba(6,18,29,.92); border-top: 1px solid var(--line);
+  font-size: 11px; color: var(--ink-2);
 }
-.geoRibbon:hover, .geoRibbon:focus-within { height: 26px; }
 .geoRibbon .ribbonChip {
-  position: absolute; left: 12px; bottom: 5px; font-size: 10.5px; font-weight: 700;
-  letter-spacing: .4px; color: var(--warn); white-space: nowrap;
+  font-size: 11px; font-weight: 700; letter-spacing: .4px; color: var(--warn); white-space: nowrap;
 }
-.geoRibbon .ribbonFull { display: none; margin-left: 190px; gap: 12px; }
-.geoRibbon:hover .ribbonFull, .geoRibbon:focus-within .ribbonFull { display: flex; }
-.geoRibbon .ribbonFps { margin-left: auto; }
+.geoRibbon .ribbonFull { display: flex; gap: 12px; min-width: 0; overflow: hidden; white-space: nowrap; }
+.geoRibbon .ribbonFps { margin-left: auto; font-family: var(--mono); white-space: nowrap; }
+/* the ribbon was hidden, so its link had never been styled and fell back to the UA's
+   default blue — 1.99:1 against this footer. A permanent surface has to clear AA. */
+.geoRibbon .footLink { color: var(--ink-1); text-decoration: none; border-bottom: 1px dotted var(--line-strong); }
+.geoRibbon .footLink:hover { color: var(--accent); border-bottom-color: var(--accent); }
+@media (max-width: 1100px) { .geoRibbon .ribbonFull { display: none; } }
 
 /* ---- MAP MODES ---- */
 body.mode-fullscreen .cmdBar,
@@ -2789,26 +2827,12 @@ body.mode-split #labels3d { width: 50%; }
   }
   .geoModeRail { display: none; }
   .geoViewCtl { left: 8px; bottom: 88px; }
-  .earthNav {
-    left: auto;
-    right: max(8px, env(safe-area-inset-right));
-    bottom: calc(40px + env(safe-area-inset-bottom) + var(--geoTimelineH, 236px) + 8px);
-    grid-auto-flow: row;
-    grid-template-columns: 1fr;
-  }
-  .earthCameraStatus {
-    left: max(8px, env(safe-area-inset-left));
-    right: 76px;
-    bottom: calc(40px + env(safe-area-inset-bottom) + var(--geoTimelineH, 236px) + 318px);
-    max-width: none;
-  }
-  .earthLayerLabel {
-    left: max(8px, env(safe-area-inset-left));
-    right: 76px;
-    bottom: calc(40px + env(safe-area-inset-bottom) + var(--geoTimelineH, 236px) + 370px);
-    max-width: none;
-    padding: 6px 8px;
-  }
+  /* the column owns the placement; its children just size themselves */
+  /* a five-button vertical rail is ~250 px tall — on a phone, between a wrapped header and
+     the timeline, there is no room for that. Wrap the camera controls into rows instead,
+     within whatever width the column has left beside the place sheet. */
+  .earthNav { display: flex; flex-wrap: wrap; justify-content: flex-end; }
+  .earthLayerLabel { padding: 6px 8px; }
   .earthLayerLabel b,
   .earthLayerLabel span,
   .earthLayerLabel small { font-size: 11px; }
@@ -2831,7 +2855,7 @@ body.mode-split #labels3d { width: 50%; }
 /* ---- shell placement fixes: prevent bottom-cluster collisions ---- */
 body.geoshell #mapHint { display: none; }             /* drag hint redundant with command bar */
 body.geoshell #waterBadge {
-  position: fixed; left: 74px; top: 62px; right: auto; bottom: auto; z-index: 42;
+  position: fixed; left: 74px; top: var(--geoTopY, 104px); right: auto; bottom: auto; z-index: 42;
   flex-direction: row; flex-wrap: wrap; gap: 4px 12px; max-width: 320px;
 }
 body.geoshell .geoViewCtl {
@@ -2851,17 +2875,19 @@ body.geoshell #waterBadge strong { font-size: 12px; }
 }
 
 /* ---- Persistent action toolbar (safety-critical dispatch + report) ---- */
+/* Second row of the header, shared with the ops-signal strip: dispatch and reports on the
+   left, the live decision signals filling the rest. */
 .geoActions {
-  position: fixed; top: 60px; left: 50%; transform: translateX(-50%);
-  z-index: 44; display: flex; align-items: center; gap: 14px; padding: 5px 12px;
-  background: linear-gradient(180deg, rgba(16,38,58,.72), rgba(9,22,36,.78));
+  position: relative; z-index: 1; flex: 0 0 auto;
+  display: flex; align-items: center; gap: 10px; padding: 5px 12px;
+  background: linear-gradient(180deg, rgba(13,31,49,.82), rgba(8,20,33,.86));
   border: 1px solid var(--line); border-radius: 11px;
-  box-shadow: var(--shadow); backdrop-filter: blur(12px);
-  transition: opacity .18s, transform .18s;
 }
-.geoActions.hidden-chrome { opacity: 0; transform: translate(-50%, -12px); pointer-events: none; }
 .geoActions .actGroup { display: flex; align-items: center; gap: 6px; }
-.geoActions .actGroup + .actGroup { border-left: 1px solid var(--line); padding-left: 14px; }
+.geoActions .actGroup + .actGroup { border-left: 1px solid var(--line); padding-left: 12px; }
+/* dispatch (first group) sends something to the outside world — tint it apart from reports */
+.geoActions .actGroup:first-child .actBtn { border-color: rgba(255,193,77,.32); }
+.geoActions .actGroup:first-child .actBtn:hover { color: var(--warn); border-color: var(--warn); background: rgba(255,193,77,.12); }
 .geoActions .actLabel { font-size: 9.5px; text-transform: uppercase; letter-spacing: .7px; color: var(--ink-2); font-weight: 700; }
 .geoActions .actBtn {
   border: 1px solid var(--line-strong); background: rgba(9,24,38,.7); color: var(--ink-1);
@@ -2876,12 +2902,11 @@ body.mode-fullscreen .geoActions, body.mode-immersive .geoActions { opacity: 0; 
 
 /* ---- Always-visible ops-signal strip (persistent decision signals, UX §2) ---- */
 .geoOpsStrip {
-  position: fixed; top: 106px; left: 50%; transform: translateX(-50%);
-  z-index: 43; display: flex; align-items: center; gap: 16px; padding: 5px 14px;
-  background: linear-gradient(180deg, rgba(16,38,58,.6), rgba(9,22,36,.68));
+  position: relative; z-index: 1; flex: 1 1 0; min-width: 0;
+  display: flex; align-items: center; gap: 16px; padding: 5px 14px;
+  background: linear-gradient(180deg, rgba(13,31,49,.82), rgba(8,20,33,.86));
   border: 1px solid var(--line); border-radius: 10px;
-  box-shadow: var(--shadow); backdrop-filter: blur(10px);
-  max-width: calc(100vw - 140px); overflow-x: auto; scrollbar-width: none;
+  overflow-x: auto; scrollbar-width: none;
 }
 .geoOpsStrip::-webkit-scrollbar { display: none; }
 .geoOpsStrip .opsStripItem { display: flex; align-items: baseline; gap: 6px; white-space: nowrap; }
@@ -2907,8 +2932,11 @@ body.geoshell .dockBtn .dockKey { font-size: 11px; }
 body.geoshell .geoActions .actLabel { font-size: 11px; }
 /* opsMode safety marker inside the ops strip */
 .geoOpsStrip .opsStripMode {
+  flex: 0 0 auto;
   font-size: 11px; font-weight: 700; letter-spacing: .4px; color: var(--warn);
-  white-space: nowrap; padding-right: 4px; border-right: 1px solid var(--line);
+  white-space: nowrap; padding: 3px 9px;
+  border: 1px solid rgba(255, 193, 77, .45); border-radius: 8px;
+  background: rgba(255, 193, 77, .10);
 }
 
 /* ==========================================================================
@@ -2918,12 +2946,12 @@ body.geoshell .geoActions .actLabel { font-size: 11px; }
    ops strip all live in the top ~145px), so nothing in that band ever overlaps them. */
 body.geoshell .geoInspector,
 body.geoshell .geoDecision,
-body.geoshell .geoAlerts { top: 150px; max-height: calc(100vh - 182px); }
+body.geoshell .geoAlerts { top: var(--geoTopY, 104px); max-height: calc(100vh - 182px); }
 body.geoshell .geoInspector .gfBody,
 body.geoshell .geoDecision .gfBody,
 body.geoshell .geoAlerts .gfBody { max-height: calc(100vh - 236px); }
 /* the priority pill follows the lane */
-body.geoshell .decisionPill { top: 150px; }
+body.geoshell .decisionPill { top: var(--geoTopY, 104px); }
 
 /* Action toolbar must not slide under the right-context panels (was clipping "Báo cáo…").
    Cap its right extent to leave the 384px right lane clear. */
@@ -2940,11 +2968,11 @@ body.geoshell .geoActions .actGroup { flex: 0 0 auto; }
 body.geoshell #waterBadge {
   top: auto; bottom: calc(26px + var(--geoTimelineH, 191px) + 10px); left: 74px; right: auto; z-index: 42;
   flex-direction: row; flex-wrap: wrap; gap: 2px 12px; max-width: 340px;
-  padding: 6px 11px; background: linear-gradient(180deg, rgba(16,38,58,.82), rgba(9,22,36,.86));
-  border: 1px solid var(--line-strong); border-radius: 11px; backdrop-filter: blur(12px);
+  padding: 6px 11px; background: linear-gradient(180deg, rgba(16,38,58,.93), rgba(9,22,36,.96));
+  border: 1px solid var(--line-strong); border-radius: 11px;
 }
 body.geoshell .geoFlyout { z-index: 45; }
-body.geoshell .geoFlyout { top: 76px; }
+body.geoshell .geoFlyout { top: var(--geoTopY, 104px); }
 
 /* On short screens, right panels + AI must not collide: push AI launcher/panel clear */
 @media (max-height: 800px) {
@@ -3128,4 +3156,46 @@ body[data-workspace="plant"] .toasts {
   left: 18px;
   bottom: 20px;
   max-width: min(420px, 42vw);
+}
+
+/* ======================================================================
+   PERFORMANCE FALLBACK
+   Set by main.js when the measured frame rate stays below the interactive floor.
+   Glass over a live canvas is the most expensive chrome in the app and the least
+   load-bearing, so it is the first thing shed.
+   ====================================================================== */
+body.perfLite * { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+
+/* ---- bottom-right stack: ribbon → AI launcher → PiP ----
+   The launcher sat at a fixed bottom:60px directly on top of the PiP, and the PiP's own
+   bottom:14px put it under the status ribbon. Both measure from the ribbon now, so the
+   stack holds at any viewport height. */
+body.geoshell .pip {
+  position: fixed; right: 16px; bottom: calc(var(--geoRibbonH, 22px) + 66px); z-index: 45;
+}
+body.geoshell .aiLauncher { bottom: calc(var(--geoRibbonH, 22px) + 8px); }
+body.geoshell .scaleBar3d { bottom: calc(var(--geoRibbonH, 22px) + 8px); }
+
+/* ---- Earth camera column (layer label · camera status · nav buttons) ----
+   One fixed column so the three surfaces stack in flow; see buildEarthNav in js/shell.js.
+   It is anchored between the header and the timeline and scrolls nothing — on a short
+   viewport the column shrinks from the top rather than climbing into the command bar. */
+.earthColumn {
+  position: fixed; right: 58px; z-index: 44;
+  top: var(--geoTopY, 104px);
+  bottom: calc(26px + var(--geoTimelineH, 191px) + 10px);
+  display: flex; flex-direction: column; align-items: flex-end; justify-content: flex-end;
+  gap: 8px; pointer-events: none; overflow: hidden;
+}
+.earthColumn > * { pointer-events: auto; flex: 0 0 auto; }
+
+@media (max-width: 900px) {
+  /* Right-aligned and content-width: the place sheet is left-anchored on mobile, so the
+     two share the band above the timeline by sitting in different horizontal lanes. This
+     block must follow the base rule above — same specificity, later wins. */
+  .earthColumn {
+    right: max(8px, env(safe-area-inset-right));
+    bottom: calc(40px + env(safe-area-inset-bottom) + var(--geoTimelineH, 236px) + 10px);
+    max-width: 48vw;
+  }
 }
