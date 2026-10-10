@@ -56,7 +56,13 @@
       if (pkg.kind === "REFUSAL" || pkg.kind === "DEGRADED" || pkg.kind === "SATURATED" || pkg.kind === "NULL") return null;
     }
     const inForce = FT.state && FT.state.policy === "mpc" && FT.state.mpcApproved === true;
-    return inForce ? CLASS.APPROVED_PLAN : CLASS.RECOMMENDATION;
+    const audit = FT.ops && FT.ops.audit;
+    const entry = audit && audit.entries.find((e) => e.seq === FT.state.approvedAuditSeq);
+    const authenticated = entry && audit.stored(entry) && entry.action === "decision.approve" &&
+      entry.detail.package === pkg.id && FT.state.approvedPackageId === pkg.id &&
+      entry.detail.eventId === `EVT-${FT.state.scenario}` &&
+      entry.detail.rainScale === FT.state.rainScale && entry.detail.ensSpread === FT.state.ensSpread;
+    return inForce && authenticated ? CLASS.APPROVED_PLAN : CLASS.RECOMMENDATION;
   };
 
   /* Classify a sealed decision record: an approved/rejected/superseded record is the human

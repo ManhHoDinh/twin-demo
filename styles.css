@@ -1435,6 +1435,22 @@ body[data-workspace="plant"] .roleWorkspaceHost {
   border: 1px solid rgba(255, 193, 77, 0.3); border-radius: 5px; padding: 0 5px;
 }
 .llmActions { display: flex; gap: 6px; margin-top: 8px; }
+.mockIntro, .mockStatus { font-size: 12px; line-height: 1.5; color: var(--ink-1); margin: 8px 0; }
+.mockPrompts { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
+.mockPrompts button { flex: 1; min-height: 36px; padding: 6px; font-size: 12px; color: var(--ink-0); background: var(--bg-3); border: 1px solid var(--line-strong); border-radius: 7px; cursor: pointer; }
+.mockPrompts button:hover { background: var(--accent-soft); }
+.mockForm { margin-top: 8px; }
+.mockForm label { display: block; font-size: 12px; margin-bottom: 5px; color: var(--ink-1); }
+.mockForm > div { display: flex; gap: 6px; }
+.mockForm input { min-width: 0; flex: 1; min-height: 40px; padding: 8px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg-0); color: var(--ink-0); font: inherit; }
+.mockForm button { min-height: 40px; padding: 8px 14px; }
+.mockBadge { color: var(--ink-0); font-weight: 700; }
+.mockContext, .mockEvidence { font-size: 11px; color: var(--ink-1); overflow-wrap: anywhere; }
+.mockEvidence { display: block; margin-top: 3px; }
+.mockQuestion { font-weight: 600; overflow-wrap: anywhere; }
+.mockLimits { border-top: 1px solid var(--line); padding-top: 8px; }
+.mockLimits summary { cursor: pointer; font-weight: 600; margin-bottom: 6px; }
+.mockStatus.stale { color: #ffd38a; }
 .llmActions button {
   flex: 1; border: 1px solid var(--line-strong); background: rgba(9, 24, 38, 0.6);
   color: var(--ink-1); border-radius: 8px; padding: 7px 10px; font-size: 11.5px; font-weight: 600;
@@ -2924,7 +2940,7 @@ body.geoshell .geoRibbon, body.geoshell .geoRibbon .ribbonChip { font-size: 11px
 body.geoshell .cmdBrand .cmdBasin { font-size: 11px; }
 
 @media (max-width: 900px) {
-  .geoOpsStrip { left: 8px; right: 8px; transform: none; max-width: none; top: 98px; justify-content: flex-start; }
+  .geoOpsStrip { left: 8px; right: 8px; transform: none; max-width: none; top: auto; justify-content: flex-start; }
 }
 
 /* font floors raised to satisfy >=11px body-text law */

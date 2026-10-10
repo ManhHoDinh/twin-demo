@@ -127,7 +127,7 @@
 
   /* rebuild world equilibrium when the timeline is scrubbed or scenario/policy changes */
   FT.bus.on("scrubbed", () => {
-    const snap = H.at(FT.state.timeH, FT.compare && FT.compare.viewKey ? FT.compare.viewKey() : null);
+    const snap = H.at(FT.state.timeH, H.viewSelection());
     W.resetToTime(snap);
     W.updateRoadDepths();
     FT.traffic.resync();
@@ -135,7 +135,7 @@
   });
   FT.bus.on("hydroRebuilt", () => {
     if (!booted || !W.ready) return;
-    const snap = H.at(FT.state.timeH, FT.compare && FT.compare.viewKey ? FT.compare.viewKey() : null);
+    const snap = H.at(FT.state.timeH, H.viewSelection());
     W.resetToTime(snap);
     W.updateRoadDepths();
     FT.traffic.resync();
@@ -178,7 +178,7 @@
       FT.notify("🔁 " + (st.lang === "vi" ? "Phát lại kịch bản" : "Replaying scenario"), "info");
     }
 
-    const compareKey = FT.compare && FT.compare.viewKey ? FT.compare.viewKey() : null;
+    const compareKey = H.viewSelection();
     const snap = H.at(st.timeH, compareKey);
 
     /* physical cap for flood-above-normal metrics: max gauge anomaly + ponding */
@@ -384,13 +384,12 @@
           FT.state.scenario = keepSc; H.rebuild();
         }
 
-        /* 16: the AI situation brief may publish only grounded claims (info/ai.html §4.3).
-           Every claim it would show must cite a resolving source and, where numeric, match
-           the live snapshot — a shipped brief with an unsourced or drifted claim is a defect. */
-        if (FT.ui && FT.ui.verifyBrief && FT.grounding) {
-          const gr = FT.ui.verifyBrief(H.at(FT.state.timeH));
-          if (!gr.published.every((c) => c.grounded)) fails.push("brief published an ungrounded claim");
-          if (gr.total > 0 && gr.ratio < (FT.data.TARGETS.grounded || 0.95)) fails.push(`brief groundedness ${(gr.ratio * 100) | 0}% below target`);
+        /* 16: the mock must label itself and capture valid synthetic engine outputs.
+           Internal calculation references do not establish scientific groundedness. */
+        if (FT.mockAI) {
+          const brief = FT.mockAI.answer();
+          if (brief.provider !== "mock" || !brief.context.ready || !brief.rows.length ||
+              brief.rows.some(row => !row.source)) fails.push("mock brief context/source contract");
         }
 
         /* 19: an AI recommendation must never be actionable or classed as an approved plan

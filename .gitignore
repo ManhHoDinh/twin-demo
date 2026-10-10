@@ -1,2 +1,6 @@
 .DS_Store
 Thumbs.db
+
+artifacts/local-ai/
+__pycache__/
+*.pyc

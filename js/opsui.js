@@ -168,7 +168,7 @@
 
   function updateDeadline(pkg) {
     const b = el.opsDeadlineVal, wrap = el.opsDeadline;
-    if (!pkg || pkg.kind !== "PROPOSAL") { b.textContent = "—"; wrap.className = "opsItem opsDeadline"; wrap.title = ""; return; }
+    if (!pkg || pkg.kind !== "PROPOSAL") { b.textContent = L("KHÔNG ÁP DỤNG", "NOT APPLICABLE"); wrap.className = "opsItem opsDeadline"; wrap.title = ""; return; }
     const inH = pkg.deadlineIn;
     b.textContent = inH >= 0 ? OPS.fmtHours(inH) : L("ĐÃ QUÁ HẠN", "EXPIRED");
     wrap.className = `opsItem opsDeadline${inH < 0 ? " expired" : inH < 2 ? " urgent" : ""}`;
@@ -225,11 +225,34 @@
         <p class="dpWhy">${pkg.reason}</p></div>`;
       return;
     }
+    /* Whose decision is this? Shown BEFORE the buttons, so the operator knows the answer
+       without discovering it by being refused. docs/02-stakeholders/02-decision-rights-raci.md */
+    let rights = "";
+    if (FT.roles) {
+      const dId = FT.roles.decisionForProposal(pkg, FT.hydro.at(FT.state.timeH));
+      if (dId) {
+        const mine = FT.roles.can(dId);
+        const who = FT.roles.accountable(dId);
+        const cons = FT.roles.consulted(dId);
+        rights = `<div class="dpSec dpRights ${mine ? "mine" : "notMine"}">
+          <h5>${L("Thẩm quyền quyết định", "Decision authority")}</h5>
+          <p class="dpWhy"><b>${dId}</b> · ${L("chịu trách nhiệm quyết định", "accountable")}: <b>${who}</b>
+            ${cons.length ? ` · ${L("tham vấn", "consulted")}: ${cons.join(", ")}` : ""}<br>
+            ${mine
+              ? L("Vai trò của bạn ĐƯỢC phê duyệt quyết định này.", "Your role MAY approve this decision.")
+              : L(`Vai trò của bạn không được phê duyệt — chỉ đề xuất và thực hiện. Chuyển hồ sơ cho ${who}.`,
+                  `Your role may not approve this — propose and execute only. Refer the package to ${who}.`)}</p>
+        </div>`;
+      }
+    }
+
     if (pkg.kind === "SATURATED") {
-      box.innerHTML = `<div class="dpSec"><span class="dpKind bad">${L("KHÔNG SO SÁNH ĐƯỢC", "NOT COMPARABLE")}</span>
+      box.innerHTML = `${rights}<div class="dpSec"><span class="dpKind bad">${L("KHÔNG SO SÁNH ĐƯỢC", "NOT COMPARABLE")}</span>
+        <p class="dpWhy">${L("Độ tin cậy: không xác định — dữ liệu tổng hợp, mô hình chạm trần.", "Confidence: unavailable — synthetic data, model clipping.")}</p>
         <p class="dpWhy">${L(
           `Cả hai chính sách đều đẩy ${pkg.gauge.name} tới trần biểu diễn của mô hình (${U.fmt(pkg.gauge.max, 1)} m). Chênh lệch đỉnh KHÔNG có ý nghĩa — không kết luận “không cần hành động”.`,
           `Both policies drive ${pkg.gauge.name} to the model's representable maximum (${U.fmt(pkg.gauge.max, 1)} m). The peak difference is meaningless — this is NOT a "no action needed" result.`)}</p>
+        <p class="dpWhy">${L("Không hành động / xả phối hợp", "No action / coordinated release")}: ${U.fmt(pkg.counterfactual.peak, 2)} / ${U.fmt(pkg.outcome.peak, 2)} m — ${L("giá trị chạm trần, không dùng để phê duyệt", "clipped values, unusable for approval")}</p>
         <p class="dpWhy">${L("Đây là giới hạn của mô hình giải tích trong bản demo, không phải kết luận thủy văn. Xem docs/06-critique/02-open-risk-register.md R-01.",
                              "This is a limitation of the demo's analytic model, not a hydrological conclusion. See docs/06-critique/02-open-risk-register.md R-01.")}</p></div>`;
       return;
@@ -260,26 +283,6 @@
       `<div class="dpAlt"><span>${x.label}</span><b>${U.fmt(x.peak, 2)} m</b></div>`
     ).join("");
 
-    /* Whose decision is this? Shown BEFORE the buttons, so the operator knows the answer
-       without discovering it by being refused. docs/02-stakeholders/02-decision-rights-raci.md */
-    let rights = "";
-    if (FT.roles) {
-      const dId = FT.roles.decisionForProposal(pkg, FT.hydro.at(FT.state.timeH));
-      if (dId) {
-        const mine = FT.roles.can(dId);
-        const who = FT.roles.accountable(dId);
-        const cons = FT.roles.consulted(dId);
-        rights = `<div class="dpSec dpRights ${mine ? "mine" : "notMine"}">
-          <h5>${L("Thẩm quyền quyết định", "Decision authority")}</h5>
-          <p class="dpWhy"><b>${dId}</b> · ${L("chịu trách nhiệm quyết định", "accountable")}: <b>${who}</b>
-            ${cons.length ? ` · ${L("tham vấn", "consulted")}: ${cons.join(", ")}` : ""}<br>
-            ${mine
-              ? L("Vai trò của bạn ĐƯỢC phê duyệt quyết định này.", "Your role MAY approve this decision.")
-              : L(`Vai trò của bạn không được phê duyệt — chỉ đề xuất và thực hiện. Chuyển hồ sơ cho ${who}.`,
-                  `Your role may not approve this — propose and execute only. Refer the package to ${who}.`)}</p>
-        </div>`;
-      }
-    }
 
     box.innerHTML = `
       ${rights}
@@ -566,7 +569,7 @@
       return false;
     }
     el.dpReasonWrap.classList.remove("needed");
-    const pkg = FT.ops._last;
+    const pkg = FT.ops.package(FT.hydro.at(FT.state.timeH));
 
     /* Decision rights (RACI). Being identified is not the same as being entitled: a
        reservoir engineer proposes a pre-release, the authority approves it. A refusal here
@@ -588,15 +591,28 @@
       }
     }
 
+    if (action === "decision.approve" && (!pkg || pkg.kind !== "PROPOSAL" ||
+        pkg.feasible !== true || pkg.deadlineIn <= 0)) {
+      OPS.audit.log("decision.refused", { package: pkg && pkg.id,
+        eventId: `EVT-${FT.state.scenario}`, actorRole: OPS.audit.actor.role,
+        reasonCode: "proposal-not-approvable", kind: pkg && pkg.kind }, reason);
+      FT.notify(L("Đề xuất không còn khả thi hoặc đã hết hạn; không được áp dụng.",
+        "The proposal is infeasible, unavailable or expired; it cannot be applied."), "warn");
+      renderAudit();
+      return false;
+    }
+
     const auditEntry = OPS.audit.log(action, {
       decision: FT.roles ? FT.roles.decisionForProposal(pkg, FT.hydro.at(FT.state.timeH)) : null,
       actorRole: OPS.audit.actor.role,
+      rainScale: FT.state.rainScale, ensSpread: FT.state.ensSpread,
+      actorIdentity: { name: OPS.audit.actor.name, role: OPS.audit.actor.role },
       package: pkg ? pkg.id : null,
       eventId: FT.state ? `EVT-${FT.state.scenario}` : null,
       feasible: pkg ? pkg.feasible : null,
       binding: pkg && pkg.binding ? pkg.binding.id : null,
-      peak: pkg ? U.fmt(pkg.outcome.peak, 2) : null,
-      counterfactualPeak: pkg ? U.fmt(pkg.counterfactual.peak, 2) : null,
+      peak: pkg && pkg.outcome ? U.fmt(pkg.outcome.peak, 2) : null,
+      counterfactualPeak: pkg && pkg.counterfactual ? U.fmt(pkg.counterfactual.peak, 2) : null,
       confidence: pkg ? pkg.confidence : null,
       dataLevel: OPS.health().level,
     }, reason);
@@ -608,7 +624,7 @@
     }
     el.dpReasonInput.value = "";
     renderAudit();
-    return true;
+    return storedAuditEntry || false;
   }
 
   /* ---------- wiring ---------- */
@@ -692,10 +708,10 @@
           (OPS.audit.exportText() || "—").replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c]))}</pre>`);
     });
 
-    /* capture phase so the gate runs before ui.js's own approve/reject handlers */
-    const ap = $("mpcApprove"), rj = $("mpcReject");
-    if (ap) ap.addEventListener("click", (e) => gate(e, "decision.approve"), true);
-    if (rj) rj.addEventListener("click", (e) => gate(e, "decision.reject"), true);
+    // All entry points (card, modal and guided tour) use this same gate.
+    FT.ui.authorizeDecision = (action) => gate({
+      stopImmediatePropagation() {}, preventDefault() {},
+    }, action);
 
     FT.bus.on("hydroRebuilt", () => {
       lastPkgKey = "";

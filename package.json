@@ -23,10 +23,15 @@
     "test:zoom": "node tests/zoom-visual.mjs",
     "zoom:compare": "node tests/zoom-visual.mjs --compare",
     "physics": "node tests/physics-conservation.mjs",
-    "test": "npm run docs:engineering && npm run docs:objective && npm run docs:integrated && npm run docs:role-workspaces && npm run docs:workflow && npm run test:role-workspaces && npm run ui:workspaces && npm run test:explainability && npm run compare && node tests/e2e.mjs && node tests/ux-audit.mjs && npm run shell && npm run test:earth-map && npm run test:zoom && npm run test:map-errors && npm run physics",
+    "test": "npm run test:regressions && npm run docs:engineering && npm run docs:workflow && npm run test:role-workspaces && npm run ui:workspaces && npm run test:explainability && npm run compare && node tests/e2e.mjs && node tests/ux-audit.mjs && npm run shell && npm run test:earth-map && npm run test:zoom && npm run test:map-errors && npm run physics",
     "ux": "node tests/ux-audit.mjs",
     "ux:strict": "node tests/ux-audit.mjs --strict",
-    "test:map-errors": "node tests/map-errors.mjs"
+    "test:map-errors": "node tests/map-errors.mjs",
+    "test:external-docs": "npm run docs:objective && npm run docs:integrated && npm run docs:role-workspaces",
+    "test:mock-ai": "node tests/mock-ai.mjs",
+    "test:regressions": "node tests/mock-ai.mjs && node tests/audit-regressions.mjs && python tests/test_api.py && node tests/audit-browser.mjs",
+    "train:local": "node scripts/run-phase2.cjs",
+    "serve:ai": "python scripts/api_server.py"
   },
   "devDependencies": {
     "playwright": "^1.62.0"

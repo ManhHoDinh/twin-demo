@@ -71,7 +71,7 @@
     if (!S) return;
     const g = S.def;
     const pk = H._activeKey();
-    const act = S[pk];
+    const act = H.viewEnsemble(gId);
     const now = FT.state.timeH;
 
     const padL = 30 * dpr, padR = 34 * dpr, padT = 8 * dpr, padB = 16 * dpr;
@@ -152,7 +152,7 @@
       ctx.fillStyle = "rgba(200,210,225,0.8)"; ctx.textAlign = "right";
       ctx.fillText("Rule", padL + iw - 3 * dpr, Y(S.rule.med[H.NT - 1]) - 4 * dpr);
       ctx.fillStyle = U.css("--accent");
-      ctx.fillText("MPC", padL + iw - 3 * dpr, Y(act.med[H.NT - 1]) + 9 * dpr);
+      ctx.fillText(H.viewSelection() ? "Preview" : "MPC", padL + iw - 3 * dpr, Y(act.med[H.NT - 1]) + 9 * dpr);
     }
 
     /* observed line (t ≤ now) */
@@ -231,7 +231,7 @@
     const X = (t) => ((t - H.T0) / (H.T1 - H.T0)) * sw;
     const g = D.GAUGES[0];
     const S = H.series(g.id);
-    const act = S[H._activeKey()];
+    const act = H.viewEnsemble(g.id);
 
     /* background + observed shading */
     ctx.fillStyle = "rgba(7,19,32,0.55)";

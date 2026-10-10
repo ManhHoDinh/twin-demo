@@ -136,34 +136,8 @@
      C-09 · controllability κ at the governing control point
      Reproduces the hydro.buildGauge decomposition exactly.
      ================================================================ */
-  function gaugeParts(g, t, selection) {
-    const Hy = FT.hydro, scen = D.SCENARIOS[FT.state.scenario];
-    const iAt = (x) => U.clamp((x - Hy.T0) / Hy.DT, 0, Hy.NT - 1);
-    const i = Math.round(iAt(t));
-    const j = Math.max(0, i - Math.round(g.lagH / Hy.DT));
-    let q = 0;
-    for (const r of D.RESERVOIRS) {
-      const w = g.resW[r.id] || 0;
-      if (!w) continue;
-      const pol = selection && selection[r.id] ? selection[r.id] : "rule";
-      q += w * Hy.res[r.id][pol].O[j];
-    }
-    const local = Hy._localRunoff[Math.max(0, i - Math.round((g.lagH * 0.5) / Hy.DT))];
-    const resp = q / 1150;
-    const loc = (local / 55) * g.localGain;
-    const k = scen.surgeGain * 1.35;
-    return { res: resp * k, loc: loc * k, base: g.base, max: g.max };
-  }
-  /* exact stage series for an arbitrary rule/mpc mix — used for alternatives + counterfactual */
-  function stageSeries(g, selection) {
-    const Hy = FT.hydro, out = new Float64Array(Hy.NT);
-    for (let i = 0; i < Hy.NT; i++) {
-      const t = Hy.T0 + i * Hy.DT;
-      const p = gaugeParts(g, t, selection);
-      out[i] = Math.min(g.max, p.base + p.res + p.loc);
-    }
-    return out;
-  }
+  function gaugeParts(g, t, selection) { return FT.hydro.gaugeParts(g, t, selection); }
+  function stageSeries(g, selection) { return FT.hydro.stageSeries(g, selection); }
   OPS.stageSeries = stageSeries;
 
   OPS.kappa = function (g, t) {
@@ -230,17 +204,15 @@
 
   /* Same q05/median estimator as hydro.buildProposal(), extracted for comparison. */
   function probabilityBelowAtPeak(g, key) {
-    const e = FT.hydro.gauge[g.id][key];
+    const H = FT.hydro, e = H.ensemble(g.id, key);
     let iPk = 0;
     for (let i = 1; i < e.med.length; i++) if (e.med[i] > e.med[iPk]) iPk = i;
-    const medPk = e.med[iPk];
-    const sigma = Math.max(0.05, (medPk - e.q05[iPk]) / 1.645);
-    return U.clamp(U.normCdf((g.bd[2] - medPk) / sigma), 0.01, 0.99);
+    return H.probabilityBelow(e, g.bd[2], H.T0 + iPk * H.DT);
   }
 
   OPS.compareOption = function (def) {
     const g = D.GAUGES.find((x) => x.id === def.gaugeId) || D.GAUGES[0];
-    const selection = Object.assign({}, def.selection || allSel(def.kind === "RULE" ? "rule" : "mpc"));
+    const selection = FT.hydro.normalizeSelection(def.selection || allSel(def.kind === "RULE" || def.kind === "RECOVERY" ? "rule" : "mpc"));
     const peak = peakOf(stageSeries(g, selection));
     const selectedReservoirs = Object.keys(selection).filter((id) => selection[id] === "mpc");
     const constraints = [];
@@ -251,7 +223,6 @@
     }
     const hard = constraints.filter((c) => c.status === "FAIL");
     const binding = constraints.find((c) => c.binding) || hard[0] || null;
-    const key = def.kind === "RULE" ? "rule" : "mpc";
     return {
       id: def.id,
       kind: def.kind,
@@ -273,7 +244,7 @@
         dependency: "world.floodStats",
         lastValidTime: null,
       },
-      residualRisk: { pBelowAl3: probabilityBelowAtPeak(g, key), gaugeId: g.id },
+      residualRisk: { pBelowAl3: probabilityBelowAtPeak(g, selection), gaugeId: g.id },
       confidence: "LOW",
       versions: Object.assign({}, OPS.versions),
       validTime: FT.state.timeH,

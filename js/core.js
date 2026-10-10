@@ -4,6 +4,9 @@
 
   const FT = (window.FT = window.FT || {});
 
+  FT.BUILD_VERSION = "v" + ((typeof document !== "undefined" && document.currentScript &&
+    /[?&]v=([^&]+)/.exec(document.currentScript.src) || [null, "150"])[1]);
+
   /* ---------- event bus ---------- */
   const listeners = {};
   FT.bus = {
@@ -274,9 +277,12 @@
       "panel.traffic": "Giao thông mô phỏng · cập nhật liên tục",
       "tr.open": "Mạng thông", "tr.closed": "Đoạn đóng", "tr.reroute": "Xe đổi lộ trình", "tr.eta": "ETA ĐN→Hội An",
       "tr.veh": "xe", "tr.blocked": "tắc",
-      "panel.llm": "Lớp LLM có kiểm soát · RAG", "llm.grounded": "100% trích nguồn",
-      "llm.placeholder": "Nhấn tạo bản tin để tổng hợp tình huống — mọi con số lấy từ solver/optimizer, mọi mệnh đề kèm trích dẫn.",
-      "llm.generate": "Tạo bản tin tình huống", "llm.citizen": "Hỏi đáp cư dân Hội An",
+      "panel.llm": "Trợ lý AI mock", "llm.grounded": "Cục bộ · theo quy tắc",
+      "llm.placeholder": "Tạo bản tin hoặc hỏi về số liệu mô phỏng đang xem. Mock ghi rõ nguồn tính toán và giới hạn.",
+      "llm.generate": "Tạo lại bản tin", "llm.citizen": "Hỏi về Hội An",
+      "mock.intro": "Dữ liệu mô phỏng · chưa dùng LLM · không tự phê duyệt lệnh.",
+      "mock.forecast": "Mực trạm", "mock.reservoirs": "Hồ chứa", "mock.uncertainty": "Bất định", "mock.source": "Nguồn",
+      "mock.question": "Câu hỏi về mô phỏng", "mock.ask": "Hỏi",
       "panel.log": "Nhật ký sự kiện",
       "panel.zones": "Khu vực giám sát", "kpi.zones": "KV nguy cơ/khẩn cấp",
       "layer.zones": "Vòng khu vực", "layer.bldg": "Tòa nhà", "layer.impact": "Tác động dân cư",
@@ -293,7 +299,7 @@
       "phase.calm": "Ổn định", "phase.watch": "Theo dõi", "phase.rise": "Nước lên", "phase.peak": "Đỉnh lũ", "phase.recede": "Nước rút",
       "unit.people": "người", "unit.min": "ph",
       "res.inflow": "vào", "res.outflow": "xả", "res.ceil": "trần trước lũ", "res.gate": "cửa van", "res.preRelease": "xả trước",
-      "modal.decision": "Gói quyết định · xả trước MPC", "modal.brief": "Bản tin tình huống (LLM có kiểm soát)", "modal.citizen": "Hỏi đáp cư dân — Hội An",
+      "modal.decision": "Gói quyết định · xả trước MPC", "modal.brief": "Bản tin mô phỏng · AI mock", "modal.citizen": "Hỏi đáp cư dân — Hội An",
       "dp.proposed": "Lệnh xả đề xuất", "dp.envelope": "Bao dòng vào ensemble", "dp.legal": "Điều khoản pháp lý", "dp.residual": "Rủi ro tồn dư", "dp.downstream": "Hạ lưu dự kiến",
       "toast.mpcOn": "Đã kích hoạt tối ưu MPC — đề xuất xả trước sẵn sàng chờ phê duyệt.",
       "toast.approved": "Lệnh xả trước đã được phê duyệt — cập nhật dự báo hạ lưu.",
@@ -575,9 +581,12 @@
       "panel.traffic": "Continuously updated simulated traffic",
       "tr.open": "Network open", "tr.closed": "Closed links", "tr.reroute": "Rerouted", "tr.eta": "ETA DN→Hoi An",
       "tr.veh": "veh", "tr.blocked": "jam",
-      "panel.llm": "Bounded LLM layer · RAG", "llm.grounded": "100% cited",
-      "llm.placeholder": "Generate a brief to summarise the situation — every number comes from the solver/optimizer, every clause carries a citation.",
-      "llm.generate": "Generate situation brief", "llm.citizen": "Hoi An citizen Q&A",
+      "panel.llm": "Mock AI assistant", "llm.grounded": "Local · rule-based",
+      "llm.placeholder": "Generate a brief or ask about the viewed simulation. The mock shows calculation sources and limitations.",
+      "llm.generate": "Regenerate brief", "llm.citizen": "Ask about Hoi An",
+      "mock.intro": "Synthetic data · no LLM · no automatic approval.",
+      "mock.forecast": "Gauges", "mock.reservoirs": "Reservoirs", "mock.uncertainty": "Uncertainty", "mock.source": "Sources",
+      "mock.question": "Question about the simulation", "mock.ask": "Ask",
       "panel.log": "Event log",
       "panel.zones": "Monitored areas", "kpi.zones": "Areas at risk/critical",
       "layer.zones": "Area rings", "layer.bldg": "Buildings", "layer.impact": "Human impact",
@@ -594,7 +603,7 @@
       "phase.calm": "Stable", "phase.watch": "Watch", "phase.rise": "Rising", "phase.peak": "Flood peak", "phase.recede": "Receding",
       "unit.people": "people", "unit.min": "min",
       "res.inflow": "in", "res.outflow": "out", "res.ceil": "pre-flood ceiling", "res.gate": "gates", "res.preRelease": "pre-release",
-      "modal.decision": "Decision package · MPC pre-release", "modal.brief": "Situation brief (bounded LLM)", "modal.citizen": "Citizen Q&A — Hoi An",
+      "modal.decision": "Decision package · MPC pre-release", "modal.brief": "Simulation brief · AI mock", "modal.citizen": "Citizen Q&A — Hoi An",
       "dp.proposed": "Proposed release", "dp.envelope": "Ensemble inflow envelope", "dp.legal": "Governing clause", "dp.residual": "Residual risk", "dp.downstream": "Projected downstream",
       "toast.mpcOn": "MPC optimizer armed — pre-release proposal awaiting approval.",
       "toast.approved": "Pre-release approved — downstream forecast updated.",

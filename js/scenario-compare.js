@@ -117,7 +117,7 @@
       kind: "PROPOSAL", comparisonSessionId: C.state.sessionId, optionId: id,
       validTime: C.state.validTime, gaugeId: C.state.gaugeId, result: option.result,
     };
-    return { ok: true, lifecycleClass: FT.lifecycle.classifyDecision(artifact), artifact };
+    return { ok: true, lifecycleClass: FT.lifecycle.CLASS.RECOMMENDATION, artifact };
   };
 
   C.markStale = function (reason) {
@@ -133,5 +133,10 @@
     if (FT.world && FT.world.ready) FT.bus.emit("scrubbed");
   };
 
+  C.viewSelection = () => {
+    if (C.state.status !== "COMPARING" || C.state.viewPolicyKey === null) return null;
+    const option = C.state.options[C.state.selectedOptionId];
+    return option ? FT.hydro.normalizeSelection(option.selection || (option.kind === "RULE" || option.kind === "RECOVERY" ? "rule" : "mpc")) : null;
+  };
   C.viewKey = () => C.state.status === "COMPARING" ? C.state.viewPolicyKey : null;
 })();

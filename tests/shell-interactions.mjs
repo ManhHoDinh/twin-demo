@@ -33,7 +33,7 @@ try {
   ok('AI assistant opens (⌘J)', aiOpen);
   // AI holds the brief/citizen buttons; report buttons moved to the persistent action toolbar
   const aiWired = await p.evaluate(() => !!document.querySelector('[data-panel="ai"] #btnBrief') && !!document.querySelector('[data-panel="ai"] #btnCitizen'));
-  ok('AI panel holds real LLM brief/citizen buttons', aiWired);
+  ok('AI panel holds mock brief/citizen buttons', aiWired);
   const reportsPersistent = await p.evaluate(() => !!document.querySelector('.geoActions #btnReport') && !!document.querySelector('.geoActions #btnRepOperation'));
   ok('report actions live in persistent toolbar', reportsPersistent);
 
@@ -103,7 +103,10 @@ try {
 
   // Modes: split shows both canvases
   await neutral();
-  await p.evaluate(() => window.FT.mapMode.set('split')); await sleep(300);
+  await p.evaluate(() => window.FT.mapMode.set('split'));
+  // Wait for the actual transition: GPU load can postpone its first rendered frame.
+  await p.waitForFunction(() => document.body.classList.contains('mode-split') &&
+    getComputedStyle(document.getElementById('canvas2d')).opacity === '1', null, {timeout: 5000});
   const split = await p.evaluate(() => {
     const c2 = getComputedStyle(document.getElementById('canvas2d'));
     return document.body.classList.contains('mode-split') && parseFloat(c2.opacity) === 1;

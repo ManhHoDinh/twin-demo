@@ -25,7 +25,7 @@
     const g = D.GAUGES.find((x) => x.id === gaugeId);
     const e = H.gauge[gaugeId];
     if (!g || !e) return 0;
-    const med = e[H._activeKey()].med;
+    const med = H.viewEnsemble(gaugeId).med;
     return Math.max(0, H.sample(med, U.clamp(t, H.T0, H.T1)) - g.base);
   };
 
@@ -33,24 +33,12 @@
      The quantiles are a parametric normal spread around the median (hydro.buildQuantiles),
      so inverting them for an exceedance probability is exact for THIS engine. It is still
      SYNTHETIC — there are no real members behind it. See risk register R-01. */
-  const NORM_CDF = (z) => 0.5 * (1 + erf(z / Math.SQRT2));
-  function erf(x) {                                     // Abramowitz & Stegun 7.1.26
-    const s = x < 0 ? -1 : 1; x = Math.abs(x);
-    const t = 1 / (1 + 0.3275911 * x);
-    const y = 1 - ((((1.061405429 * t - 1.453152027) * t + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x);
-    return s * y;
-  }
   F.pExceed = function (gaugeId, level, t) {
     const H = FT.hydro;
     if (!H.ready) return 0;
     const e = H.gauge[gaugeId];
     if (!e) return 0;
-    const key = H._activeKey();
-    const med = H.sample(e[key].med, U.clamp(t, H.T0, H.T1));
-    const q95 = H.sample(e[key].q95, U.clamp(t, H.T0, H.T1));
-    const sigma = Math.max(0.02, (q95 - med) / 1.645);
-    if (t <= 0) return med >= level ? 1 : 0;             // the past is observed, not forecast
-    return U.clamp(1 - NORM_CDF((level - med) / sigma), 0, 1);
+    return 1 - H.probabilityBelow(H.viewEnsemble(gaugeId), level, U.clamp(t, H.T0, H.T1));
   };
   /* peak probability over a forward window — what an operator actually asks */
   F.pExceedWindow = function (gaugeId, level, t0, t1) {
@@ -91,7 +79,7 @@
      the same frame do not double-smooth */
   let calKey = "";
   F.ensureCalibrated = function (t) {
-    const k = `${FT.state.scenario}|${FT.state.policy}|${FT.state.mpcApproved}|${Math.round(t * 20)}`;
+    const k = `${FT.state.scenario}|${FT.state.policy}|${FT.state.mpcApproved}|${JSON.stringify(FT.hydro.viewSelection())}|${FT.state.rainScale}|${Math.round(t * 20)}`;
     if (k === calKey) return;
     calKey = k;
     F.calibrate(t);
@@ -139,17 +127,31 @@
       for (const e of R.neighbors[n]) {
         const tArrive = t0 + d;                          // when this traveller reaches the edge
         if (F.edgeClsAt(e, tArrive) >= 3) continue;      // will be shut by the time they get there
-        const slow = F.edgeClsAt(e, tArrive) >= 2 ? 0.35 : 1;
-        const c = e.len / Math.max(5, e.speed * slow * (speedFactor || 1));
+        let slow = F.edgeClsAt(e, tArrive) >= 2 ? 0.35 : 1;
+        let c, unsafe = false;
+        // Conservatively use the slowest class encountered during the complete traversal.
+        for (let pass = 0; pass < 2; pass++) {
+          c = e.len / Math.max(5, e.speed * slow * (speedFactor || 1));
+          const exit = tArrive + c;
+          unsafe = exit > FT.hydro.T1 || F.edgeClsAt(e, exit) >= 3;
+          let risk = F.edgeClsAt(e, exit) >= 2;
+          for (let tt = Math.ceil(tArrive / STEP) * STEP; !unsafe && tt < exit; tt += STEP) {
+            const cls = F.edgeClsAt(e, tt);
+            unsafe = cls >= 3; risk = risk || cls >= 2;
+          }
+          if (unsafe || !risk || slow === 0.35) break;
+          slow = 0.35;
+        }
+        if (unsafe) continue;
         const m = e.a === n ? e.b : e.a, nd = d + c;
-        if (dist[m] === undefined || nd < dist[m]) { dist[m] = nd; prev[m] = { n, e }; Q.push([nd, m]); }
+        if (dist[m] === undefined || nd < dist[m]) { dist[m] = nd; prev[m] = { n, e, duration: c }; Q.push([nd, m]); }
       }
     }
     if (dist[to] === undefined) return null;
-    const edges = [];
+    const edges = [], durations = [];
     let cur = to;
-    while (cur !== from) { const p = prev[cur]; edges.unshift(p.e); cur = p.n; }
-    return { edges, timeH: dist[to], arriveT: t0 + dist[to] };
+    while (cur !== from) { const p = prev[cur]; edges.unshift(p.e); durations.unshift(p.duration); cur = p.n; }
+    return { edges, durations, timeH: dist[to], arriveT: t0 + dist[to] };
   }
   F.routeAt = routeAt;
 
@@ -159,13 +161,17 @@
     const r = routeAt(from, to, t0, speedFactor);
     if (!r) return { ok: false, openUntil: null, timeH: null, reason: "no-route" };
     let openUntil = null;
-    for (const e of r.edges) {
+    let elapsed = 0, lastDeparture = null;
+    for (let i = 0; i < r.edges.length; i++) {
+      const e = r.edges[i];
       const c = F.edgeClosesAt(e, t0);
       if (c != null && (openUntil == null || c < openUntil)) openUntil = c;
+      elapsed += r.durations[i];
+      if (c != null) lastDeparture = Math.min(lastDeparture == null ? Infinity : lastDeparture, c - elapsed);
     }
     /* the last safe departure is when the traveller would still clear the first closure */
-    const lastDeparture = openUntil == null ? null : openUntil - r.timeH;
-    return { ok: true, timeH: r.timeH, openUntil, lastDeparture, edges: r.edges, reason: null };
+    const ok = lastDeparture == null || lastDeparture > t0;
+    return { ok, timeH: r.timeH, openUntil, lastDeparture, edges: r.edges, reason: ok ? null : "closes-during-travel" };
   };
 
   /* ---------- standing access vulnerability ----------
@@ -272,10 +278,12 @@
     if (!D.SHELTERS) return null;
     let best = null;
     for (const sh of D.SHELTERS) {
-      const st = F.shelterState(sh, t);
+      let st = F.shelterState(sh, t);
       if (!st.valid) continue;
       const r = F.routeViability(zone.node, sh.node, t, 0.5);   // assisted movement is slow
-      if (!r.ok) continue;
+      if (!r.ok || (r.lastDeparture != null && r.lastDeparture < t)) continue;
+      st = F.shelterState(sh, t + r.timeH);
+      if (!st.valid) continue;
       /* prefer close, dry-floored, adequately sized sites — and one people can still reach */
       const score = r.timeH
         + (st.capacity < zone.pop * 0.15 ? 0.6 : 0)
@@ -305,7 +313,7 @@
     F.ensureCalibrated(t);
     /* Cache on (t, policy, degradation, exposure signature): exposure is what drives the
        allocation and it changes as the sim advances, so key on it rather than t alone. */
-    const sig = t + "|" + FT.state.policy + "|" + (FT.state.mpcApproved ? 1 : 0) + "|"
+    const sig = FT.state.scenario + "|" + FT.state.rainScale + "|" + JSON.stringify(FT.hydro.viewSelection()) + "|" + t + "|" + FT.state.policy + "|" + (FT.state.mpcApproved ? 1 : 0) + "|"
       + (FT.zones && FT.zones.list ? FT.zones.list.map((z) => Math.round(z.exposed)).join(",") : "");
     if (_allocCache && _allocCache.sig === sig) return _allocCache.result;
 
@@ -330,16 +338,19 @@
       for (const sh of D.SHELTERS) {
         if (!stOf[sh.id].valid) continue;
         const r = F.routeViability(zdef.node, sh.node, t, 0.5);
-        if (!r.ok) continue;
-        reachable.push({ sh, r });
+        if (!r.ok || (r.lastDeparture != null && r.lastDeparture < t)) continue;
+        const arrival = F.shelterState(sh, t + r.timeH);
+        if (!arrival.valid) continue;
+        reachable.push({ sh, r, capacity: arrival.capacity });
       }
       reachable.sort((a, b) => a.r.timeH - b.r.timeH);
       // fill nearest first, spill overflow to the next reachable shelter
       let need = exposed;
       const placed = [];
-      for (const { sh, r } of reachable) {
+      for (const { sh, r, capacity } of reachable) {
         if (need <= 0) break;
-        const take = Math.min(need, remaining[sh.id]);
+        const alreadyPlaced = stOf[sh.id].capacity - remaining[sh.id];
+        const take = Math.max(0, Math.min(need, remaining[sh.id], capacity - alreadyPlaced));
         if (take <= 0) continue;
         remaining[sh.id] -= take;
         need -= take;
@@ -359,8 +370,14 @@
     let reachableCapacity = 0;
     for (const sh of D.SHELTERS) {
       if (!stOf[sh.id].valid) continue;
-      const anyZoneReaches = D.ZONES.some((z) => F.routeViability(z.node, sh.node, t, 0.5).ok);
-      if (anyZoneReaches) reachableCapacity += stOf[sh.id].capacity;
+      let capacity = 0;
+      for (const z of D.ZONES) {
+        const route = F.routeViability(z.node, sh.node, t, 0.5);
+        if (!route.ok || (route.lastDeparture != null && route.lastDeparture < t)) continue;
+        const arrival = F.shelterState(sh, t + route.timeH);
+        if (arrival.valid) capacity = Math.max(capacity, Math.min(stOf[sh.id].capacity, arrival.capacity));
+      }
+      reachableCapacity += capacity;
     }
 
     const result = {
