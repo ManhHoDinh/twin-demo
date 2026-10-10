@@ -1,5 +1,9 @@
 # End-to-end suite
 
+Audit update 2026-10-08: `npm test` runs local contracts, 15 audit unit groups, 6 Python API methods, 7 audit browser groups and all browser/physics gates. Python API dependencies: `python -m pip install -r scripts/requirements.txt`. Three sibling product-document contracts remain available through `npm run test:external-docs`; set `FLOODTWIN_PRODUCT_OS` to that repository when it is not at `../SkyLabs_SURF2026`. Missing external documents are not counted as verified.
+
+Current workflow counts: E2E 89, UX 41, role workspaces 76. The older table below describes the original grouping; actual executable reports determine counts.
+
 ```bash
 npm run e2e          # behaviour suite  — 75 checks
 npm run ux           # UI/UX conformance — 37 checks against the project's own UX standard

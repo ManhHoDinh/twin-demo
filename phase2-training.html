@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FloodTwin AI — Phase 2: Training & Validation</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #0a1628 0%, #1a2f4a 100%);
+      min-height: 100vh;
+      color: #fff;
+      padding: 20px;
+    }
+
+    .container { max-width: 1400px; margin: 0 auto; }
+
+    h1 { font-size: 2rem; color: #00c8ff; margin-bottom: 10px; }
+    h2 { font-size: 1.3rem; color: #88d4ff; margin: 25px 0 15px; }
+    h3 { font-size: 1rem; color: #fff; margin: 15px 0 10px; }
+
+    .card {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+
+    .btn {
+      background: linear-gradient(135deg, #00c8ff, #0088cc);
+      border: none;
+      color: #fff;
+      padding: 12px 24px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 1rem;
+      font-weight: 600;
+      margin: 5px;
+      transition: all 0.3s;
+    }
+
+    .btn:hover { transform: translateY(-2px); box-shadow: 0 4px 15px rgba(0,200,255,0.4); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    .btn-success { background: linear-gradient(135deg, #22c55e, #16a34a); }
+    .btn-danger { background: linear-gradient(135deg, #ef4444, #dc2626); }
+    .btn-warning { background: linear-gradient(135deg, #f59e0b, #d97706); }
+
+    .progress-container { margin: 15px 0; }
+    .progress-label { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 0.9rem; }
+    .progress-bar-bg { height: 12px; background: rgba(255,255,255,0.1); border-radius: 6px; overflow: hidden; }
+    .progress-bar { height: 100%; background: linear-gradient(90deg, #00c8ff, #22c55e); transition: width 0.5s; }
+
+    .output {
+      background: #0a1628;
+      border: 1px solid rgba(0,200,255,0.2);
+      border-radius: 8px;
+      padding: 15px;
+      font-family: 'Consolas', 'Monaco', monospace;
+      font-size: 0.8rem;
+      max-height: 400px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      color: #88d4ff;
+    }
+
+    .output .success { color: #22c55e; }
+    .output .error { color: #ef4444; }
+    .output .warning { color: #f59e0b; }
+    .output .info { color: #00c8ff; }
+
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin: 20px 0;
+    }
+
+    .metric-box {
+      background: rgba(0,200,255,0.1);
+      border-radius: 10px;
+      padding: 20px;
+      text-align: center;
+    }
+
+    .metric-value { font-size: 2rem; font-weight: 700; }
+    .metric-label { font-size: 0.85rem; color: #888; margin-top: 5px; }
+    .metric-target { font-size: 0.75rem; color: #666; }
+
+    .metric-box.pass { border: 2px solid #22c55e; }
+    .metric-box.pass .metric-value { color: #22c55e; }
+    .metric-box.fail { border: 2px solid #ef4444; }
+    .metric-box.fail .metric-value { color: #ef4444; }
+    .metric-box.pending { border: 2px solid #666; }
+    .metric-box.pending .metric-value { color: #888; }
+
+    .console {
+      background: #000;
+      border-radius: 8px;
+      padding: 15px;
+      font-family: 'Consolas', monospace;
+      font-size: 0.75rem;
+      max-height: 500px;
+      overflow-y: auto;
+      margin: 15px 0;
+    }
+
+    .console div { margin: 2px 0; }
+    .timestamp { color: #555; margin-right: 8px; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 15px 0;
+    }
+
+    th, td {
+      padding: 10px;
+      text-align: left;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+
+    th { color: #00c8ff; font-weight: 600; }
+    td { color: #ccc; }
+
+    .status-badge {
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+
+    .status-pass { background: rgba(34,197,94,0.2); color: #22c55e; }
+    .status-fail { background: rgba(239,68,68,0.2); color: #ef4444; }
+    .status-pending { background: rgba(102,102,102,0.2); color: #888; }
+    .status-running { background: rgba(0,200,255,0.2); color: #00c8ff; }
+
+    .phase-indicator {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 15px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 8px;
+      margin-bottom: 15px;
+    }
+
+    .phase-num {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+    }
+
+    .phase-num.active { background: #00c8ff; color: #000; }
+    .phase-num.completed { background: #22c55e; color: #fff; }
+    .phase-num.pending { background: #444; color: #888; }
+
+    .checkbox-list {
+      list-style: none;
+      padding: 0;
+    }
+
+    .checkbox-list li {
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .checkbox-list li::before {
+      content: '○';
+      color: #666;
+      font-size: 1.2rem;
+    }
+
+    .checkbox-list li.completed::before {
+      content: '✓';
+      color: #22c55e;
+    }
+
+    .checkbox-list li.failed::before {
+      content: '✗';
+      color: #ef4444;
+    }
+
+    .comparison-table {
+      background: rgba(0,0,0,0.3);
+      border-radius: 8px;
+      padding: 15px;
+      margin: 15px 0;
+    }
+
+    .comparison-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .comparison-row:last-child { border: none; }
+    .comparison-label { color: #888; }
+    .comparison-value { font-weight: 600; }
+    .comparison-value.good { color: #22c55e; }
+    .comparison-value.bad { color: #ef4444; }
+  </style>
+</head>
+<body>
+  <p style="padding:12px;text-align:center;border:1px solid #d99">LOCAL DEMO · SYNTHETIC DATA · Không có kiểm định dữ liệu thực hoặc cuộc gọi OpenAI. Kết quả không dùng vận hành.</p>
+  <div class="container">
+    <h1>🚀 FloodTwin AI — Phase 2: Training & Validation Pipeline</h1>
+
+    <!-- Phase Progress -->
+    <div class="card">
+      <h2>📊 Phase Progress</h2>
+      <div class="metrics-grid" id="phase-progress">
+        <div class="metric-box pending" id="phase-init">
+          <div class="metric-value">—</div>
+          <div class="metric-label">2.1 Initialize</div>
+        </div>
+        <div class="metric-box pending" id="phase-data">
+          <div class="metric-value">—</div>
+          <div class="metric-label">2.2 Generate Data</div>
+        </div>
+        <div class="metric-box pending" id="phase-train">
+          <div class="metric-value">—</div>
+          <div class="metric-label">2.3 Train Model</div>
+        </div>
+        <div class="metric-box pending" id="phase-validate">
+          <div class="metric-value">—</div>
+          <div class="metric-label">2.4 Validate</div>
+        </div>
+        <div class="metric-box pending" id="phase-report">
+          <div class="metric-value">—</div>
+          <div class="metric-label">2.5 Report</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Paper Targets -->
+    <div class="card">
+      <h2>🎯 Paper Novelty Targets</h2>
+      <div class="metrics-grid" id="target-metrics">
+        <div class="metric-box pending" id="target-nse">
+          <div class="metric-value" id="nse-value">—</div>
+          <div class="metric-label">NSE</div>
+          <div class="metric-target">Target: ≥ 0.80</div>
+        </div>
+        <div class="metric-box pending" id="target-kge">
+          <div class="metric-value" id="kge-value">—</div>
+          <div class="metric-label">KGE</div>
+          <div class="metric-target">Target: ≥ 0.75</div>
+        </div>
+        <div class="metric-box pending" id="target-csi">
+          <div class="metric-value" id="csi-value">—</div>
+          <div class="metric-label">CSI</div>
+          <div class="metric-target">Target: ≥ 0.80</div>
+        </div>
+        <div class="metric-box pending" id="target-speed">
+          <div class="metric-value" id="speed-value">—</div>
+          <div class="metric-label">Speedup</div>
+          <div class="metric-target">Target: ≥ 10x</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="card">
+      <h2>🎮 Controls</h2>
+      <button class="btn btn-success" id="btn-run-all">🚀 Run Full Pipeline (Auto)</button>
+      <button class="btn" id="btn-step-init">Step 1: Initialize</button>
+      <button class="btn" id="btn-step-data">Step 2: Generate Data</button>
+      <button class="btn" id="btn-step-train">Step 3: Train Model</button>
+      <button class="btn" id="btn-step-validate">Step 4: Validate</button>
+      <button class="btn btn-warning" id="btn-export">📄 Export Report</button>
+      <button class="btn btn-danger" id="btn-reset">🔄 Reset</button>
+    </div>
+
+    <!-- Step Status -->
+    <div class="card">
+      <h2>📋 Step Status</h2>
+      <ul class="checkbox-list" id="step-list">
+        <li id="step-1">2.1 Initialize AI Subsystem</li>
+        <li id="step-2">2.2 Generate CAMELS-VN Dataset</li>
+        <li id="step-3">2.3 Train LSTM baseline Model</li>
+        <li id="step-4">2.4 Validate Against Paper Targets</li>
+        <li id="step-5">2.5 Generate Final Report</li>
+      </ul>
+    </div>
+
+    <!-- Console Output -->
+    <div class="card">
+      <h2>📝 Console Output</h2>
+      <div class="console" id="console"></div>
+    </div>
+
+    <!-- Detailed Results -->
+    <div class="card">
+      <h2>📊 Detailed Results</h2>
+      <div class="output" id="results-output">
+        Waiting for pipeline to run...
+      </div>
+    </div>
+
+    <!-- Validation Details -->
+    <div class="card">
+      <h2>✅ Validation Details</h2>
+      <div class="comparison-table" id="validation-details">
+        <div class="comparison-row">
+          <span class="comparison-label">NSE (Nash-Sutcliffe Efficiency)</span>
+          <span class="comparison-value" id="detail-nse">—</span>
+        </div>
+        <div class="comparison-row">
+          <span class="comparison-label">KGE (Kling-Gupta Efficiency)</span>
+          <span class="comparison-value" id="detail-kge">—</span>
+        </div>
+        <div class="comparison-row">
+          <span class="comparison-label">CSI (Critical Success Index)</span>
+          <span class="comparison-value" id="detail-csi">—</span>
+        </div>
+        <div class="comparison-row">
+          <span class="comparison-label">KGE-r (Correlation)</span>
+          <span class="comparison-value" id="detail-kge-r">—</span>
+        </div>
+        <div class="comparison-row">
+          <span class="comparison-label">KGE-α (Variability)</span>
+          <span class="comparison-value" id="detail-kge-alpha">—</span>
+        </div>
+        <div class="comparison-row">
+          <span class="comparison-label">KGE-β (Bias)</span>
+          <span class="comparison-value" id="detail-kge-beta">—</span>
+        </div>
+        <div class="comparison-row">
+          <span class="comparison-label">PBIAS (Percent Bias)</span>
+          <span class="comparison-value" id="detail-pbias">—</span>
+        </div>
+        <div class="comparison-row">
+          <span class="comparison-label">RMSE</span>
+          <span class="comparison-value" id="detail-rmse">—</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dependencies -->
+  <script src="./js/core.js"></script>
+  <script src="./js/geo.js"></script>
+  <script src="./js/data.js"></script>
+  <script src="./js/hydro.js"></script>
+
+  <!-- AI Modules -->
+  <script src="./js/ai/ml-hydrology.js"></script>
+  <script src="./js/ai/data-assimilation.js"></script>
+  <script src="./js/ai/llm-integration.js"></script>
+  <script src="./js/ai/risk-engine.js"></script>
+  <script src="./js/ai/data-pipeline.js"></script>
+  <script src="./js/ai/training.js"></script>
+  <script src="./js/ai/validation.js"></script>
+  <script src="./js/ai/ai-manager.js"></script>
+
+  <script>
+    // Chronological holdout: validation selects weights; final test windows stay untouched.
+    function prepareLocalDataset(loader) {
+      const split = loader.prepare(30, 7);
+      const boundary = split.val[Math.floor(split.val.length / 2)].endIndex;
+      const val = split.val.filter(s => s.endIndex + 7 <= boundary);
+      const test = split.val.filter(s => s.endIndex - 30 >= boundary);
+      if (!val.length || !test.length) throw new Error('Insufficient data for validation and test');
+      return { train: split.train, val, test };
+    }
+
+    // ==========================================
+    // STATE MANAGEMENT
+    // ==========================================
+    const state = {
+      initialized: false,
+      datasetReady: false,
+      modelTrained: false,
+      validated: false,
+      results: null,
+      model: null,
+      dataset: null,
+      metrics: null
+    };
+
+    // ==========================================
+    // UI HELPERS
+    // ==========================================
+    const consoleEl = document.getElementById('console');
+    const resultsEl = document.getElementById('results-output');
+
+    function log(msg, type = 'info') {
+      const div = document.createElement('div');
+      const time = new Date().toLocaleTimeString();
+      div.innerHTML = `<span class="timestamp">[${time}]</span><span class="${type}">${msg}</span>`;
+      consoleEl.appendChild(div);
+      consoleEl.scrollTop = consoleEl.scrollHeight;
+      console.log(`[Phase2] ${msg}`);
+    }
+
+    function updatePhase(phase, status) {
+      const el = document.getElementById(`phase-${phase}`);
+      el.className = `metric-box ${status}`;
+      el.querySelector('.metric-value').textContent =
+        status === 'pass' ? '✓' : status === 'fail' ? '✗' : status === 'running' ? '...' : '—';
+    }
+
+    function updateTarget(id, value, pass) {
+      const el = document.getElementById(`target-${id}`);
+      el.className = `metric-box ${pass ? 'pass' : value !== null ? 'fail' : 'pending'}`;
+      el.querySelector('.metric-value').textContent = value !== null ? value.toFixed(3) : '—';
+    }
+
+    function updateStep(step, status) {
+      const el = document.getElementById(`step-${step}`);
+      el.className = status;
+    }
+
+    function updateDetail(id, value, isGood = null) {
+      const el = document.getElementById(`detail-${id}`);
+      if (value !== null) {
+        el.textContent = typeof value === 'number' ? value.toFixed(4) : value;
+        if (isGood !== null) {
+          el.className = `comparison-value ${isGood ? 'good' : 'bad'}`;
+        }
+      } else {
+        el.textContent = '—';
+      }
+    }
+
+    function setButtonsEnabled(enabled) {
+      document.querySelectorAll('.btn').forEach(btn => {
+        if (!btn.id.includes('reset') && !btn.id.includes('export')) {
+          btn.disabled = !enabled;
+        }
+      });
+    }
+
+    // ==========================================
+    // PIPELINE STEPS
+    // ==========================================
+
+    async function step1Initialize() {
+      log('═══════════════════════════════════════════', 'info');
+      log('STEP 1: Initializing AI Subsystem', 'info');
+      log('═══════════════════════════════════════════', 'info');
+
+      updatePhase('init', 'running');
+      updateStep('1', 'running');
+
+      try {
+        log('Initializing FT namespace...', 'info');
+
+        // Wait for FT to be ready
+        let attempts = 0;
+        while (!window.FT || !window.FT.hydro) {
+          await new Promise(r => setTimeout(r, 100));
+          attempts++;
+          if (attempts > 50) throw new Error('FT namespace not ready');
+        }
+
+        log('FT namespace ready', 'success');
+
+        // Initialize AI
+        const result = await window.FT.AI.initialize({
+          features: {
+            USE_ML_HYDROLOGY: true,
+            USE_DATA_ASSIMILATION: true,
+            USE_RISK_ENGINE: true,
+            SHOW_AI_CONFIDENCE: true
+          }
+        });
+
+        log('AI Subsystem initialized:', 'info');
+        log(`  - ML Hydrology: ${result.status.mlHydrology}`, 'info');
+        log(`  - Data Assimilation: ${result.status.dataAssimilation}`, 'info');
+        log(`  - Risk Engine: ${result.status.riskEngine}`, 'info');
+
+        state.initialized = true;
+        updatePhase('init', 'pass');
+        updateStep('1', 'completed');
+
+        log('✓ Step 1 Complete', 'success');
+        return true;
+
+      } catch (e) {
+        log(`✗ Step 1 Failed: ${e.message}`, 'error');
+        updatePhase('init', 'fail');
+        updateStep('1', 'failed');
+        return false;
+      }
+    }
+
+    async function step2GenerateData() {
+      log('═══════════════════════════════════════════', 'info');
+      log('STEP 2: Generating CAMELS-VN Dataset', 'info');
+      log('═══════════════════════════════════════════', 'info');
+
+      updatePhase('data', 'running');
+      updateStep('2', 'running');
+
+      try {
+        log('Creating Data Pipeline...', 'info');
+
+        // Create data pipeline
+        const pipeline = new window.FT.AIData.DataPipeline({
+          cache: { enabled: true }
+        });
+
+        log('Building dataset for Vu Gia - Thu Bon basin...', 'info');
+        log('This generates synthetic data with realistic monsoon patterns...', 'info');
+
+        // Build dataset (multi-year with monsoon patterns)
+        const dataset = await pipeline.buildCAMELSDataset('vgtb', {
+          startDate: '2018-01-01',
+          endDate: '2024-12-31',
+          resolution: 'daily'
+        });
+
+        log(`Dataset created:`, 'success');
+        log(`  Basin: ${dataset.basinName}`, 'info');
+        log(`  Period: ${dataset.period.start} to ${dataset.period.end}`, 'info');
+        log(`  Resolution: ${dataset.resolution}`, 'info');
+        log(`  Total days: ${dataset.forcing.dates.length}`, 'info');
+
+        // Count gauges
+        const gaugeCount = Object.keys(dataset.observations.gauges).length;
+        log(`  Gauges: ${gaugeCount}`, 'info');
+
+        // Count samples
+        let totalSamples = 0;
+        for (const gauge of Object.values(dataset.observations.gauges)) {
+          totalSamples += gauge.discharge.filter(d => d !== null).length;
+        }
+        log(`  Total observations: ${totalSamples}`, 'info');
+
+        state.dataset = dataset;
+        state.datasetReady = true;
+        updatePhase('data', 'pass');
+        updateStep('2', 'completed');
+
+        log('✓ Step 2 Complete', 'success');
+        return true;
+
+      } catch (e) {
+        log(`✗ Step 2 Failed: ${e.message}`, 'error');
+        updatePhase('data', 'fail');
+        updateStep('2', 'failed');
+        return false;
+      }
+    }
+
+    async function step3TrainModel() {
+      log('═══════════════════════════════════════════', 'info');
+      log('STEP 3: Training LSTM baseline Model', 'info');
+      log('═══════════════════════════════════════════', 'info');
+
+      updatePhase('train', 'running');
+      updateStep('3', 'running');
+
+      try {
+        if (!state.dataset) throw new Error('Dataset not ready');
+
+        log('Creating training data loader...', 'info');
+
+        // Create data loader
+        const loader = new window.FT.AITraining.TrainingDataLoader(state.dataset);
+
+        // Prepare training data
+        log('Preparing training sequences (seq_len=30 daily steps, horizon=7 daily steps)...', 'info');
+        const { train, val, scaler } = prepareLocalDataset(loader);
+
+        log(`Training samples: ${train.length}`, 'info');
+        log(`Validation samples: ${val.length}`, 'info');
+
+        // Create model
+        log('Creating LSTM baseline model...', 'info');
+        const model = new window.FT.AITraining.TrainableMCLSTM({ hiddenSize: 16 });
+
+        // Create trainer
+        const trainer = new window.FT.AITraining.Trainer(model, {
+          epochs: 10,
+          batchSize: 32,
+          earlyStoppingPatience: 10,
+          shuffle: true
+        });
+
+        log('Starting training (10 epochs)...', 'info');
+
+        // Train with progress updates
+        const history = await trainer.train(train, val, {
+          onEpochEnd: ({ epoch, trainLoss, valLoss }) => {
+            if (epoch % 5 === 0 || epoch === 9) {
+              log(`  Epoch ${epoch + 1}/10 - Train: ${trainLoss.toFixed(4)}, Val: ${valLoss.toFixed(4)}`, 'info');
+            }
+          }
+        });
+
+        log('Training complete!', 'success');
+        log(`Final train loss: ${history.train[history.train.length - 1]?.toFixed(4)}`, 'info');
+        log(`Final val loss: ${history.val[history.val.length - 1]?.toFixed(4)}`, 'info');
+
+        state.model = model;
+        state.modelTrained = true;
+        state.trainingSamples = train.length;
+        state.validationSamples = val.length;
+        updatePhase('train', 'pass');
+        updateStep('3', 'completed');
+
+        log('✓ Step 3 Complete', 'success');
+        return true;
+
+      } catch (e) {
+        log(`✗ Step 3 Failed: ${e.message}`, 'error');
+        updatePhase('train', 'fail');
+        updateStep('3', 'failed');
+        return false;
+      }
+    }
+
+    async function step4Validate() {
+      log('═══════════════════════════════════════════', 'info');
+      log('STEP 4: Validating Against Paper Targets', 'info');
+      log('═══════════════════════════════════════════', 'info');
+
+      updatePhase('validate', 'running');
+      updateStep('4', 'running');
+
+      try {
+        if (!state.model || !state.dataset) {
+          throw new Error('Model or dataset not ready');
+        }
+
+        log('Creating validation data...', 'info');
+
+        // Prepare validation data
+        const loader = new window.FT.AITraining.TrainingDataLoader(state.dataset);
+        const { test } = prepareLocalDataset(loader);
+
+        // Calculate metrics on validation set
+        log('Calculating performance metrics...', 'info');
+
+        const calculator = new window.FT.AIValidation.MetricsCalculator();
+        const predictions = [];
+        const observations = [];
+
+        // Use subset for faster validation
+        const testSet = test.slice(0, 500);
+
+        for (const sample of testSet) {
+          const pred = Math.expm1(state.model.forward(sample.input));
+          const obs = sample.targetRaw;
+          predictions.push(pred);
+          observations.push(obs);
+        }
+
+        const metrics = calculator.calculateAll(predictions, observations);
+        const assessment = calculator.assessPerformance(metrics);
+
+        // Update metrics display
+        updateTarget('nse', metrics.nse, metrics.nse >= 0.80);
+        updateTarget('kge', metrics.kge, metrics.kge >= 0.75);
+        updateTarget('csi', metrics.csi, metrics.csi >= 0.80);
+
+        // Calculate speedup
+        const startTime = performance.now();
+        for (let i = 0; i < 100; i++) {
+          state.model.forward(testSet[i % testSet.length].input);
+        }
+        const endTime = performance.now();
+        const avgTime = (endTime - startTime) / 100;
+        const speedup = null;
+        const speedEl = document.getElementById('target-speed');
+        if (speedEl) speedEl.textContent = 'N/A — no matched benchmark';
+
+        // Update detailed results
+        log('Performance Metrics:', 'info');
+        log(`  NSE:  ${metrics.nse?.toFixed(4)} (target: 0.80) - ${metrics.nse >= 0.80 ? 'PASS' : 'FAIL'}`,
+            metrics.nse >= 0.80 ? 'success' : 'warning');
+        log(`  KGE:  ${metrics.kge?.toFixed(4)} (target: 0.75) - ${metrics.kge >= 0.75 ? 'PASS' : 'FAIL'}`,
+            metrics.kge >= 0.75 ? 'success' : 'warning');
+        log(`  CSI:  ${metrics.csi?.toFixed(4)} (target: 0.80) - ${metrics.csi >= 0.80 ? 'PASS' : 'FAIL'}`,
+            metrics.csi >= 0.80 ? 'success' : 'warning');
+        log(`  PBIAS: ${metrics.pbias?.toFixed(2)}%`, Number.isFinite(metrics.pbias) && Math.abs(metrics.pbias) <= 10 ? 'info' : 'warning');
+        log(`  RMSE:  ${metrics.rmse?.toFixed(2)}`, 'info');
+        log(`  Measured inference: ${avgTime.toFixed(2)} ms; no HEC-RAS baseline`, 'info');
+
+        // Update details panel
+        updateDetail('nse', metrics.nse, metrics.nse >= 0.80);
+        updateDetail('kge', metrics.kge, metrics.kge >= 0.75);
+        updateDetail('csi', metrics.csi, metrics.csi >= 0.80);
+        updateDetail('kge-r', metrics.kgeComponents?.r, metrics.kgeComponents?.r >= 0.75);
+        updateDetail('kge-alpha', metrics.kgeComponents?.alpha,
+          Math.abs(metrics.kgeComponents?.alpha - 1) < 0.2);
+        updateDetail('kge-beta', metrics.kgeComponents?.beta,
+          Math.abs(metrics.kgeComponents?.beta - 1) < 0.2);
+        updateDetail('pbias', metrics.pbias, Math.abs(metrics.pbias) <= 10);
+        updateDetail('rmse', metrics.rmse, metrics.rmse <= 500);
+
+        state.metrics = metrics;
+        state.validated = true;
+
+        // Store results
+        state.results = {
+          metrics,
+          assessment,
+          speedup,
+          testSize: testSet.length
+        };
+
+        // Determine overall status
+        const allPass = metrics.nse >= 0.80 && metrics.kge >= 0.75 && metrics.csi >= 0.80;
+
+        updatePhase('validate', allPass ? 'pass' : 'fail');
+        updateStep('4', allPass ? 'completed' : 'failed');
+
+        if (allPass) {
+          log('Targets met on synthetic test only; field validation still required.', 'success');
+        } else {
+          log('⚠️ Some targets not met - see Phase 3 for improvements', 'warning');
+        }
+
+        log('✓ Step 4 Complete', 'success');
+        return true; // Validation completed even when research targets are unmet.
+
+      } catch (e) {
+        log(`✗ Step 4 Failed: ${e.message}`, 'error');
+        updatePhase('validate', 'fail');
+        updateStep('4', 'failed');
+        return false;
+      }
+    }
+
+    function step5Report() {
+      log('═══════════════════════════════════════════', 'info');
+      log('STEP 5: Generating Final Report', 'info');
+      log('═══════════════════════════════════════════', 'info');
+
+      updatePhase('report', 'running');
+      updateStep('5', 'running');
+
+      try {
+        const m = state.metrics || {};
+        if (!state.validated || !state.metrics) throw new Error('Complete validation before reporting');
+        const speedup = state.results?.speedup;
+        const metric = (value, digits = 4) => Number.isFinite(value) ? value.toFixed(digits) : 'N/A';
+
+        const report = `
+════════════════════════════════════════════════════════════
+        FLOODTWIN AI — PHASE 2 VALIDATION REPORT
+════════════════════════════════════════════════════════════
+
+Paper Novelty Targets Assessment
+─────────────────────────────────
+┌─────────────────┬──────────┬──────────┬────────┐
+│ Metric          │ Target   │ Achieved │ Status │
+├─────────────────┼──────────┼──────────┼────────┤
+│ NSE             │ ≥ 0.80  │ ${metric(m.nse).padStart(7)} │ ${(m.nse || 0) >= 0.80 ? '  PASS' : '  FAIL'} │
+│ KGE             │ ≥ 0.75  │ ${metric(m.kge).padStart(7)} │ ${(m.kge || 0) >= 0.75 ? '  PASS' : '  FAIL'} │
+│ CSI             │ ≥ 0.80  │ ${metric(m.csi).padStart(7)} │ ${(m.csi || 0) >= 0.80 ? '  PASS' : '  FAIL'} │
+│ Speedup         │ ≥ 10x   │ ${String(speedup ?? 'N/A').padStart(7)}  │ UNVERIFIED │
+└─────────────────┴──────────┴──────────┴────────┘
+
+KGE Components
+─────────────────────────────────
+  r (correlation):    ${metric(m.kgeComponents?.r)}
+  α (variability):  ${metric(m.kgeComponents?.alpha)} (target ≈1.0)
+  β (bias):         ${metric(m.kgeComponents?.beta)} (target ≈1.0)
+
+Additional Metrics
+─────────────────────────────────
+  PBIAS:            ${metric(m.pbias, 2)}%
+  RMSE:             ${metric(m.rmse, 2)}
+
+Training Details
+─────────────────────────────────
+  Dataset:          SYNTHETIC local fixture (CAMELS-style schema)
+  Period:           ${state.dataset?.period?.start} to ${state.dataset?.period?.end}
+  Resolution:       Daily
+  Training Samples: ${state.trainingSamples ?? 'N/A'}
+  Validation Samples: ${state.validationSamples ?? 'N/A'}
+  Test Samples:     ${state.results?.testSize || 'N/A'}
+
+Model Configuration
+─────────────────────────────────
+  Architecture:     Single-layer LSTM baseline
+  Hidden Size:      16 units
+  Layers:           1
+  Ensemble:         none (single trained baseline)
+
+════════════════════════════════════════════════════════════
+        `;
+
+        document.getElementById('results-output').textContent = report;
+
+        log(report, 'info');
+
+        updatePhase('report', 'pass');
+        updateStep('5', 'completed');
+
+        log('✓ Step 5 Complete', 'success');
+        log('════════════════════════════════════════════════════════════', 'success');
+        log('LOCAL EXPERIMENT COMPLETED; real-data research phase remains open.', 'info');
+        log('════════════════════════════════════════════════════════════', 'success');
+
+        return true;
+
+      } catch (e) {
+        log(`✗ Step 5 Failed: ${e.message}`, 'error');
+        updatePhase('report', 'fail');
+        updateStep('5', 'failed');
+        return false;
+      }
+    }
+
+    // ==========================================
+    // EVENT HANDLERS
+    // ==========================================
+
+    async function runFullPipeline() {
+      setButtonsEnabled(false);
+
+      try {
+        const step1 = await step1Initialize();
+        if (!step1) throw new Error('Step 1 failed');
+
+        const step2 = await step2GenerateData();
+        if (!step2) throw new Error('Step 2 failed');
+
+        const step3 = await step3TrainModel();
+        if (!step3) throw new Error('Step 3 failed');
+
+        const step4 = await step4Validate();
+        if (!step4) throw new Error('Step 4 failed');
+        const step5 = step5Report();
+        if (!step5) throw new Error('Step 5 failed');
+
+        log('\n════════════════════════════════════════════════════════════', 'success');
+        log('FULL PIPELINE COMPLETED!', 'success');
+        log('════════════════════════════════════════════════════════════\n', 'success');
+
+      } catch (e) {
+        log(`Pipeline failed: ${e.message}`, 'error');
+      } finally {
+        setButtonsEnabled(true);
+      }
+    }
+
+    document.getElementById('btn-run-all').addEventListener('click', runFullPipeline);
+
+    document.getElementById('btn-step-init').addEventListener('click', async () => {
+      setButtonsEnabled(false);
+      await step1Initialize();
+      setButtonsEnabled(true);
+    });
+
+    document.getElementById('btn-step-data').addEventListener('click', async () => {
+      setButtonsEnabled(false);
+      await step2GenerateData();
+      setButtonsEnabled(true);
+    });
+
+    document.getElementById('btn-step-train').addEventListener('click', async () => {
+      setButtonsEnabled(false);
+      await step3TrainModel();
+      setButtonsEnabled(true);
+    });
+
+    document.getElementById('btn-step-validate').addEventListener('click', async () => {
+      setButtonsEnabled(false);
+      await step4Validate();
+      setButtonsEnabled(true);
+    });
+
+    document.getElementById('btn-reset').addEventListener('click', () => {
+      location.reload();
+    });
+
+    document.getElementById('btn-export').addEventListener('click', () => {
+      const report = document.getElementById('results-output').textContent;
+      const blob = new Blob([report], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `floodtwin_phase2_report_${new Date().toISOString().split('T')[0]}.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
+      log('Report exported!', 'success');
+    });
+
+    // ==========================================
+    // INITIALIZATION
+    // ==========================================
+    log('FloodTwin AI Phase 2 Pipeline Ready', 'success');
+    log('Click "Run Full Pipeline (Auto)" to start...', 'info');
+
+  </script>
+</body>
+</html>

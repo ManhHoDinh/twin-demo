@@ -3,7 +3,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const SITE = path.resolve(ROOT, '..', 'SkyLabs_SURF2026');
+const SITE = path.resolve(process.env.FLOODTWIN_PRODUCT_OS || path.join('..', 'SkyLabs_SURF2026'));
+if (!fs.existsSync(path.join(SITE, 'product-os'))) throw new Error(
+  'External product-os contracts are required by this integration suite. Set FLOODTWIN_PRODUCT_OS to the checkout root. Local verification: npm test.');
 const failures = [];
 let checks = 0;
 

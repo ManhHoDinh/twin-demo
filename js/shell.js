@@ -1457,8 +1457,9 @@
 
   /* ---------- AI assistant ---------- */
   function buildAI() {
-    const fp = new FloatingPanel("ai", { cls: "geoAI", title: "Trợ lý AI · RAG · trích nguồn", label: "Trợ lý AI", role: "dialog", pinnable: true });
+    const fp = new FloatingPanel("ai", { cls: "geoAI", title: FT.i18n.t("panel.llm"), label: "Trợ lý AI", role: "dialog", pinnable: true });
     fp.adopt(document.querySelector(".llmPanel"));
+    FT.bus.on("lang", () => fp.setTitle(FT.i18n.t("panel.llm")));
     panels.ai = fp;
     const launch = el("button", "aiLauncher", "✦"); launch.type = "button"; launch.title = "Trợ lý AI (⌘J)"; launch.setAttribute("aria-label", "Trợ lý AI");
     launch.addEventListener("click", () => fp.toggle());

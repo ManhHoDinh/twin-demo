@@ -115,6 +115,7 @@
 
     // initial state: 88% of pre-flood ceiling band
     let s = r.deadM + (zToS(r.ceil, r) - r.deadM) * 0.9;
+    const initialStorage = s;
     let o = Math.min(r.turbine, I[0]);
     const rampUp = r.spillMax / (6 / DT);              // gate ramp limit per step
     const preQ = Math.min(r.spillMax * 0.35, Math.max(r.turbine * 3, peakI * 0.45));
@@ -143,30 +144,43 @@
       o += U.clamp(target - o, -rampUp, rampUp);
       o = Math.max(0, o);
       if (s <= r.deadM + 4 && o > I[i]) o = I[i];       // never drain below dead storage
+      // Limit withdrawal to available water. Retain every excess cubic metre:
+      // extrapolation above rated capacity is unsafe, not an unrecorded sink.
+      o = Math.min(o, I[i] + Math.max(0, s - r.deadM) * 1e6 / (3600 * DT));
       s += ((I[i] - o) * 3600 * DT) / 1e6;
-      s = Math.min(s, r.capM * 1.04);
       I[i] = I[i]; O[i] = o; S[i] = s;
-      Z[i] = r.dead + zspan * U.clamp((s - r.deadM) / span, 0, 1.06);
+      Z[i] = r.dead + zspan * Math.max(0, (s - r.deadM) / span);
     }
-    return { I, O, Z, S, peakI, peakT, preQ };
+    return { I, O, Z, S, initialStorage, peakI, peakT, preQ };
   }
   function zToS(z, r) { return r.deadM + (r.capM - r.deadM) * U.clamp((z - r.dead) / (r.fsl - r.dead), 0, 1.1); }
 
   /* ---------- gauge stage from routed releases + local runoff ---------- */
-  function buildGauge(g, scen, policyKey) {
-    const arr = new Float64Array(NT);
-    const shift = Math.round(g.lagH / DT);
-    /* local (uncontrolled) contribution from THIS gauge's own intermediate catchment */
+  H.normalizeSelection = function (selection) {
+    const out = {};
+    for (const r of D.RESERVOIRS) {
+      const key = typeof selection === "string" ? selection : selection && selection[r.id] || "rule";
+      if (key !== "rule" && key !== "mpc") throw new Error(`invalid reservoir policy: ${key}`);
+      out[r.id] = key;
+    }
+    return out;
+  };
+  H.gaugeParts = function (g, t, selection) {
+    const policies = H.normalizeSelection(selection), scen = D.SCENARIOS[FT.state.scenario];
+    const i = Math.round(idx(t)), j = Math.max(0, i - Math.round(g.lagH / DT));
+    let q = 0;
+    for (const r of D.RESERVOIRS) q += (g.resW[r.id] || 0) * H.res[r.id][policies[r.id]].O[j];
     const sc = D.SUBCATCH.find((s) => s.gauge === g.id);
     const localArr = sc && H.sub[sc.id] ? H.sub[sc.id].runoff : H._localRunoff;
-    const localShift = Math.round((g.lagH * 0.5) / DT);
+    const local = localArr[Math.max(0, i - Math.round(g.lagH * 0.5 / DT))];
+    const k = scen.surgeGain * 1.35;
+    return { res: q / 1150 * k, loc: local / 55 * g.localGain * k, base: g.base, max: g.max };
+  };
+  function buildGauge(g, scen, policyKey) {
+    const arr = new Float64Array(NT);
     for (let i = 0; i < NT; i++) {
-      const j = Math.max(0, i - shift);
-      let q = 0;
-      for (const r of D.RESERVOIRS) { const w = g.resW[r.id] || 0; if (w) q += w * H.res[r.id][policyKey].O[j]; }
-      const local = localArr[Math.max(0, i - localShift)];
-      const resp = q / 1150 + (local / 55) * g.localGain;
-      arr[i] = Math.min(g.max, g.base + resp * scen.surgeGain * 1.35);
+      const p = H.gaugeParts(g, T0 + i * DT, policyKey);
+      arr[i] = Math.min(g.max, p.base + p.res + p.loc);
     }
     // small observed-noise texture on the past
     const rnd = U.mulberry(scen.seed + g.id.length * 7919);
@@ -177,7 +191,11 @@
 
   /* ---------- ensemble quantiles: lead-time-growing spread around median ---------- */
   function buildQuantiles(median, g) {
-    const out = {};
+    const out = { sigma: new Float64Array(NT) };
+    for (let i = 0; i < NT; i++) {
+      const t = T0 + i * DT;
+      out.sigma[i] = t <= 0 ? 0 : (0.10 + 0.38 * Math.sqrt(t / 48)) * FT.state.ensSpread * Math.max(0.4, median[i] - g.base);
+    }
     for (const [k, z] of Object.entries(QK)) {
       const a = new Float64Array(NT);
       for (let i = 0; i < NT; i++) {
@@ -191,6 +209,25 @@
     }
     return out;
   }
+  H.stageSeries = (g, selection) => buildGauge(g, D.SCENARIOS[FT.state.scenario], selection);
+  let mixedEnsembles = new Map();
+  H.ensemble = function (gaugeId, selection) {
+    const policies = H.normalizeSelection(selection || H._activeKey());
+    const values = Object.values(policies);
+    if (values.every((v) => v === values[0])) return H.gauge[gaugeId][values[0]];
+    const key = gaugeId + "|" + values.join("|");
+    if (!mixedEnsembles.has(key)) {
+      const g = D.GAUGES.find((x) => x.id === gaugeId), med = H.stageSeries(g, policies);
+      mixedEnsembles.set(key, Object.assign(buildQuantiles(med, g), { med }));
+    }
+    return mixedEnsembles.get(key);
+  };
+  H.viewSelection = () => FT.compare && FT.compare.viewSelection ? FT.compare.viewSelection() : null;
+  H.viewEnsemble = (id) => H.ensemble(id, H.viewSelection() || H._activeKey());
+  H.probabilityBelow = function (ensemble, level, t) {
+    const med = sampleArr(ensemble.med, t), sigma = sampleArr(ensemble.sigma, t);
+    return sigma > 0 ? U.clamp(U.normCdf((level - med) / sigma), 0, 1) : (med < level ? 1 : 0);
+  };
 
   /* ---------- MPC proposal (decision package data) ---------- */
   function buildProposal(scen) {
@@ -223,8 +260,7 @@
     const e = H.gauge[g.id].mpc;
     let iPk = 0; for (let i = 1; i < e.med.length; i++) if (e.med[i] > e.med[iPk]) iPk = i;
     const medPk = e.med[iPk];
-    const sigma = Math.max(0.05, (medPk - e.q05[iPk]) / 1.645);   // stage units (m), z_05 = −1.645
-    const pBelow = U.clamp(U.normCdf((g.bd[2] - medPk) / sigma), 0.01, 0.99);
+    const pBelow = H.probabilityBelow(e, g.bd[2], T0 + iPk * DT);
     return {
       resId: top.id, resName: top.name,
       q0: Math.round(R.mpc.preQ * 0.55 / 50) * 50,
@@ -270,6 +306,10 @@
 
   /* ---------- (re)build everything for active scenario ---------- */
   H.rebuild = function () {
+    FT.state.mpcApproved = false;
+    FT.state.approvedAuditSeq = null;
+    FT.state.approvedPackageId = null;
+    mixedEnsembles = new Map();
     const scen = D.SCENARIOS[FT.state.scenario];
     for (let i = 0; i < NT; i++) { H.t[i] = T0 + i * DT; H.rain[i] = rainAt(H.t[i], scen, FT.state.rainScale); }
 
@@ -324,11 +364,13 @@
   const snap = { rain: 0, gauges: {}, reservoirs: {}, phase: "phase.calm", basinAlert: 0 };
   H.at = function (t, explicitKey) {
     const pk = explicitKey || H._activeKey();
+    const policies = H.normalizeSelection(pk);
     snap.rain = sampleArr(H.rain, t);
     let maxAlert = 0, maxRise = 0;
     for (const g of D.GAUGES) {
       const e = H.gauge[g.id];
-      const med = e[pk].med;
+      const ensemble = H.ensemble(g.id, policies);
+      const med = ensemble.med;
       const stage = sampleArr(med, t);
       const stage3h = sampleArr(med, t + 3);
       const lv = alertOf(g, stage);
@@ -337,11 +379,11 @@
       let gs = snap.gauges[g.id];
       if (!gs) gs = snap.gauges[g.id] = {};
       gs.stage = stage; gs.alert = lv; gs.trend = stage3h - stage;
-      gs.q05 = sampleArr(e[pk].q05, t); gs.q95 = sampleArr(e[pk].q95, t);
+      gs.q05 = sampleArr(ensemble.q05, t); gs.q95 = sampleArr(ensemble.q95, t);
       gs.frac = U.clamp((stage - g.base) / (g.bd[2] - g.base), 0, 1.6);   // 0..1 at BĐ3
     }
     for (const r of D.RESERVOIRS) {
-      const R = H.res[r.id][pk];
+      const R = H.res[r.id][policies[r.id]];
       let rs = snap.reservoirs[r.id];
       if (!rs) rs = snap.reservoirs[r.id] = {};
       rs.I = sampleArr(R.I, t); rs.O = sampleArr(R.O, t); rs.Z = sampleArr(R.Z, t);
@@ -349,6 +391,7 @@
       rs.ceilPct = (r.ceil - r.dead) / (r.fsl - r.dead);
       rs.overCeil = rs.Z > r.ceil + 0.05;
       rs.spilling = rs.O > r.turbine * 1.15;
+      rs.capacityExceeded = sampleArr(R.S, t) > r.capM;
     }
     // phase heuristic from main gauge + rain
     const gm = snap.gauges[D.GAUGES[0].id];

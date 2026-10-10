@@ -1,5 +1,5 @@
 /* FloodTwin Q1 Demo — ui: panels, KPIs, timeline transport, modals,
-   bounded-LLM briefs (every clause cited), toasts, event log. */
+   local mock assistant, toasts, event log. */
 (function () {
   "use strict";
   const FT = window.FT, U = FT.util, D = FT.data;
@@ -474,7 +474,7 @@
   function residualRiskText(p) {
     const vi = FT.state.lang === "vi";
     const pct = Math.round(p.pBelow * 100);
-    const inN = Math.max(1, Math.round(p.pBelow * 100));     // "~inN in 100 members"
+    const inN = Math.round((p.medPeak >= p.bd3 ? p.pBelow : 1 - p.pBelow) * 100);     // "~inN in 100 members"
     const overAL3 = p.medPeak >= p.bd3;
     if (vi) {
       return `Bao ensemble tại ${p.gaugeName} khi đỉnh: <b>${U.fmt(p.p05Peak, 1)} – ${U.fmt(p.medPeak, 1)} – ${U.fmt(p.p95Peak, 1)} m</b> (P05·trung vị·P95), so với BĐ3 ${p.bd3} m. `
@@ -495,7 +495,7 @@
     /* Lifecycle marker (js/lifecycle.js): this package is an AI RECOMMENDATION until an
        entitled operator approves it, at which point it becomes the APPROVED PLAN in force.
        Rendering the class here is what stops a proposal from ever reading as operational. */
-    const lc = FT.lifecycle ? FT.lifecycle.classifyDecision({ kind: "PROPOSAL" }) : null;
+    const lc = FT.lifecycle ? FT.lifecycle.classifyDecision(FT.ops.package(H.at(FT.state.timeH))) : null;
     const lcBanner = lc ? `<div class="lcBanner lc-${FT.lifecycle.badge(lc)}">
       <span class="lcDot" aria-hidden="true"></span>
       <b>${FT.lifecycle.label(lc)}</b><em>${FT.lifecycle.reviewNotice(lc)}</em></div>` : "";
@@ -565,10 +565,15 @@
               return `<b>${label}</b>${txt ? ` — ${txt}` : ""}`;
             }).join("<br>")
           : (vi ? "Không viện dẫn điều khoản nào." : "No clause cited.");
-      case "who":
-        return vi
-          ? `${rec.actor.id} · ${t("rec.roleDemo")}. Hồ sơ này <b>chưa ký</b> và sinh ra trong bản trình diễn công khai.`
-          : `${rec.actor.id} · ${t("rec.roleDemo")}. This record is <b>unsigned</b> and was produced in the public demo.`;
+      case "who": {
+        const escape = value => String(value ?? "").replace(/[<>&"']/g, c => ({"<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&#39;"}[c]));
+        const name = escape(rec.actor?.name || rec.actor?.id || (vi ? "Chưa xác định người duyệt" : "No identified reviewer"));
+        const role = escape(rec.actor?.role || (vi ? "chưa có vai trò" : "no role"));
+        const reason = escape(rec.reason || (vi ? "chưa có lý do" : "no reason"));
+        return `${name} · ${role}<br>${vi ? "Lý do" : "Reason"}: ${reason}<br>${vi
+          ? "Hồ sơ demo chưa có chữ ký số hoặc xác thực máy chủ."
+          : "Demo record without a digital signature or server authentication."}`;
+      }
       default: return "";
     }
   }
@@ -595,8 +600,8 @@
       <tr><td>${U.fmt(b.p05_m, 2)} m</td><td>${U.fmt(b.p50_m, 2)} m</td><td>${U.fmt(b.p95_m, 2)} m</td><td>${t2("rec.bandSrc")}</td></tr>
     </table>
     <p>${vi
-      ? `Lưu ý cho người đọc kỹ: con số <b>${p}%</b> ở mục rủi ro tồn dư là <b>tích phân của chính bao trên đây</b> phía dưới BĐ3 — cùng một bộ ước lượng, đọc tại thời điểm trung vị đạt đỉnh. Trước đây hai con số này ra từ hai chỗ khác nhau (bao là phân vị ensemble, phần trăm là công thức đóng của khối tối ưu) và chúng tôi từng ghi rõ là chúng chưa hoà giải; nay đã hoà giải, phần trăm được suy trực tiếp từ bao.`
-      : `For the careful reader: the <b>${p}%</b> in the residual-risk section is the <b>integral of the envelope above</b> below AL3 — one estimator, read at the index where the median peaks. These two used to come from different places (the envelope from ensemble quantiles, the percentage from the optimiser's closed form) and we flagged them as unreconciled; they are now reconciled, with the percentage derived directly from the band.`}</p>`;
+      ? `Xác suất dưới BĐ3 là <b>${p}%</b>, tính từ phân phối Gaussian minh họa tại thời điểm trung vị đạt đỉnh. Độ lệch chuẩn gốc được giữ trước khi cắt các phân vị cho hiển thị; không suy độ lệch chuẩn từ hai đầu bao đã cắt. Đây là bất định chưa hiệu chuẩn trên dữ liệu tổng hợp.`
+      : `P(below AL3) is <b>${p}%</b>, evaluated from the illustrative Gaussian distribution where the median peaks. The original standard deviation is retained before display quantiles are clipped; it is not inferred from clipped endpoints. This is uncalibrated uncertainty on synthetic data.`}</p>`;
   }
   const t2 = (k) => FT.i18n.t(k);
 
@@ -693,130 +698,8 @@
     b.textContent = n ? `${FT.i18n.t("rec.btn")} (${n})` : FT.i18n.t("rec.btn");
   }
 
-  /* ---------- briefs ----------
-     The brief is not published as written. Each claim is built as structured data (text,
-     the sources it cites, and — where it states a number — the snapshot field that number
-     must match), then FT.grounding.verify strikes any claim that is unsourced or whose
-     number has drifted from the live value. This makes the info/ai.html §4.3 groundedness
-     contract executable and visible instead of merely asserted. */
-  function briefClaims(snap) {
-    const vi = FT.state.lang === "vi";
-    const g0 = D.GAUGES[0];
-    const gs = snap.gauges[g0.id];
-    const ts = FT.traffic.stats();
-    const S = H.series(g0.id)[H._activeKey()];
-    const q95in12 = H.sample(S.q95, Math.min(H.T1, FT.state.timeH + 12));
-    const spilling = D.RESERVOIRS.filter((r) => snap.reservoirs[r.id].spilling);
-    const claims = [];
-
-    claims.push({
-      text: vi
-        ? `Lưu vực đang ở pha <b>${FT.i18n.t(snap.phase)}</b>, mưa trung bình <b>${U.fmt(snap.rain, 0)} mm/h</b>.`
-        : `The basin is in <b>${FT.i18n.t(snap.phase)}</b> phase with mean rainfall <b>${U.fmt(snap.rain, 0)} mm/h</b>.`,
-      cites: ["gencast", "nchmf"],
-      num: { value: Math.round(snap.rain), field: { kind: "rain" }, tol: 0.5 },
-    });
-    claims.push({
-      text: vi
-        ? `Trạm ${g0.name} đạt <b>${U.fmt(gs.stage, 2)} m</b> (${gs.alert ? "BĐ" + gs.alert : "dưới BĐ1"}), xu thế ${gs.trend >= 0 ? "lên" : "xuống"} ${U.fmt(Math.abs(gs.trend), 1)} m/3h.`
-        : `${g0.name} gauge reads <b>${U.fmt(gs.stage, 2)} m</b> (${gs.alert ? "AL" + gs.alert : "below AL1"}), ${gs.trend >= 0 ? "rising" : "falling"} ${U.fmt(Math.abs(gs.trend), 1)} m/3h.`,
-      cites: ["sensor"],
-      num: { value: Math.round(gs.stage * 100) / 100, field: { kind: "gaugeStage", gauge: g0.id }, tol: 0.02 },
-    });
-    if (spilling.length) {
-      const names = spilling.map((r) => `${r.name} (${U.fmtInt(snap.reservoirs[r.id].O)} m³/s)`).join(", ");
-      claims.push({
-        text: vi ? `Đang xả điều tiết: ${names}.` : `Regulating releases: ${names}.`,
-        cites: ["d1865_a7", "sensor"],
-        num: { value: Math.round(snap.reservoirs[spilling[0].id].O), field: { kind: "resOut", res: spilling[0].id }, tol: 1 },
-      });
-    }
-    claims.push({
-      text: vi
-        ? `Giao thông: <b>${ts.openPct}%</b> mạng thông suốt, ${ts.closed} đoạn đóng, ETA Đà Nẵng→Hội An ${ts.etaMin > 0 ? ts.etaMin + " phút" : "không khả dụng"}.`
-        : `Traffic: <b>${ts.openPct}%</b> of the network open, ${ts.closed} closed links, Đà Nẵng→Hội An ETA ${ts.etaMin > 0 ? ts.etaMin + " min" : "unavailable"}.`,
-      cites: ["surrogate"],
-      num: { value: ts.openPct, field: { kind: "openPct" }, tol: 0.5 },
-    });
-    const worst = FT.zones && FT.zones.worst ? FT.zones.worst(2) : [];
-    if (worst.length) {
-      const names = worst.map((z) => `${z.def.name} (${U.fmt(z.maxD, 1)} m${z.accessOk ? "" : vi ? ", mất tuyến EOC" : ", EOC cut"})`).join("; ");
-      claims.push({
-        text: vi
-          ? `Khu vực trọng điểm: ${names} — tổng ${U.fmtInt(worst.reduce((s, z) => s + z.exposed, 0))} người phơi nhiễm.`
-          : `Priority areas: ${names} — total ${U.fmtInt(worst.reduce((s, z) => s + z.exposed, 0))} people exposed.`,
-        cites: ["surrogate", "sensor"],
-      });
-    }
-    claims.push({
-      text: vi
-        ? `Triển vọng 12h: nhánh P95 tại ${g0.name} đạt <b>${U.fmt(q95in12, 1)} m</b> ${q95in12 >= g0.bd[2] ? "— <b>có rủi ro vượt BĐ3</b>" : "(dưới BĐ3)"}.`
-        : `12-h outlook: the P95 member at ${g0.name} reaches <b>${U.fmt(q95in12, 1)} m</b> ${q95in12 >= g0.bd[2] ? "— <b>AL3 exceedance risk</b>" : "(below AL3)"}.`,
-      cites: ["gencast"],
-      num: { value: Math.round(q95in12 * 10) / 10, field: { kind: "q95in12", gauge: g0.id }, tol: 0.1 },
-    });
-    if (FT.state.policy === "mpc" && H.proposal) {
-      claims.push({ text: mpcText(), cites: ["d1865_a8"] });
-    }
-    return claims;
-  }
-
-  /* Public hook so the boot self-test (js/main.js) and the gate can assert the brief's
-     groundedness without opening a modal. Returns the raw verify() result. */
-  UI.verifyBrief = (snap) => FT.grounding.verify(briefClaims(snap || H.at(FT.state.timeH)), snap || H.at(FT.state.timeH));
-
-  function situationBriefHTML(snap) {
-    const vi = FT.state.lang === "vi";
-    const result = FT.grounding.verify(briefClaims(snap), snap);
-    const contract = FT.grounding.meetsContract(result);
-    const pct = Math.round(result.ratio * 100);
-    const header = `<div class="groundBar ${contract.clearsTarget ? "ok" : "warn"}">
-      <span>${vi ? "Độ có nguồn của bản tin" : "Brief groundedness"}</span>
-      <strong>${pct}% · ${result.published.length}/${result.total}</strong>
-      <em>${vi ? "ngưỡng" : "target"} ${Math.round(contract.target * 100)}%</em></div>`;
-    const body = result.claims.map((c) => {
-      const chips = (c.cites || []).map((k) => cite(k)).join("");
-      if (c.grounded) return `<p>${c.text}${chips}</p>`;
-      // struck: shown, not hidden — the reader sees the verifier refuse rather than a gap
-      return `<p class="claimStruck"><s>${c.text}</s><span class="struckTag">${vi ? "đã loại · " : "removed · "}${c.reason}</span></p>`;
-    }).join("");
-    return header + body;
-  }
-
-  /* Verify the current brief and log any struck claim to the audit trail. Called when the
-     brief is opened and when it is included in the printable report. */
-  function verifyAndLogBrief(snap) {
-    const result = FT.grounding.verify(briefClaims(snap), snap);
-    if (result.struck.length && FT.ops && FT.ops.audit) {
-      for (const c of result.struck) {
-        FT.ops.audit.log("brief.claim_struck", { reason: c.reason, cites: (c.cites || []).join(",") }, c.text.replace(/<[^>]*>/g, ""));
-      }
-    }
-    return result;
-  }
-
-  function citizenHTML(snap) {
-    const vi = FT.state.lang === "vi";
-    if (!H.ready) return `<p class="abstain">${vi ? "Thiếu bản tin hợp lệ — vui lòng theo kênh chính thức." : "No valid bulletin — please follow official channels."}</p>`;
-    const g = D.GAUGES.find((x) => x.id === "cauLau");
-    const S = H.series(g.id)[H._activeKey()];
-    const t12 = Math.min(H.T1, FT.state.timeH + 12);
-    const q50 = H.sample(S.q50, t12), q95 = H.sample(S.q95, t12);
-    const frac = U.clamp((q50 - g.bd[0]) / (g.bd[2] - g.bd[0]), 0, 1);
-    const prob = Math.round(U.clamp(0.15 + frac * 0.75, 0.05, 0.9) * 100);
-    const q = vi ? "“Tối nay đường nhà tôi ở Hội An có ngập không?”" : "“Will my street in Hội An flood tonight?”";
-    let a;
-    if (q50 < g.bd[0] && q95 < g.bd[1]) {
-      a = vi
-        ? `Theo bản tin hiện hành, mực nước Thu Bồn tại Câu Lâu dự báo <b>dưới BĐ1</b> trong 12 giờ tới — khả năng ngập đường khu trung tâm là thấp. Đây là ước lượng xác suất; hãy theo dõi thông báo chính thức.`
-        : `Per the current bulletin, the Thu Bồn at Câu Lâu is forecast to stay <b>below AL1</b> over the next 12 h — street flooding downtown is unlikely. This is a probabilistic estimate; follow official notices.`;
-    } else {
-      a = vi
-        ? `Dựa trên bản tin NCHMF và dự báo mới nhất, có khoảng <b>${prob}%</b> khả năng nước đạt <b>0,3–0,6 m</b> tại các tuyến thấp ven sông Hội An trong đêm nay (Câu Lâu dự báo ${U.fmt(q50, 1)} m, P95 ${U.fmt(q95, 1)} m so với BĐ2 = ${g.bd[1]} m). Đây là ước lượng xác suất; hãy tuân theo thông báo sơ tán chính thức.`
-        : `Based on the NCHMF bulletin and the latest forecast, there is about a <b>${prob}%</b> chance of <b>0.3–0.6 m</b> of water on low riverside streets of Hội An tonight (Câu Lâu forecast ${U.fmt(q50, 1)} m, P95 ${U.fmt(q95, 1)} m vs AL2 = ${g.bd[1]} m). This is a probabilistic estimate; follow official evacuation notices.`;
-    }
-    return `<p><i>${q}</i></p><p>${a}${cite("nchmf")}${cite("gencast")}${cite("surrogate")}</p><p style="color:var(--ink-2);font-size:11px">${vi ? "LLM chỉ tổng hợp — độ sâu lấy từ surrogate đã kiểm định, không do mô hình ngôn ngữ tự bịa." : "The LLM only assembles — depths come from the validated surrogate, never invented by the language model."}</p>`;
-  }
+  /* Mock briefs share one immutable context and the same limits in UI and reports. */
+  function situationBriefHTML() { return FT.mockAI.html(FT.mockAI.answer()); }
 
   /* ---------- controls wiring ---------- */
   UI.init = function () {
@@ -947,8 +830,8 @@
     el.mpcDetails.addEventListener("click", () => {
       openModal("modal.decision", decisionPackageHTML());
       const ap = $("dpApprove"), rj = $("dpReject");
-      if (ap) ap.addEventListener("click", () => { approveMpc(); closeModal(); });
-      if (rj) rj.addEventListener("click", () => { rejectMpc(); closeModal(); });
+      if (ap) ap.addEventListener("click", () => { if (approveMpc()) closeModal(); });
+      if (rj) rj.addEventListener("click", () => { if (rejectMpc()) closeModal(); });
     });
 
     /* decision record — the export control sits beside Approve, not in a
@@ -1009,17 +892,11 @@
     el.modalScrim.addEventListener("click", (ev) => { if (ev.target === el.modalScrim) closeModal(); });
     document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") closeModal(); });
 
-    /* LLM briefs */
-    el.btnBrief.addEventListener("click", () => {
-      const snap = H.at(FT.state.timeH);
-      verifyAndLogBrief(snap);                       // log any struck claim before showing
-      const html = situationBriefHTML(snap);
-      openModal("modal.brief", html);
-      el.llmBrief.innerHTML = html;
-    });
-    el.btnCitizen.addEventListener("click", () => {
-      openModal("modal.citizen", citizenHTML(H.at(FT.state.timeH)));
-    });
+    /* Local mock assistant: responses stay visible beside the question input. */
+    FT.mockAI.init();
+    el.btnBrief.addEventListener("click", () => FT.mockAI.run());
+    el.btnCitizen.addEventListener("click", () => FT.mockAI.run(FT.state.lang === "vi" ?
+      "Đường nhà tôi ở Hội An có ngập không?" : "Will my street in Hoi An flood?"));
     $("btnReport").addEventListener("click", () => {
       buildPrintReport(H.at(FT.state.timeH));
       window.print();
@@ -1039,7 +916,7 @@
         <p>· Địa hình: <b>DEM thật</b> (AWS Terrarium z12 ≈ 37 m/px toàn lưu vực + lớp phủ z14 ≈ 9 m/px trên đồng bằng Hội An–Vĩnh Điện–Ái Nghĩa–Cẩm Lệ) cho bbox 107,55–108,45°E / 15,30–16,16°N (96 km). <b>Giới hạn thật:</b> đây là DEM vệ tinh miễn phí — sai số đứng ±vài mét; độ chính xác 0,1 m cần LiDAR đo đạc (không có nguồn stream web). Ảnh <b>Esri World Imagery z12</b> + tile động tới <b>z19 (~0,3 m/px)</b> khi zoom; <b>đường thật</b> Esri World Transportation; tọa độ đập/trạm/khu là vị trí thật.</p>
         <h4>Tổng hợp (minh hoạ)</h4>
         <p>· Mưa/dòng vào là hàm giải tích khớp hình dạng sự kiện 10/2020 & Yagi; tòa nhà suy ra từ pixel ảnh (không phải footprint từng căn); chỉ số CSI/NSE/KGE là <b>mục tiêu thiết kế §8</b>, không phải đo đạc.<br>
-        · Bản tin LLM là khuôn mẫu có trích dẫn — minh hoạ ràng buộc groundedness ≥ 0,95 (§7), không gọi mô hình thật.</p>
+        · Trợ lý AI mock dùng quy tắc cục bộ trên số liệu mô phỏng, ghi rõ nguồn tính toán và giới hạn; không gọi LLM hay RAG.</p>
         <h4>Ánh xạ paper</h4>
         <p>Forcing §4 → thanh cưỡng bức · Surrogate §5 → SWE + chip 68× · Tối ưu §6 → Rule⇄MPC + gói quyết định · LLM §7 → bản tin/hỏi đáp · Benchmark §8 → thẻ chỉ số.</p>` : `
         <h4>Real (runs in your browser)</h4>
@@ -1052,7 +929,7 @@
         <p>· Terrain: <b>real DEM</b> (AWS Terrarium z12 ≈ 37 m/px basin-wide + a z14 ≈ 9 m/px overlay across the Hội An–Vĩnh Điện–Ái Nghĩa–Cẩm Lệ delta) over 107.55–108.45°E / 15.30–16.16°N (96 km). <b>Honest limit:</b> this is free satellite DEM — vertical error ±several metres; 0.1 m accuracy needs surveyed LiDAR (no web-streamable source exists). <b>Esri World Imagery z12</b> + viewport tiles up to <b>z19 (~0.3 m/px)</b> on zoom; <b>real roads</b> via Esri World Transportation; dam/gauge/zone coordinates are real.</p>
         <h4>Synthetic (illustrative)</h4>
         <p>· Rainfall/inflows are analytic functions shaped after Oct-2020 & Yagi; buildings are inferred from imagery pixels (not per-building footprints); the CSI/NSE/KGE shown are the paper's <b>§8 design targets</b>, not measurements.<br>
-        · The LLM brief is a cited template — illustrating the ≥0.95 groundedness bound (§7), no live model call.</p>
+        · The mock AI assistant uses local rules over synthetic outputs, with explicit calculation sources. No LLM or RAG is called.</p>
         <h4>Paper mapping</h4>
         <p>Forcing §4 → forcing panel · Surrogate §5 → SWE + 68× chip · Optimisation §6 → Rule⇄MPC + decision package · LLM §7 → briefs · Benchmarks §8 → metric card.</p>`) +
         `<button id="methodExplainState" class="btnPrimary" type="button">${FT.i18n.t("explain.methodGateway")}</button>`);
@@ -1218,7 +1095,7 @@
       [9, () => { tourJump(6); FT.scene3d.setCamera && FT.scene3d.setCamera("delta"); FT.notify(FT.i18n.t("tour.s2"), "warn"); }],
       [18, () => { tourJump(peakT); setView("2d"); FT.notify(FT.i18n.t("tour.s3"), "danger"); }],
       [27, () => { setView("3d"); FT.scene3d.setCamera && FT.scene3d.setCamera("dams"); setPolicyBtn("mpc"); tourJump(Math.max(-2, (H.proposal ? H.proposal.tStart : 2) - 3)); FT.notify(FT.i18n.t("tour.s4"), "info"); }],
-      [35, () => { approveMpc(); const c = $("mpcCompare"); if (c) { c.classList.add("blink"); setTimeout(() => c.classList.remove("blink"), 2500); } FT.notify(FT.i18n.t("tour.s5"), "ok"); }],
+      [35, () => { const c = $("mpcApprove"); if (c) { c.classList.add("blink"); setTimeout(() => c.classList.remove("blink"), 2500); } FT.notify(FT.state.lang === "vi" ? "Xem xét đề xuất và nhập danh tính, lý do trước khi phê duyệt." : "Review the proposal and enter your identity and reason before approval.", "info"); }],
       [42, () => { tourJump(peakT); setView("2d"); FT.notify(FT.i18n.t("tour.s6"), "ok"); }],
       [51, () => { setView("3d"); FT.scene3d.setCamera && FT.scene3d.setCamera("hoian"); el.btnBrief.click(); }],
       [60, () => { closeModal(); FT.notify(FT.i18n.t("tour.end"), "info"); stopTour(true); }],
@@ -1235,9 +1112,9 @@
   /* A decision is sealed BEFORE the state it describes is mutated: the record
      has to document the world the operator was looking at when they clicked,
      not the world their click produced. DB-01 §3. */
-  function seal(outcome) {
+  function seal(outcome, auditEntry) {
     if (!FT.record) return null;
-    const rec = FT.record.seal(outcome);
+    const rec = FT.record.seal(outcome, { auditEntry, reason: auditEntry && auditEntry.reason });
     FT.record.noteDecided(rec);
     refreshRecordBtn();
     /* The event log is where an operator looks for what happened, so a sealed
@@ -1256,22 +1133,32 @@
   }
 
   function approveMpc() {
-    if (FT.state.policy !== "mpc") return;
-    seal("approved");
+    if (FT.state.policy !== "mpc") return false;
+    const evidence = FT.ui.authorizeDecision && FT.ui.authorizeDecision("decision.approve");
+    if (!evidence) return false;
+    seal("approved", evidence);
+    FT.state.approvedAuditSeq = evidence.seq;
+    FT.state.approvedPackageId = evidence.detail.package;
     FT.state.mpcApproved = true;
     el.mpcCard.classList.add("approved");
     el.mpcApprove.textContent = FT.i18n.t("mpc.approved");
     FT.notify(FT.i18n.t("toast.approved"), "ok");
     FT.log(FT.i18n.t("mpc.applied"), "ok");
     FT.bus.emit("hydroRebuilt");
+    return true;
   }
   function rejectMpc() {
-    seal("rejected");
+    const evidence = FT.ui.authorizeDecision && FT.ui.authorizeDecision("decision.reject");
+    if (!evidence) return false;
+    seal("rejected", evidence);
+    FT.state.approvedAuditSeq = null;
+    FT.state.approvedPackageId = null;
     FT.state.mpcApproved = false;
     el.mpcCard.classList.remove("approved");
     el.mpcApprove.textContent = FT.i18n.t("mpc.approve");
     FT.notify(FT.i18n.t("toast.rejected"), "info");
     FT.bus.emit("hydroRebuilt");
+    return true;
   }
   function refreshMpc() {
     if (FT.record) FT.record.notePresented();
@@ -1495,7 +1382,7 @@
 
   /* inflow (grey) vs outflow (cyan) mini history per reservoir, with now-marker */
   function drawResSparks() {
-    const pk = H._activeKey();
+    const policies = H.normalizeSelection(H.viewSelection() || H._activeKey());
     for (const ref of resRefs) {
       const cv = ref.spark;
       if (!cv) continue;
@@ -1507,7 +1394,7 @@
       const c = cv.getContext("2d");
       const w = cv.width, h2 = cv.height;
       c.clearRect(0, 0, w, h2);
-      const R = H.reservoirSeries(ref.id)[pk];
+      const R = H.reservoirSeries(ref.id)[policies[ref.id]];
       let vmax = 50;
       for (let i = 0; i < H.NT; i++) { if (R.I[i] > vmax) vmax = R.I[i]; if (R.O[i] > vmax) vmax = R.O[i]; }
       const X2 = (i) => (i / (H.NT - 1)) * w;
@@ -1529,6 +1416,7 @@
 
   /* ---------- per-tick updates ---------- */
   UI.tick = function (snap) {
+    FT.mockAI.tick();
     const st = FT.state;
     const c = U.clock(st.timeH);
     el.simClock.textContent = `${c.hm} · ${c.dm}`;

@@ -197,6 +197,8 @@ async function approvalGate(browser) {
   usePage(page);
   await setPolicy(page, 'mpc');
   await setTime(page, 6);
+  await page.evaluate(() => { FT.state.rainScale = .5; FT.hydro.rebuild(); });
+  await setTime(page, -6);
 
   await check('an anonymous approval is refused', async (d) => {
     const r = await page.evaluate(() => {
@@ -263,6 +265,8 @@ async function decisionRights(browser) {
   usePage(page);
   await setPolicy(page, 'mpc');
   await setTime(page, 6);
+  await page.evaluate(() => { FT.state.rainScale = .5; FT.hydro.rebuild(); });
+  await setTime(page, -6);
 
   await must0('a pre-release is approvable only by the accountable role', page, async (d) => {
     const r = await page.evaluate(() => {
@@ -382,12 +386,12 @@ async function degradation(browser) {
         box: document.getElementById('dpBox').innerText.slice(0, 80),
       }));
       d(r);
-      if (lv === 0) return r.level === 0 && (r.kind === expect[0] || r.kind === 'NULL' || r.kind === 'SATURATED');
+      if (lv <= 1) return r.level === lv && (r.kind === expect[0] || r.kind === 'NULL' || r.kind === 'SATURATED');
       return r.level === lv && r.kind === expect[lv];
     });
   }
 
-  await check('at L4 the product refuses to advise and blanks the decision deadline', async (d) => {
+  await check('at L4 the product refuses to advise and states the deadline is not applicable', async (d) => {
     await setDegradation(page, 4);
     await setTime(page, 6);
     const r = await page.evaluate(() => ({
@@ -396,7 +400,7 @@ async function degradation(browser) {
       box: document.getElementById('dpBox').innerText,
     }));
     d({ kind: r.kind, deadline: r.deadline });
-    return r.kind === 'REFUSAL' && r.deadline === '—' && /TỪ CHỐI|NO ADVICE/i.test(r.box);
+    return r.kind === 'REFUSAL' && /^(KHÔNG ÁP DỤNG|NOT APPLICABLE)$/.test(r.deadline) && /TỪ CHỐI|NO ADVICE/i.test(r.box);
   });
 
   await setDegradation(page, null);

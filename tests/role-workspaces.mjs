@@ -251,6 +251,11 @@ async function workspaceRouting(browser) {
 
   await check('missing-data i18n fallbacks are localized without changing canonical tokens', async (detail) => {
     const state = await directCity.page.evaluate(async () => {
+      // The classifier fallback requires a targeted proposal, not a saturated/non-target event.
+      const priorRainScale = FT.state.rainScale;
+      FT.state.rainScale = .5; FT.hydro.rebuild();
+      const proposal = FT.ops.package(FT.hydro.at(FT.state.timeH));
+      const targetFacility = FT.facilities.all().find(f => f.demoReservoirId === proposal.reservoir.id);
       const text = (selector) => document.querySelector(selector)?.textContent.replace(/\s+/g, ' ').trim() || '';
       const original = {
         accountable: FT.roles.accountable,
@@ -270,7 +275,7 @@ async function workspaceRouting(browser) {
       const renderPlantFallback = async (lang) => {
         FT.i18n.setLang(lang);
         FT.lifecycle.classifyDecision = () => null;
-        FT.workspaces.navigate('plant', { facilityId: 'song-tranh-2' });
+        FT.workspaces.navigate('plant', { facilityId: targetFacility.id });
         await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
         const advisory = text('[data-plant-advisory]');
         FT.lifecycle.classifyDecision = original.classifyDecision;
@@ -283,6 +288,7 @@ async function workspaceRouting(browser) {
       FT.i18n.setLang('vi');
       FT.workspaces.navigate('city');
       await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      FT.state.rainScale = priorRainScale; FT.hydro.rebuild();
       return { enCity, enPlant, viCity, viPlant };
     });
     detail(state);
@@ -502,6 +508,8 @@ async function workspaceRouting(browser) {
   await directCity.ctx.close();
 
   const directPlant = await bootApp(browser, BASE, { hash: '?workspace=plant&facility=a-vuong' });
+  // Exercise order workflows with a feasible event; the full-strength event is saturated.
+  await directPlant.page.evaluate(() => { FT.state.rainScale = .5; FT.hydro.rebuild(); });
   usePage(directPlant.page);
   await check('direct plant route preserves governed facility selection', async (detail) => {
     const state = await directPlant.page.evaluate(() => ({
@@ -1511,6 +1519,7 @@ async function sharedReleaseWorkflowStore(browser) {
   step('RW · Shared release workflow store');
   const { ctx, page, errors } = await bootApp(browser, BASE);
   usePage(page);
+  await page.evaluate(() => { FT.state.rainScale = .5; FT.hydro.rebuild(); });
   await setTime(page, 6);
 
   await check('the app boots without workflow-blocking application errors', (detail) => {

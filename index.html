@@ -17,7 +17,7 @@
   <meta property="og:locale" content="vi_VN" />
   <meta name="twitter:card" content="summary_large_image" />
   <link rel="canonical" href="https://app.skylabs.vn/" />
-  <link rel="stylesheet" href="./styles.css?v=149" />
+  <link rel="stylesheet" href="./styles.css?v=151" />
 </head>
 <body>
   <div id="app" class="app">
@@ -457,12 +457,24 @@
 
       <section class="panel llmPanel">
         <div class="panelTitle">
-          <span data-i18n="panel.llm">Lớp LLM có kiểm soát · RAG</span>
-          <strong data-i18n="llm.grounded">100% trích nguồn</strong>
+          <span data-i18n="panel.llm">Trợ lý AI mock</span>
+          <strong data-i18n="llm.grounded">Cục bộ · theo quy tắc</strong>
+        </div>
+        <p class="mockIntro" data-i18n="mock.intro">Dữ liệu mô phỏng · chưa dùng LLM · không tự phê duyệt lệnh.</p>
+        <div class="mockPrompts" aria-label="Quick questions">
+          <button type="button" data-mock-prompt="forecast" data-i18n="mock.forecast">Mực trạm</button>
+          <button type="button" data-mock-prompt="reservoirs" data-i18n="mock.reservoirs">Hồ chứa</button>
+          <button type="button" data-mock-prompt="uncertainty" data-i18n="mock.uncertainty">Bất định</button>
+          <button type="button" data-mock-prompt="source" data-i18n="mock.source">Nguồn</button>
         </div>
         <div class="llmBrief" id="llmBrief">
-          <p data-i18n="llm.placeholder">Nhấn tạo bản tin để tổng hợp tình huống — mọi con số lấy từ solver/optimizer, mọi mệnh đề kèm trích dẫn.</p>
+          <p data-i18n="llm.placeholder">Tạo bản tin hoặc hỏi về số liệu mô phỏng đang xem. Mock ghi rõ nguồn tính toán và giới hạn.</p>
         </div>
+        <p id="mockStatus" class="mockStatus" role="status"></p>
+        <form id="mockQuestionForm" class="mockForm">
+          <label for="mockQuestion" data-i18n="mock.question">Câu hỏi về mô phỏng</label>
+          <div><input id="mockQuestion" type="text" maxlength="500" required autocomplete="off"><button class="btnPrimary" type="submit" data-i18n="mock.ask">Hỏi</button></div>
+        </form>
         <div class="llmActions">
           <button id="btnBrief" type="button" class="btnPrimary" data-i18n="llm.generate">Tạo bản tin tình huống</button>
           <button id="btnCitizen" type="button" data-i18n="llm.citizen">Hỏi đáp cư dân Hội An</button>
@@ -534,36 +546,37 @@
     }
   </script>
 
-  <script src="./js/core.js?v=149"></script>
-  <script src="./js/geo.js?v=149"></script>
-  <script src="./js/data.js?v=149"></script>
-  <script src="./js/facility-registry.js?v=149"></script>
-  <script src="./js/workspaces.js?v=149"></script>
-  <script src="./js/address.js?v=149"></script>
-  <script src="./js/hydro.js?v=149"></script>
-  <script src="./js/decision.js?v=149"></script>
-  <script src="./js/roles.js?v=149"></script>
-  <script src="./js/world.js?v=149"></script>
-  <script src="./js/forecast.js?v=149"></script>
-  <script src="./js/alerts.js?v=149"></script>
-  <script src="./js/domain.js?v=149"></script>
-  <script src="./js/reports.js?v=149"></script>
-  <script src="./js/traffic.js?v=149"></script>
-  <script src="./js/zones.js?v=149"></script>
-  <script src="./js/charts.js?v=149"></script>
-  <script src="./js/map2d.js?v=149"></script>
-  <script src="./js/scene3d.js?v=149"></script>
-  <script src="./js/record.js?v=149"></script>
-  <script src="./js/grounding.js?v=149"></script>
-  <script src="./js/lifecycle.js?v=149"></script>
-  <script src="./js/release-workflows.js?v=149"></script>
-  <script src="./js/city-dashboard.js?v=149"></script>
-  <script src="./js/scenario-compare.js?v=149"></script>
-  <script src="./js/plant-dashboard.js?v=149"></script>
-  <script src="./js/explainability.js?v=149"></script>
-  <script src="./js/ui.js?v=149"></script>
-  <script src="./js/opsui.js?v=149"></script>
-  <script src="./js/main.js?v=149"></script>
-  <script src="./js/shell.js?v=149"></script>
+  <script src="./js/core.js?v=151"></script>
+  <script src="./js/geo.js?v=151"></script>
+  <script src="./js/data.js?v=151"></script>
+  <script src="./js/facility-registry.js?v=151"></script>
+  <script src="./js/workspaces.js?v=151"></script>
+  <script src="./js/address.js?v=151"></script>
+  <script src="./js/hydro.js?v=151"></script>
+  <script src="./js/decision.js?v=151"></script>
+  <script src="./js/roles.js?v=151"></script>
+  <script src="./js/world.js?v=151"></script>
+  <script src="./js/forecast.js?v=151"></script>
+  <script src="./js/alerts.js?v=151"></script>
+  <script src="./js/domain.js?v=151"></script>
+  <script src="./js/reports.js?v=151"></script>
+  <script src="./js/traffic.js?v=151"></script>
+  <script src="./js/zones.js?v=151"></script>
+  <script src="./js/charts.js?v=151"></script>
+  <script src="./js/map2d.js?v=151"></script>
+  <script src="./js/scene3d.js?v=151"></script>
+  <script src="./js/record.js?v=151"></script>
+  <script src="./js/grounding.js?v=151"></script>
+  <script src="./js/lifecycle.js?v=151"></script>
+  <script src="./js/release-workflows.js?v=151"></script>
+  <script src="./js/city-dashboard.js?v=151"></script>
+  <script src="./js/scenario-compare.js?v=151"></script>
+  <script src="./js/plant-dashboard.js?v=151"></script>
+  <script src="./js/explainability.js?v=151"></script>
+  <script src="./js/ai/mock-assistant.js?v=151"></script>
+  <script src="./js/ui.js?v=151"></script>
+  <script src="./js/opsui.js?v=151"></script>
+  <script src="./js/main.js?v=151"></script>
+  <script src="./js/shell.js?v=151"></script>
 </body>
 </html>

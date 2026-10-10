@@ -167,19 +167,19 @@
   /* ---------- edge class transitions → events ---------- */
   function scanTransitions() {
     const edges = FT.world.roads.edges;
-    let newlyClosed = 0;
+    let newlyClosed = 0, newlyOpened = 0;
     for (let i = 0; i < edges.length; i++) {
       const c = edges[i].cls, p = prevCls[i];
       if (c !== p) {
         if (c >= 3 && p < 3) { FT.log(`${edges[i].name} — ${FT.i18n.t("ev.roadClosed")}`, "danger"); newlyClosed++; }
-        else if (p >= 3 && c < 3) FT.log(`${edges[i].name} — ${FT.i18n.t("ev.roadOpen")}`, "ok");
+        else if (p >= 3 && c < 3) { FT.log(`${edges[i].name} — ${FT.i18n.t("ev.roadOpen")}`, "ok"); newlyOpened++; }
         prevCls[i] = c;
       }
     }
-    if (newlyClosed > 0) {
+    if (newlyClosed > 0 || newlyOpened > 0) {
       // blocked vehicles get another chance; passing vehicles will detect on entry
       for (const v of T.vehicles) if (v.state === "blocked" && !v._queued) { v._queued = true; rerouteQueue.push(v); }
-      if (FT.state.timeH - lastRerouteToastT > 2) {
+      if (newlyClosed > 0 && FT.state.timeH - lastRerouteToastT > 2) {
         lastRerouteToastT = FT.state.timeH;
         FT.notify(FT.i18n.t("toast.reroute"), "warn");
       }

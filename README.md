@@ -15,12 +15,12 @@ Demo nghiên cứu sẵn sàng cho triển khai kỹ thuật của paper **Flood
 - **Giao thông mô phỏng cập nhật liên tục**: ~130 xe tổng hợp định tuyến Dijkstra theo thời gian, tự đổi lộ trình khi đường ngập ≥30 cm; ETA Đà Nẵng → Hội An được tính lại theo trạng thái kịch bản.
 - **Dự báo xác suất**: hydrograph ensemble fan (5–95%, 25–75%, trung vị) trên nền quan trắc, đường báo động BĐ1/2/3; timeline T−24h → T+48h tua/kéo tự do.
 - **Rule curve tĩnh ⇄ FloodTwin MPC**: so sánh trực tiếp hai chính sách vận hành; đề xuất **xả trước** kèm *gói quyết định* (bao ensemble, điều khoản QĐ 1865/QĐ-TTg, rủi ro tồn dư) — người trực **phê duyệt** thì hạ lưu thay đổi ngay.
-- **Lớp LLM có kiểm soát**: bản tin tình huống & hỏi đáp cư dân với 100% mệnh đề kèm trích dẫn (RAG mô phỏng) — LLM không bao giờ tính thủy lực.
+- **Trợ lý AI mock**: bản tin và hỏi đáp theo quy tắc, đọc số liệu mô phỏng hiện tại; ghi rõ bối cảnh, nguồn tính toán và giới hạn. Không gọi LLM hay RAG, không tự phê duyệt lệnh.
 - **Song ngữ VI/EN**, dark theme chuẩn phòng điều hành, 60 fps.
 
 ## Trình diễn & deep-link
 
-- Nút **🎬 Trình diễn** (góc phải trên): tour tự động ~60 giây kể trọn chuỗi *nước lên → đỉnh rule vượt BĐ3 → MPC đề xuất → phê duyệt → đỉnh giảm → bản tin LLM*; chạm/bấm phím bất kỳ để dừng.
+- Nút **🎬 Trình diễn** (góc phải trên): tour tự động ~60 giây kể trọn chuỗi *nước lên → đỉnh rule vượt BĐ3 → MPC đề xuất → phê duyệt → đỉnh giảm → bản tin AI mock*; chạm/bấm phím bất kỳ để dừng.
 - Deep-link: `index.html#tour` (tự chạy tour), `#2d` (mở bản đồ 2D), `#yagi` / `#monsoon` (kịch bản), `#en` (tiếng Anh).
 - Di chuột trên hydrograph để đọc mực nước + dải 5–95% tại bất kỳ thời điểm nào; mỗi hồ có sparkline vào/xả với vạch thời điểm hiện tại.
 
@@ -56,7 +56,27 @@ for f in js/*.js; do node --check "$f"; done
 | `js/vndata.js` | hình học Việt Nam + 26 hồ thủy điện + bão theo kịch bản |
 | `js/hydronat.js` | engine quốc gia đa yếu tố (bão·mưa·đất·routing·triều) |
 | `js/nation.js` | scene 3D toàn quốc + panel vận hành + drill-down |
-| `js/ui.js` | panels, KPI, modal, brief LLM, toasts |
+| `js/ui.js` | panels, KPI, modal, bản tin mock, toasts |
 | `js/main.js` | bootstrap + vòng lặp mô phỏng/render |
 
 **Dữ liệu tổng hợp minh hoạ phương pháp — không dùng cho vận hành thật.**
+
+---
+
+## FloodTwin AI — bản local
+
+Đã chọn chế độ local, không gọi OpenAI. Trang chính có trợ lý mock cục bộ qua nút ✦: tạo bản tin, chọn câu hỏi nhanh hoặc nhập câu hỏi. Xem [phạm vi mock và kiểm thử](docs/MOCK_AI_ASSISTANT.md). Hai trang `ai-demo.html` và `phase2-training.html` minh họa dữ liệu tổng hợp, huấn luyện và đánh giá; chúng không cung cấp dự báo vận hành đã hiệu chuẩn.
+
+- `ml-hydrology.js`: ensemble mô hình ba bể chứa bảo toàn nước, tham số có seed; không có trọng số neural pretrained.
+- `training.js`: LSTM một tầng, BPTT + Adam, đầu ra log1p lưu lượng; class `TrainableMCLSTM` giữ tên cũ để tương thích, không phải kiến trúc MC-LSTM của Hoedt et al.
+- `data-assimilation.js`: EnSRF xử lý quan trắc từng trạm, giữ đúng chỉ số khi thiếu quan trắc.
+- `risk-engine.js`: so sánh chính sách từ ensemble thủy văn; giả định tương quan và hệ số thiệt hại chưa hiệu chuẩn.
+- `llm-integration.js`: mặc định template local, không có chứng cứ để xác nhận groundedness.
+
+Chạy giao diện bằng `npm run serve`, rồi mở `http://127.0.0.1:4310/`. Cài Chromium cho Playwright bằng `npx playwright install chromium` khi máy chưa có. Chạy `npm test` cho kiểm thử nội bộ. Bộ hợp đồng tài liệu ngoài dự án chạy riêng bằng `npm run test:external-docs`; cần checkout `SkyLabs_SURF2026` hoặc đặt `FLOODTWIN_PRODUCT_OS` đến thư mục tương ứng.
+
+Huấn luyện có seed bằng `npm run train:local`. Nhập dữ liệu riêng bằng `node scripts/run-phase2.cjs --dataset đường-dẫn.json --gauge aiNghia`; hợp đồng dữ liệu, đơn vị và cách chia tập ở [hướng dẫn local](docs/LOCAL_AI_WORKFLOW.md). Đầu ra mặc định trong `artifacts/local-ai/`: mô hình, validation JSON/Markdown, dự đoán CSV và fixture kiểm tra JS/Python. Tạo biểu đồ bằng `python scripts/plot-validation.py`.
+
+Cài thư viện API bằng `python -m pip install -r scripts/requirements.txt`, hoặc `scripts/requirements-plot.txt` nếu cần biểu đồ. Chạy `npm run serve:ai` cho API tại `http://127.0.0.1:5000`; mặc định sử dụng tank ensemble. Đặt biến môi trường `FLOODTWIN_MODEL_PATH` đến `model.json` trước khi chạy để sử dụng LSTM đã xuất. API chỉ nhận artifact theo giờ, target một giờ, đúng trạm và đủ chiều dài lịch sử.
+
+Không có kết quả thực nghiệm nào trong bản này chứng minh NSE ≥ 0.80, KGE ≥ 0.75, CSI ≥ 0.80 hay tăng tốc so với HEC-RAS. Xem [báo cáo sửa lỗi](docs/AUDIT_FIX_REPORT.md), [roadmap hiện tại](AI_ROADMAP.md) và [quy trình đánh giá](docs/LOCAL_AI_WORKFLOW.md).

@@ -12,7 +12,7 @@
   const R = (FT.record = {});
 
   const SCHEMA_VERSION = "1.0.0";
-  const APP_VERSION = "v127";   // must equal the js?v=NN asset query in index.html (verify-record.mjs check 1)
+  const APP_VERSION = FT.BUILD_VERSION || "v150";   // must equal the js?v=NN asset query in index.html (verify-record.mjs check 1)
   const MODEL_VERSION = "hydro-analytic-1 + swe-288-1";
   const PROMPT_VERSION = "none";          /* no model call in this build, ui.js §brief */
   const DATA_VERSION = "vgtb-2026-07";
@@ -146,6 +146,8 @@
       p05_m: roundTo(e.mpc.q05[iPeak], 3),
       p50_m: roundTo(e.mpc.med[iPeak], 3),
       p95_m: roundTo(e.mpc.q95[iPeak], 3),
+      sigma_unclipped_m: roundTo(e.mpc.sigma[iPeak], 6),
+      calibrated: false,
       source: "ensemble quantiles of the in-browser routing at the index where the median peaks",
     };
   }
@@ -266,6 +268,9 @@
     const ref = refFor(hash, n);
     snapshots[ref] = snap;
 
+    const evidence = opts.auditEntry && FT.ops && FT.ops.audit &&
+      FT.ops.audit.stored && FT.ops.audit.stored(opts.auditEntry);
+    const actor = evidence && evidence.detail.actorIdentity;
     const wall = new Date();
     const rec = {
       id: "dr-" + String(n).padStart(4, "0"),
@@ -273,13 +278,15 @@
       schema_version: SCHEMA_VERSION,
       outcome: outcome,
       prior_id: opts.priorId || null,
-      reason: opts.reason || null,
+      reason: evidence ? evidence.reason : (opts.reason || null),
       created_at_wall: wall.toISOString(),
       created_at_wall_source: "client_clock_unsynchronised",   /* khoá, hiển thị dịch ở ui.js */
       created_at_sim: snap.sim_time_h,
       target_time_sim: opts.targetTimeSim === undefined ? snap.sim_time_h : opts.targetTimeSim,
       scenario_id: snap.scenario_id,
-      actor: { id: "demo-visitor", role: "demo, no identity established" },
+      actor: actor ? { id: actor.name, name: actor.name, role: actor.role } :
+        { id: null, role: null },
+      audit_seq: evidence ? evidence.seq : null,
       input_snapshot_ref: ref,
       input_hash: hash,
       proposal: snap.proposal ? {
